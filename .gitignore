@@ -1,0 +1,44 @@
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE / editor ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === Claude Code ===
+.claude/
+
+# === Go ===
+api/server
+api/bot
+api/tmp/
+*.exe
+
+# === Flutter ===
+ui/build/
+ui/.dart_tool/
+ui/.packages
+ui/.flutter-plugins
+ui/.flutter-plugins-dependencies
+ui/.pub-cache/
+ui/.pub/
+ui/ephemeral/
+*.iml
+
+# === Node / E2E tests ===
+test/e2e/node_modules/
+test/e2e/screenshots/
+test/e2e/test-results/
+
+# === Environment / secrets ===
+.env
+.env.*
+!.env.example
+credentials.json
+
+# === Misc ===
+*.log
