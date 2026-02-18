@@ -15,9 +15,13 @@ python3 scripts/parse.py
 
 # 3. Validate and generate statistics
 python3 scripts/validate.py
+
+# 4. Extract features for neural network training
+pip install -r requirements.txt  # numpy
+python3 scripts/features.py
 ```
 
-No external dependencies required -- the pipeline uses only Python stdlib.
+Download, parse, and validate require only Python stdlib. Feature extraction requires numpy (`pip install -r requirements.txt`).
 
 ## Data Sources
 
@@ -36,12 +40,19 @@ data/
     download.py       # Download raw datasets
     parse.py          # Parse and normalize to unified format
     validate.py       # Validate data and produce statistics
+    features.py       # Extract training features (board tensors, order labels)
     province_map.py   # Province name normalization (3-letter codes)
   raw/                # Downloaded files (gitignored)
   processed/          # Parsed output (gitignored)
     games.jsonl       # Unified game records (one per line)
     quarantined.jsonl # Games that failed validation
     stats.json        # Summary statistics
+    features/         # Training-ready numpy arrays
+      train.npz       # Training split
+      val.npz         # Validation split
+      test.npz        # Test split
+      adjacency.npy   # 81x81 GNN adjacency matrix
+      metadata.json   # Feature dimensions, area/power indices
   requirements.txt
   .gitignore
 ```
