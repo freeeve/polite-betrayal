@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"math"
 	"math/rand"
 	"sort"
 
@@ -1073,17 +1072,6 @@ func (s TacticalStrategy) buildCandidateOrders(gs *diplomacy.GameState, power di
 		moves = append(moves, moveAssignment{c.unit, c.target, c.coast, c.score})
 	}
 
-	// Phase 2b: Fallback for unassigned units whose best moves were all
-	// negative. Pick the least-bad move so units don't default to hold.
-	for _, c := range candidates {
-		if assignedUnits[c.unit.Province] || assignedTargets[c.target] {
-			continue
-		}
-		assignedUnits[c.unit.Province] = true
-		assignedTargets[c.target] = true
-		moves = append(moves, moveAssignment{c.unit, c.target, c.coast, c.score})
-	}
-
 	// --- Phase 3: Support reassignment for remaining SC moves ---
 	var scMoves []int
 	for i, mv := range moves {
@@ -1435,31 +1423,46 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 			}
 
 			// Threat awareness: penalize leaving an owned SC undefended.
-			// Scale penalty by empire size so early-game expansion is not
-			// blocked. Full penalty only kicks in once the bot has 8+ SCs
-			// and defending matters more than grabbing new centers.
-			scScale := math.Max(0.1, float64(ownSCs-3)/10.0)
-			if ownSCs >= 14 {
-				scScale = 0.15
-			} else if ownSCs >= 12 {
-				scScale = 0.3
-			} else if ownSCs >= 10 {
-				scScale = 0.5
-			}
+			// Checks both adjacent enemies (distance 1) and nearby enemies
+			// (distance 2) to avoid leaving SCs exposed to imminent attack.
+			// Scale down when ahead to prioritize attack over defense.
 			if threat, ok := threatenedOwnSCs[u.Province]; ok {
 				defense := ProvinceDefense(u.Province, power, gs, m)
-				penalty := 8.0 * float64(threat)
+				// Undefended: losing an owned SC is a net swing of ~20
+				// points (we lose 10, enemy gains 10). Penalty must
+				// exceed the total value of capturing a neutral SC
+				// plus incidental bonuses (~15 total).
+				penalty := 16.0 * float64(threat)
 				if defense >= threat {
-					penalty = 3.0
+					// Defenders can cover, but leaving still weakens
+					// the position by one unit of support.
+					penalty = 4.0
 				}
-				score -= penalty * scScale
+				if ownSCs >= 14 {
+					penalty *= 0.15
+				} else if ownSCs >= 12 {
+					penalty *= 0.3
+				} else if ownSCs >= 10 {
+					penalty *= 0.5
+				}
+				score -= penalty
 			} else if threat2, ok := nearbyEnemyOwnSCs[u.Province]; ok {
+				// Enemies within 2 moves: weaker penalty since they need an
+				// extra turn to reach, but still discourages leaving the SC
+				// wide open for a follow-up attack.
 				defense := ProvinceDefense(u.Province, power, gs, m)
-				penalty := 3.0 * float64(threat2)
+				penalty := 6.0 * float64(threat2)
 				if defense >= threat2 {
-					penalty = 1.0
+					penalty = 2.0
 				}
-				score -= penalty * scScale
+				if ownSCs >= 14 {
+					penalty *= 0.15
+				} else if ownSCs >= 12 {
+					penalty *= 0.3
+				} else if ownSCs >= 10 {
+					penalty *= 0.5
+				}
+				score -= penalty
 			}
 
 			// Collision penalty
