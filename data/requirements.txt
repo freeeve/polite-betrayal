@@ -1,3 +1,4 @@
 # Data pipeline dependencies
-# Core pipeline uses only Python stdlib (json, urllib, zipfile, etc.)
-# No external dependencies required for download + parse + validate.
+# Core pipeline (download, parse, validate) uses only Python stdlib.
+# Feature extraction requires numpy.
+numpy>=1.24
