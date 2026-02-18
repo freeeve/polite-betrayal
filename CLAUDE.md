@@ -43,6 +43,8 @@
 ### Testing & Benchmarking
 - Include descriptive names in test runs (e.g., "bench-easy-england-vs-random") so games are identifiable in the UI
 - For DB benchmarks, use `DryRun: false` so games are reviewable in the UI
+- Store benchmark results in `benchmarks/` (not `tasks/`). Use descriptive filenames like `easy-vs-random-2026-02-17.md`
+- Include SC timeline stats (avg/min/p25/p50/p75/p95/max per year) when running arena benchmarks
 
 ### Communication
 - Report concise status updates to the user — completed tasks, active agents, blockers
