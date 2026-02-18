@@ -299,6 +299,204 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
     }
 }
 
+/// Fixes uncoordinated support-move orders in a candidate order set.
+///
+/// For each support-move order in the candidate, checks whether the supported
+/// unit (if owned by the same power) is actually ordered to make the matching
+/// move. If not, replaces the support-move with either:
+/// 1. A support for what the supported unit IS doing (support-move for an actual
+///    move, or support-hold for a hold), if such an order exists in the unit's
+///    candidate list.
+/// 2. The unit's best non-support order from its candidate list.
+///
+/// This prevents wasting orders on phantom supports within a single power's
+/// order set. Cross-power supports are left as-is since we can't know what
+/// other powers will do.
+fn coordinate_candidate_supports(
+    candidate: &mut Vec<(Order, Power)>,
+    per_unit: &[Vec<ScoredOrder>],
+    unit_provinces: &[Province],
+    power: Power,
+) {
+    // Iterate until stable: fixing one support may enable or break another.
+    // In practice converges in 1-2 passes since replacements prefer hold/move.
+    for _pass in 0..3 {
+        let mut changed = false;
+
+        // Build a fresh map of what each unit is doing this pass.
+        let unit_orders: Vec<(Province, Order)> = candidate
+            .iter()
+            .map(|(o, _)| {
+                let prov = match *o {
+                    Order::Hold { unit }
+                    | Order::Move { unit, .. }
+                    | Order::SupportHold { unit, .. }
+                    | Order::SupportMove { unit, .. }
+                    | Order::Convoy { unit, .. } => unit.location.province,
+                    _ => Province::Adr,
+                };
+                (prov, *o)
+            })
+            .collect();
+
+        for ci in 0..candidate.len() {
+            let (order, ord_power) = candidate[ci];
+            if ord_power != power {
+                continue;
+            }
+
+            if let Order::SupportMove {
+                unit,
+                supported,
+                dest,
+            } = order
+            {
+                let supported_prov = supported.location.province;
+
+                // Only fix supports for our own units (we know their orders).
+                let supported_is_ours = unit_orders.iter().any(|(p, _)| *p == supported_prov);
+                if !supported_is_ours {
+                    continue;
+                }
+
+                // Check what the supported unit is actually ordered to do.
+                let supported_order = unit_orders
+                    .iter()
+                    .find(|(p, _)| *p == supported_prov)
+                    .map(|(_, o)| *o);
+
+                let is_matching = match supported_order {
+                    Some(Order::Move { dest: d, .. }) => d.province == dest.province,
+                    _ => false,
+                };
+
+                if is_matching {
+                    continue; // Support matches the actual move -- all good.
+                }
+
+                // Support doesn't match. Find a replacement from this unit's candidates.
+                let supporter_prov = unit.location.province;
+                let ui = match unit_provinces.iter().position(|&p| p == supporter_prov) {
+                    Some(idx) => idx,
+                    None => continue,
+                };
+
+                let replacement = find_replacement_order(
+                    &per_unit[ui],
+                    supported_prov,
+                    supported_order,
+                    &unit_orders,
+                    unit_provinces,
+                );
+
+                if let Some(new_order) = replacement {
+                    candidate[ci] = (new_order, power);
+                    changed = true;
+                }
+            }
+        }
+
+        if !changed {
+            break;
+        }
+    }
+}
+
+/// Finds a replacement order for a mismatched support-move.
+///
+/// Tries in order:
+/// 1. A support for what the supported unit IS doing (support-move matching
+///    the actual move destination, or support-hold if holding).
+/// 2. A support-hold or support-move for any other friendly unit that matches.
+/// 3. The best hold or move order from the candidate list.
+fn find_replacement_order(
+    unit_cands: &[ScoredOrder],
+    supported_prov: Province,
+    supported_order: Option<Order>,
+    unit_orders: &[(Province, Order)],
+    unit_provinces: &[Province],
+) -> Option<Order> {
+    // Try to find a support for what the supported unit is actually doing.
+    match supported_order {
+        Some(Order::Move {
+            dest: actual_dest, ..
+        }) => {
+            // Look for a support-move to the actual destination.
+            if let Some(so) = unit_cands.iter().find(|so| {
+                matches!(so.order, Order::SupportMove { supported: s, dest: d, .. }
+                    if s.location.province == supported_prov && d.province == actual_dest.province)
+            }) {
+                return Some(so.order);
+            }
+        }
+        Some(Order::Hold { .. })
+        | Some(Order::SupportHold { .. })
+        | Some(Order::SupportMove { .. })
+        | Some(Order::Convoy { .. }) => {
+            // Unit is staying in place (hold, support, or convoy).
+            // Look for a support-hold for this unit.
+            if let Some(so) = unit_cands.iter().find(|so| {
+                matches!(so.order, Order::SupportHold { supported: s, .. }
+                    if s.location.province == supported_prov)
+            }) {
+                return Some(so.order);
+            }
+        }
+        _ => {}
+    }
+
+    // Try a support for any other friendly unit that matches what they're doing.
+    for so in unit_cands {
+        match so.order {
+            Order::SupportMove {
+                supported: s,
+                dest: d,
+                ..
+            } => {
+                let s_prov = s.location.province;
+                if !unit_provinces.contains(&s_prov) {
+                    continue; // Cross-power support -- leave as-is possibility.
+                }
+                // Check if the supported unit is actually moving to that destination.
+                let matches = unit_orders.iter().any(|(p, o)| {
+                    *p == s_prov
+                        && matches!(*o, Order::Move { dest: md, .. } if md.province == d.province)
+                });
+                if matches {
+                    return Some(so.order);
+                }
+            }
+            Order::SupportHold { supported: s, .. } => {
+                let s_prov = s.location.province;
+                if !unit_provinces.contains(&s_prov) {
+                    continue;
+                }
+                // Check if the supported unit is stationary (hold, support, or convoy).
+                let matches = unit_orders.iter().any(|(p, o)| {
+                    *p == s_prov
+                        && matches!(
+                            *o,
+                            Order::Hold { .. }
+                                | Order::SupportHold { .. }
+                                | Order::SupportMove { .. }
+                                | Order::Convoy { .. }
+                        )
+                });
+                if matches {
+                    return Some(so.order);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Fallback: best non-support order (hold or move).
+    unit_cands
+        .iter()
+        .find(|so| matches!(so.order, Order::Hold { .. } | Order::Move { .. }))
+        .map(|so| so.order)
+}
+
 /// Generates top-K orders per unit for a given power, sorted descending by score.
 fn top_k_per_unit(power: Power, state: &BoardState, k: usize) -> Vec<Vec<ScoredOrder>> {
     let mut per_unit: Vec<Vec<ScoredOrder>> = Vec::new();
@@ -372,10 +570,11 @@ fn generate_candidates(
     let mut seen_orders: Vec<Vec<Order>> = Vec::new();
 
     // First candidate: greedy best
-    let greedy_orders: Vec<(Order, Power)> = per_unit
+    let mut greedy_orders: Vec<(Order, Power)> = per_unit
         .iter()
         .map(|cands| (cands[0].order, power))
         .collect();
+    coordinate_candidate_supports(&mut greedy_orders, &per_unit, &unit_provinces, power);
     seen_orders.push(greedy_orders.iter().map(|(o, _)| *o).collect());
     candidates.push(greedy_orders);
 
@@ -406,6 +605,10 @@ fn generate_candidates(
             orders.push((unit_cands[picked].order, power));
         }
 
+        // Fix phantom supports: replace support-moves that don't match
+        // the supported unit's actual order in this candidate set.
+        coordinate_candidate_supports(&mut orders, &per_unit, &unit_provinces, power);
+
         let order_key: Vec<Order> = orders.iter().map(|(o, _)| *o).collect();
         if !seen_orders.contains(&order_key) {
             seen_orders.push(order_key);
@@ -414,6 +617,7 @@ fn generate_candidates(
     }
 
     // Coordinated candidates: pair support orders with matching moves/holds.
+    let pre_coord_len = candidates.len();
     inject_coordinated_candidates(
         power,
         state,
@@ -423,6 +627,13 @@ fn generate_candidates(
         &mut seen_orders,
         4,
     );
+
+    // Fix any phantom supports in the newly-injected coordinated candidates.
+    // The coordinated injection sets the supporter+mover pair but other units
+    // may still have greedy orders that are phantom supports.
+    for ci in pre_coord_len..candidates.len() {
+        coordinate_candidate_supports(&mut candidates[ci], &per_unit, &unit_provinces, power);
+    }
 
     candidates
 }
@@ -657,13 +868,48 @@ fn generate_candidates_neural(
     let mut candidates: Vec<Vec<(Order, Power)>> = Vec::with_capacity(count);
     let mut seen: Vec<Vec<usize>> = Vec::new();
 
+    // Build unit province index for coordination (needed before candidates are generated).
+    let blended_unit_provinces: Vec<Province> = blended_per_unit
+        .iter()
+        .filter_map(|cands| {
+            cands.first().map(|bo| match bo.order {
+                Order::Hold { unit }
+                | Order::Move { unit, .. }
+                | Order::SupportHold { unit, .. }
+                | Order::SupportMove { unit, .. }
+                | Order::Convoy { unit, .. } => unit.location.province,
+                _ => Province::Adr,
+            })
+        })
+        .collect();
+
+    // Convert blended to ScoredOrder for coordination function.
+    let blended_as_scored_for_coord: Vec<Vec<ScoredOrder>> = blended_per_unit
+        .iter()
+        .map(|cands| {
+            cands
+                .iter()
+                .map(|b| ScoredOrder {
+                    order: b.order,
+                    score: b.score,
+                })
+                .collect()
+        })
+        .collect();
+
     // First candidate: greedy best from blended scores.
     let greedy: Vec<usize> = vec![0; blended_per_unit.len()];
-    let greedy_orders: Vec<(Order, Power)> = greedy
+    let mut greedy_orders: Vec<(Order, Power)> = greedy
         .iter()
         .enumerate()
         .map(|(u, &idx)| (blended_per_unit[u][idx].order, power))
         .collect();
+    coordinate_candidate_supports(
+        &mut greedy_orders,
+        &blended_as_scored_for_coord,
+        &blended_unit_provinces,
+        power,
+    );
     candidates.push(greedy_orders);
     seen.push(greedy);
 
@@ -694,43 +940,23 @@ fn generate_candidates_neural(
         if seen.contains(&combo) {
             continue;
         }
-        let orders: Vec<(Order, Power)> = combo
+        let mut orders: Vec<(Order, Power)> = combo
             .iter()
             .enumerate()
             .map(|(u, &idx)| (blended_per_unit[u][idx].order, power))
             .collect();
+        coordinate_candidate_supports(
+            &mut orders,
+            &blended_as_scored_for_coord,
+            &blended_unit_provinces,
+            power,
+        );
         seen.push(combo);
         candidates.push(orders);
     }
 
     // Add coordinated candidates using the blended per-unit data.
-    let blended_as_scored: Vec<Vec<ScoredOrder>> = blended_per_unit
-        .iter()
-        .map(|cands| {
-            cands
-                .iter()
-                .map(|b| ScoredOrder {
-                    order: b.order,
-                    score: b.score,
-                })
-                .collect()
-        })
-        .collect();
-
-    let unit_provinces: Vec<Province> = blended_as_scored
-        .iter()
-        .filter_map(|cands| {
-            cands.first().map(|so| match so.order {
-                Order::Hold { unit }
-                | Order::Move { unit, .. }
-                | Order::SupportHold { unit, .. }
-                | Order::SupportMove { unit, .. }
-                | Order::Convoy { unit, .. } => unit.location.province,
-                _ => Province::Adr,
-            })
-        })
-        .collect();
-
+    let pre_coord_len = candidates.len();
     let mut seen_orders: Vec<Vec<Order>> = candidates
         .iter()
         .map(|c| c.iter().map(|(o, _)| *o).collect())
@@ -739,12 +965,22 @@ fn generate_candidates_neural(
     inject_coordinated_candidates(
         power,
         state,
-        &blended_as_scored,
-        &unit_provinces,
+        &blended_as_scored_for_coord,
+        &blended_unit_provinces,
         &mut candidates,
         &mut seen_orders,
         4,
     );
+
+    // Fix phantom supports in newly-injected coordinated candidates.
+    for ci in pre_coord_len..candidates.len() {
+        coordinate_candidate_supports(
+            &mut candidates[ci],
+            &blended_as_scored_for_coord,
+            &blended_unit_provinces,
+            power,
+        );
+    }
 
     candidates
 }
@@ -2029,5 +2265,109 @@ mod tests {
             "Info should report value_net false when no neural: {}",
             output
         );
+    }
+
+    #[test]
+    fn candidates_have_no_phantom_support_moves() {
+        // Verify that support-move orders in candidates match the supported unit's
+        // actual order in the same candidate set (no phantom supports).
+        let state = initial_state();
+        let mut rng = SmallRng::seed_from_u64(42);
+        let cands = generate_candidates(Power::Austria, &state, NUM_CANDIDATES, &mut rng);
+
+        let mut phantom_count = 0;
+        let mut support_move_count = 0;
+
+        for cand in &cands {
+            for (order, _power) in cand {
+                if let Order::SupportMove {
+                    supported, dest, ..
+                } = order
+                {
+                    support_move_count += 1;
+                    let supported_prov = supported.location.province;
+
+                    // Check if the supported unit is in this candidate's order set.
+                    let supported_entry = cand.iter().find(|(o, _)| {
+                        let prov = match o {
+                            Order::Hold { unit } => unit.location.province,
+                            Order::Move { unit, .. } => unit.location.province,
+                            Order::SupportHold { unit, .. } => unit.location.province,
+                            Order::SupportMove { unit, .. } => unit.location.province,
+                            Order::Convoy { unit, .. } => unit.location.province,
+                            _ => return false,
+                        };
+                        prov == supported_prov
+                    });
+
+                    // If the supported unit is our own unit, check the support matches.
+                    if let Some((sup_order, _)) = supported_entry {
+                        let matches = matches!(
+                            sup_order,
+                            Order::Move { dest: d, .. } if d.province == dest.province
+                        );
+                        if !matches {
+                            phantom_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(
+            phantom_count == 0,
+            "Found {} phantom support-move orders out of {} total support-moves across {} candidates",
+            phantom_count,
+            support_move_count,
+            cands.len()
+        );
+    }
+
+    #[test]
+    fn candidates_have_no_phantom_supports_multi_power() {
+        // Test with all 7 powers from the initial position to ensure phantom
+        // supports are eliminated across different unit configurations.
+        let state = initial_state();
+
+        for &p in ALL_POWERS.iter() {
+            let mut rng = SmallRng::seed_from_u64(42);
+            let cands = generate_candidates(p, &state, NUM_CANDIDATES, &mut rng);
+
+            for (ci, cand) in cands.iter().enumerate() {
+                for (order, _) in cand {
+                    if let Order::SupportMove {
+                        supported, dest, ..
+                    } = order
+                    {
+                        let supported_prov = supported.location.province;
+
+                        // Find supported unit's order in the same candidate.
+                        let supported_entry = cand.iter().find(|(o, _)| {
+                            let prov = match o {
+                                Order::Hold { unit } => unit.location.province,
+                                Order::Move { unit, .. } => unit.location.province,
+                                Order::SupportHold { unit, .. } => unit.location.province,
+                                Order::SupportMove { unit, .. } => unit.location.province,
+                                Order::Convoy { unit, .. } => unit.location.province,
+                                _ => return false,
+                            };
+                            prov == supported_prov
+                        });
+
+                        if let Some((sup_order, _)) = supported_entry {
+                            let matches = matches!(
+                                sup_order,
+                                Order::Move { dest: d, .. } if d.province == dest.province
+                            );
+                            assert!(
+                                matches,
+                                "Power {:?} candidate {} has phantom support: unit supports move to {:?} but supported unit is doing {:?}",
+                                p, ci, dest.province, sup_order
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
