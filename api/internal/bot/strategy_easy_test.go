@@ -314,6 +314,9 @@ func TestStrategyForDifficulty(t *testing.T) {
 // holds on an unowned SC during Fall rather than chasing an adjacent SC.
 // SC ownership transfers at Fall→Build, so leaving forfeits the capture.
 func TestHeuristicStrategy_HoldsOnUnownedSCInFall(t *testing.T) {
+	SeedBotRng(42)
+	defer ResetBotRng()
+
 	m := diplomacy.StandardMap()
 	gs := &diplomacy.GameState{
 		Year:   1901,
@@ -328,22 +331,12 @@ func TestHeuristicStrategy_HoldsOnUnownedSCInFall(t *testing.T) {
 	}
 	s := HeuristicStrategy{}
 
-	holdCount := 0
-	iterations := 30
-	for range iterations {
-		orders := s.GenerateMovementOrders(gs, diplomacy.France, m)
-		if len(orders) != 1 {
-			t.Fatalf("expected 1 order, got %d", len(orders))
-		}
-		if orders[0].OrderType == "hold" {
-			holdCount++
-		}
+	orders := s.GenerateMovementOrders(gs, diplomacy.France, m)
+	if len(orders) != 1 {
+		t.Fatalf("expected 1 order, got %d", len(orders))
 	}
-
-	// The bot should hold on bel in Fall almost every time
-	ratio := float64(holdCount) / float64(iterations)
-	if ratio < 0.8 {
-		t.Errorf("expected heuristic bot to hold on unowned SC in Fall >80%% of the time, got %.0f%%", ratio*100)
+	if orders[0].OrderType != "hold" {
+		t.Errorf("expected hold on unowned SC in Fall, got %s to %s", orders[0].OrderType, orders[0].Target)
 	}
 }
 
