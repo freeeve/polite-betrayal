@@ -1,0 +1,7 @@
+# Downloaded raw data (large, re-downloadable)
+raw/
+# Processed output (generated from raw)
+processed/
+# Python bytecode
+__pycache__/
+*.pyc

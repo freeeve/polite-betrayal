@@ -1,0 +1,3 @@
+# Data pipeline dependencies
+# Core pipeline uses only Python stdlib (json, urllib, zipfile, etc.)
+# No external dependencies required for download + parse + validate.
