@@ -21,7 +21,7 @@ use crate::eval::heuristic::{
     count_scs, nearest_unowned_sc_dist, power_has_units, province_defense, province_threat,
 };
 use crate::eval::NeuralEvaluator;
-use crate::movegen::movement::legal_orders;
+use crate::movegen::movement::{legal_orders, move_orders_only};
 use crate::resolve::{advance_state, apply_resolution, needs_build_phase, Resolver};
 use crate::search::cartesian::{
     heuristic_build_orders, heuristic_retreat_orders, predict_opponent_orders,
@@ -605,7 +605,8 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
 ///
 /// If `cached_greedy` is provided and the first phase is Movement, those orders
 /// are used directly instead of regenerating via movegen, saving ~66us per call.
-/// Subsequent movement phases still use full movegen.
+/// Subsequent movement phases use lightweight movegen (hold + move only) since
+/// support/convoy orders rarely affect greedy top-1 selection in lookahead.
 fn simulate_n_phases(
     state: &BoardState,
     _power: Power,
@@ -636,7 +637,8 @@ fn simulate_n_phases(
                         all_orders = generate_greedy_orders(&current);
                     }
                 } else {
-                    all_orders = generate_greedy_orders(&current);
+                    // Second ply and beyond: use fast movegen (hold + move only)
+                    all_orders = generate_greedy_orders_fast(&current);
                 }
 
                 let (results, dislodged) = resolver.resolve(&all_orders, &current);
@@ -691,6 +693,44 @@ fn generate_greedy_orders(state: &BoardState) -> Vec<(Order, Power)> {
         for unit_cands in &per_unit {
             if !unit_cands.is_empty() {
                 all_orders.push((unit_cands[0].order, p));
+            }
+        }
+    }
+    all_orders
+}
+
+/// Lightweight greedy orders using only hold + move (no support/convoy).
+///
+/// This is ~3-5x faster than `generate_greedy_orders` because it skips
+/// support generation (which scans all 75 provinces per unit) and convoy
+/// generation. Used for second-ply lookahead where the top-1 greedy pick
+/// is almost always a hold or move anyway.
+fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
+    let mut all_orders: Vec<(Order, Power)> = Vec::new();
+    for &p in ALL_POWERS.iter() {
+        if !power_has_units(state, p) {
+            continue;
+        }
+        for i in 0..PROVINCE_COUNT {
+            if let Some((owner, _)) = state.units[i] {
+                if owner != p {
+                    continue;
+                }
+                let prov = ALL_PROVINCES[i];
+                let orders = move_orders_only(prov, state);
+                if orders.is_empty() {
+                    continue;
+                }
+                // Pick the top-1 by heuristic score.
+                let best = orders
+                    .into_iter()
+                    .max_by(|a, b| {
+                        score_order(a, p, state)
+                            .partial_cmp(&score_order(b, p, state))
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .unwrap();
+                all_orders.push((best, p));
             }
         }
     }
@@ -813,10 +853,6 @@ pub fn regret_matching_search<W: Write>(
     let mut power_candidates: Vec<(Power, Vec<Vec<(Order, Power)>>)> = Vec::new();
     let mut our_power_idx: usize = 0;
 
-    // P0: Cache greedy orders for all powers during candidate generation.
-    // These are reused in simulate_n_phases to skip expensive per-power movegen.
-    let mut cached_greedy: Vec<(Order, Power)> = Vec::new();
-
     for &p in ALL_POWERS.iter() {
         if !power_has_units(state, p) {
             continue;
@@ -837,11 +873,6 @@ pub fn regret_matching_search<W: Write>(
         };
         if cands.is_empty() {
             continue;
-        }
-
-        // Cache the greedy (first) candidate's orders for lookahead
-        for &(order, cp) in &cands[0] {
-            cached_greedy.push((order, cp));
         }
 
         if p == power {
@@ -948,13 +979,6 @@ pub fn regret_matching_search<W: Write>(
         }
     }
 
-    // P0: Prepare cached greedy orders for lookahead (from candidate generation).
-    let greedy_for_lookahead: Option<&[(Order, Power)]> = if !cached_greedy.is_empty() {
-        Some(&cached_greedy)
-    } else {
-        None
-    };
-
     // P1: Adaptive iteration count — keep iterating until time budget is consumed.
     // Use 80% of the RM budget to leave headroom for best-response extraction.
     let rm_deadline = start + cand_budget + rm_budget;
@@ -1006,7 +1030,7 @@ pub fn regret_matching_search<W: Write>(
         let has_dislodged = scratch.dislodged.iter().any(|d| d.is_some());
         advance_state(&mut scratch, has_dislodged);
 
-        // Lookahead (P0: use cached greedy orders for first ply)
+        // Lookahead: regenerate greedy orders fresh for post-resolution board state
         let future = simulate_n_phases(
             &scratch,
             power,
@@ -1014,7 +1038,7 @@ pub fn regret_matching_search<W: Write>(
             LOOKAHEAD_DEPTH,
             start_year,
             &mut rng,
-            greedy_for_lookahead,
+            None,
         );
         let base_value = rm_evaluate(power, &future) - coop_penalties[sampled[our_power_idx]];
         nodes += 1;
@@ -1041,7 +1065,7 @@ pub fn regret_matching_search<W: Write>(
             let alt_has_dislodged = alt_scratch.dislodged.iter().any(|d| d.is_some());
             advance_state(&mut alt_scratch, alt_has_dislodged);
 
-            // Lookahead (P0: use cached greedy orders for first ply)
+            // Lookahead: regenerate greedy orders fresh for post-resolution board state
             let alt_future = simulate_n_phases(
                 &alt_scratch,
                 power,
@@ -1049,7 +1073,7 @@ pub fn regret_matching_search<W: Write>(
                 LOOKAHEAD_DEPTH,
                 start_year,
                 &mut rng,
-                greedy_for_lookahead,
+                None,
             );
             let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
 
