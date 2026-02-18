@@ -1,6 +1,6 @@
 # Medium Bot Go Performance Optimization
 
-## Status: Pending
+## Status: Done
 
 ## Dependencies
 - 700-game medium vs easy baseline benchmark (in progress)
