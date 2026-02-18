@@ -668,12 +668,12 @@ int _alivePowerCount(GameViewState state) {
   return gs.supplyCenters.values.toSet().length;
 }
 
-/// Color legend for map arrows.
+/// Color legend for map arrows and unit markers.
 class _MapLegend extends StatelessWidget {
   final bool compact;
   const _MapLegend({this.compact = false});
 
-  static final _entries = [
+  static final _arrowEntries = [
     ('Move', Colors.green.shade700, false),
     ('Support', Colors.yellow.shade700, true),
     ('Convoy', Colors.purple.shade700, true),
@@ -683,7 +683,11 @@ class _MapLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = _entries.map((e) => _item(e.$1, e.$2, e.$3)).toList();
+    final items = <Widget>[
+      ..._arrowEntries.map((e) => _arrowItem(e.$1, e.$2, e.$3)),
+      _symbolItem('New Unit', const _LegendStarPainter()),
+      _symbolItem('Destroyed', const _LegendXPainter()),
+    ];
 
     if (compact) {
       return Padding(
@@ -710,7 +714,7 @@ class _MapLegend extends StatelessWidget {
     );
   }
 
-  Widget _item(String label, Color color, bool dashed) {
+  Widget _arrowItem(String label, Color color, bool dashed) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -720,6 +724,24 @@ class _MapLegend extends StatelessWidget {
             width: 28,
             height: 14,
             child: CustomPaint(painter: _LegendArrowPainter(color, dashed)),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _symbolItem(String label, CustomPainter painter) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 28,
+            height: 14,
+            child: CustomPaint(painter: painter),
           ),
           const SizedBox(width: 6),
           Text(label, style: const TextStyle(fontSize: 11)),
@@ -770,6 +792,68 @@ class _LegendArrowPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LegendArrowPainter old) =>
       old.color != color || old.dashed != dashed;
+}
+
+/// Draws a small gold star for the "New Unit" legend entry (matches _drawBuildStar in MapPainter).
+class _LegendStarPainter extends CustomPainter {
+  const _LegendStarPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    const outerR = 6.0;
+    const innerR = 2.7;
+    final path = Path();
+    for (var i = 0; i < 8; i++) {
+      final angle = (i * math.pi / 4) - math.pi / 2;
+      final r = i.isEven ? outerR : innerR;
+      final x = center.dx + r * math.cos(angle);
+      final y = center.dy + r * math.sin(angle);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = const Color(0xFFFFD700));
+    canvas.drawPath(path, Paint()
+      ..color = const Color(0xFF8B6914)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LegendStarPainter old) => false;
+}
+
+/// Draws a small red X for the "Destroyed" legend entry (matches _drawDisbandX in MapPainter).
+class _LegendXPainter extends CustomPainter {
+  const _LegendXPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    const half = 5.0;
+    final paint = Paint()
+      ..color = const Color(0xFFFF0000)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(
+      center + const Offset(-half, -half),
+      center + const Offset(half, half),
+      paint,
+    );
+    canvas.drawLine(
+      center + const Offset(half, -half),
+      center + const Offset(-half, half),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LegendXPainter old) => false;
 }
 
 /// Persistent banner shown instead of PhaseBar for finished games.
