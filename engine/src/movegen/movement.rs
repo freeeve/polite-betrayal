@@ -74,6 +74,42 @@ pub fn legal_orders(province: Province, state: &BoardState) -> Vec<Order> {
     orders
 }
 
+/// Generates only hold and move orders for the unit at the given province.
+///
+/// This is a lightweight alternative to `legal_orders` that skips support
+/// and convoy generation. Used in lookahead where only the greedy top-1
+/// order matters and supports/convoys rarely win that selection.
+pub fn move_orders_only(province: Province, state: &BoardState) -> Vec<Order> {
+    let idx = province as usize;
+    let (_power, unit_type) = match state.units[idx] {
+        Some(pu) => pu,
+        None => return Vec::new(),
+    };
+
+    let coast = unit_coast(province, state);
+    let is_fleet = unit_type == UnitType::Fleet;
+    let unit = OrderUnit {
+        unit_type,
+        location: Location::with_coast(province, coast),
+    };
+
+    let mut orders = Vec::new();
+
+    // Hold is always legal.
+    orders.push(Order::Hold { unit });
+
+    // Moves to adjacent provinces.
+    let move_targets = generate_moves(province, coast, unit_type, is_fleet);
+    for (dest_prov, dest_coast) in &move_targets {
+        orders.push(Order::Move {
+            unit,
+            dest: Location::with_coast(*dest_prov, *dest_coast),
+        });
+    }
+
+    orders
+}
+
 /// Generates (destination_province, destination_coast) pairs for all move targets.
 fn generate_moves(
     province: Province,

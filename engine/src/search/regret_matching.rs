@@ -603,10 +603,9 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
 
 /// Simulates N phases forward using heuristic play for all powers.
 ///
-/// If `cached_greedy` is provided and the first phase is Movement, those orders
-/// are used directly instead of regenerating via movegen, saving ~66us per call.
-/// Subsequent movement phases use lightweight movegen (hold + move only) since
-/// support/convoy orders rarely affect greedy top-1 selection in lookahead.
+/// Uses lightweight movegen (hold + move only, no support/convoy) for all
+/// movement phases. Support orders rarely win as greedy top-1 picks, and
+/// skipping them cuts movegen cost by ~3-5x per ply.
 fn simulate_n_phases(
     state: &BoardState,
     _power: Power,
@@ -614,10 +613,8 @@ fn simulate_n_phases(
     depth: usize,
     start_year: u16,
     _rng: &mut SmallRng,
-    cached_greedy: Option<&[(Order, Power)]>,
 ) -> BoardState {
     let mut current = state.clone();
-    let mut used_cache = false;
 
     for _ in 0..depth {
         if current.year > start_year + 2 {
@@ -626,20 +623,7 @@ fn simulate_n_phases(
 
         match current.phase {
             Phase::Movement => {
-                let all_orders: Vec<(Order, Power)>;
-
-                if !used_cache {
-                    if let Some(cached) = cached_greedy {
-                        // Reuse cached greedy orders for the first movement ply
-                        all_orders = cached.to_vec();
-                        used_cache = true;
-                    } else {
-                        all_orders = generate_greedy_orders(&current);
-                    }
-                } else {
-                    // Second ply and beyond: use fast movegen (hold + move only)
-                    all_orders = generate_greedy_orders_fast(&current);
-                }
+                let all_orders = generate_greedy_orders_fast(&current);
 
                 let (results, dislodged) = resolver.resolve(&all_orders, &current);
                 apply_resolution(&mut current, &results, &dislodged);
@@ -682,29 +666,10 @@ fn simulate_n_phases(
     current
 }
 
-/// Generates greedy (top-1) heuristic orders for all powers on the board.
-fn generate_greedy_orders(state: &BoardState) -> Vec<(Order, Power)> {
-    let mut all_orders: Vec<(Order, Power)> = Vec::new();
-    for &p in ALL_POWERS.iter() {
-        if !power_has_units(state, p) {
-            continue;
-        }
-        let per_unit = top_k_per_unit(p, state, 1);
-        for unit_cands in &per_unit {
-            if !unit_cands.is_empty() {
-                all_orders.push((unit_cands[0].order, p));
-            }
-        }
-    }
-    all_orders
-}
-
 /// Lightweight greedy orders using only hold + move (no support/convoy).
 ///
-/// This is ~3-5x faster than `generate_greedy_orders` because it skips
-/// support generation (which scans all 75 provinces per unit) and convoy
-/// generation. Used for second-ply lookahead where the top-1 greedy pick
-/// is almost always a hold or move anyway.
+/// Skips support generation (which scans all 75 provinces per unit) and
+/// convoy generation. Support orders rarely win as greedy top-1 picks.
 fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
     let mut all_orders: Vec<(Order, Power)> = Vec::new();
     for &p in ALL_POWERS.iter() {
@@ -1030,7 +995,7 @@ pub fn regret_matching_search<W: Write>(
         let has_dislodged = scratch.dislodged.iter().any(|d| d.is_some());
         advance_state(&mut scratch, has_dislodged);
 
-        // Lookahead: regenerate greedy orders fresh for post-resolution board state
+        // Lookahead: fast greedy simulation for post-resolution board state
         let future = simulate_n_phases(
             &scratch,
             power,
@@ -1038,7 +1003,6 @@ pub fn regret_matching_search<W: Write>(
             LOOKAHEAD_DEPTH,
             start_year,
             &mut rng,
-            None,
         );
         let base_value = rm_evaluate(power, &future) - coop_penalties[sampled[our_power_idx]];
         nodes += 1;
@@ -1065,7 +1029,7 @@ pub fn regret_matching_search<W: Write>(
             let alt_has_dislodged = alt_scratch.dislodged.iter().any(|d| d.is_some());
             advance_state(&mut alt_scratch, alt_has_dislodged);
 
-            // Lookahead: regenerate greedy orders fresh for post-resolution board state
+            // Lookahead: fast greedy simulation for post-resolution board state
             let alt_future = simulate_n_phases(
                 &alt_scratch,
                 power,
@@ -1073,7 +1037,6 @@ pub fn regret_matching_search<W: Write>(
                 LOOKAHEAD_DEPTH,
                 start_year,
                 &mut rng,
-                None,
             );
             let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
 
