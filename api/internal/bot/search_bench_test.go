@@ -74,6 +74,30 @@ func BenchmarkSearchBestOrders_Small(b *testing.B) {
 	}
 }
 
+func BenchmarkEasyBot_InitialState(b *testing.B) {
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	s := HeuristicStrategy{}
+
+	b.ResetTimer()
+	for b.Loop() {
+		s.GenerateMovementOrders(gs, diplomacy.France, m)
+	}
+}
+
+func BenchmarkEasyBot_AllPowers(b *testing.B) {
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	s := HeuristicStrategy{}
+
+	b.ResetTimer()
+	for b.Loop() {
+		for _, p := range diplomacy.AllPowers() {
+			s.GenerateMovementOrders(gs, p, m)
+		}
+	}
+}
+
 func BenchmarkMediumBot_InitialState(b *testing.B) {
 	gs := diplomacy.NewInitialState()
 	m := diplomacy.StandardMap()

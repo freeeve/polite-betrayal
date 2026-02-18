@@ -578,20 +578,49 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 		}
 	}
 
-	// Vulnerability of owned SCs: penalize undefended SCs more heavily
-	// when the empire is small (existential threat) vs large (manageable).
+	// P1: Build threat/defense maps in a single pass over all units instead
+	// of calling ProvinceThreat + ProvinceDefense per owned SC (which each
+	// scan all units). For each unit, check what own SCs it can reach.
+	type threatDef struct{ threat, defense int8 }
+	tdMap := make(map[string]threatDef, ownSCs)
+	for prov, owner := range gs.SupplyCenters {
+		if owner == power {
+			tdMap[prov] = threatDef{}
+		}
+	}
+	for i := range gs.Units {
+		u := &gs.Units[i]
+		isEnemy := u.Power != power
+		isFleet := u.Type == diplomacy.Fleet
+		for _, adj := range m.Adjacencies[u.Province] {
+			if isFleet && !adj.FleetOK {
+				continue
+			}
+			if !isFleet && !adj.ArmyOK {
+				continue
+			}
+			if u.Coast != diplomacy.NoCoast && adj.FromCoast != diplomacy.NoCoast && adj.FromCoast != u.Coast {
+				continue
+			}
+			if td, ok := tdMap[adj.To]; ok {
+				if isEnemy {
+					td.threat++
+				} else if u.Province != adj.To {
+					td.defense++
+				}
+				tdMap[adj.To] = td
+			}
+		}
+	}
+
 	basePenalty := 4.0
 	if ownSCs <= 4 {
 		basePenalty = 6.0
 	}
-	for prov, owner := range gs.SupplyCenters {
-		if owner != power {
-			continue
-		}
-		threat := ProvinceThreat(prov, power, gs, m)
-		defense := ProvinceDefense(prov, power, gs, m)
-		if threat > defense {
-			penalty := basePenalty * float64(threat-defense)
+	for _, td := range tdMap {
+		diff := int(td.threat) - int(td.defense)
+		if diff > 0 {
+			penalty := basePenalty * float64(diff)
 			if ownSCs >= 16 {
 				penalty *= 0.2
 			} else if ownSCs >= 14 {

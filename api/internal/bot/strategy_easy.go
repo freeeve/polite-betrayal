@@ -47,9 +47,9 @@ func (h HeuristicStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power
 	})
 
 	// Greedy assignment: one unit per target
-	assignedUnits := make(map[string]bool)   // unit province -> assigned
-	assignedTargets := make(map[string]bool) // target province -> taken
-	var moves []moveAssignment
+	assignedUnits := make(map[string]bool, len(units))
+	assignedTargets := make(map[string]bool, len(units))
+	moves := make([]moveAssignment, 0, len(units))
 
 	for _, c := range candidates {
 		if assignedUnits[c.unit.Province] || assignedTargets[c.target] {
@@ -128,7 +128,7 @@ func (h HeuristicStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power
 	convoyOrders, convoyConverted = h.planConvoys(gs, power, m, moves, supportConverted, units, assignedUnits)
 
 	// --- Emit orders ---
-	var orders []OrderInput
+	orders := make([]OrderInput, 0, len(units))
 
 	// Move orders for non-converted units
 	for _, mv := range moves {
@@ -435,12 +435,43 @@ func findConvoyPlans(army diplomacy.Unit, power diplomacy.Power, fleets []diplom
 	return plans
 }
 
+// nearestSCCache caches NearestUnownedSCByUnit results keyed by province+isFleet.
+// The game state doesn't change within a single order-generation call, so
+// results are stable for the duration.
+type nearestSCCache struct {
+	armyDist  map[string]int
+	fleetDist map[string]int
+}
+
+func newNearestSCCache() *nearestSCCache {
+	return &nearestSCCache{
+		armyDist:  make(map[string]int, 32),
+		fleetDist: make(map[string]int, 32),
+	}
+}
+
+func (c *nearestSCCache) get(province string, power diplomacy.Power, gs *diplomacy.GameState, m *diplomacy.DiplomacyMap, isFleet bool) (string, int) {
+	cache := c.armyDist
+	if isFleet {
+		cache = c.fleetDist
+	}
+	if d, ok := cache[province]; ok {
+		return "", d // callers only use dist, not the SC name
+	}
+	sc, d := NearestUnownedSCByUnit(province, power, gs, m, isFleet)
+	cache[province] = d
+	return sc, d
+}
+
 // scoreMoves generates all (unit, adjacent-province) candidates with scores.
 // For fleets, adds a convoy positioning bonus when moving to sea provinces
 // adjacent to stranded same-power armies.
 func (h HeuristicStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Power, units []diplomacy.Unit, m *diplomacy.DiplomacyMap) []moveCandidate {
+	// P0: Cache NearestUnownedSCByUnit results per (province, isFleet)
+	scCache := newNearestSCCache()
+
 	// Pre-compute occupied provinces for collision avoidance
-	ownOccupied := make(map[string]bool)
+	ownOccupied := make(map[string]bool, len(units))
 	for _, u := range units {
 		ownOccupied[u.Province] = true
 	}
@@ -450,7 +481,7 @@ func (h HeuristicStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.P
 	strandedArmyProvinces := make(map[string]bool)
 	for _, u := range units {
 		if u.Type == diplomacy.Army {
-			_, dist := NearestUnownedSCByUnit(u.Province, power, gs, m, false)
+			_, dist := scCache.get(u.Province, power, gs, m, false)
 			if dist < 0 || dist > 6 {
 				strandedArmyProvinces[u.Province] = true
 			}
@@ -470,7 +501,8 @@ func (h HeuristicStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.P
 		}
 	}
 
-	var candidates []moveCandidate
+	// P7: Pre-allocate candidates with estimated capacity (~5 moves per unit)
+	candidates := make([]moveCandidate, 0, len(units)*5)
 	for _, u := range units {
 		isFleet := u.Type == diplomacy.Fleet
 		adj := m.ProvincesAdjacentTo(u.Province, u.Coast, isFleet)
@@ -519,8 +551,8 @@ func (h HeuristicStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.P
 			// Connectivity bonus (unit-type-aware)
 			score += 0.3 * float64(UnitProvinceConnectivity(target, m, isFleet))
 
-			// Distance to nearest unowned SC (unit-type-aware)
-			_, dist := NearestUnownedSCByUnit(target, power, gs, m, isFleet)
+			// P0: Distance to nearest unowned SC using cached lookup
+			_, dist := scCache.get(target, power, gs, m, isFleet)
 			if dist > 0 {
 				score -= 0.5 * float64(dist)
 			}
