@@ -63,6 +63,13 @@ const BUDGET_CAND_GEN: f64 = 0.15;
 /// Budget fraction for RM+ iterations.
 const BUDGET_RM_ITER: f64 = 0.60;
 
+/// Weight for neural value in the blended evaluation (0.0 = pure heuristic, 1.0 = pure neural).
+const NEURAL_VALUE_WEIGHT: f64 = 0.6;
+
+/// Scale factor to convert neural value (roughly [0, 1]) to heuristic-comparable range.
+/// The heuristic eval typically returns values in [0, ~200], so we scale neural accordingly.
+const NEURAL_VALUE_SCALE: f64 = 200.0;
+
 /// Maximum entries in the second-ply greedy order cache.
 const GREEDY_CACHE_CAPACITY: usize = 1024;
 
@@ -1087,6 +1094,46 @@ fn rm_evaluate(power: Power, state: &BoardState) -> f64 {
     base + lead_bonus + cohesion - solo_penalty
 }
 
+/// Converts neural value output [sc_share, win_prob, draw_prob, survival_prob] to a scalar.
+///
+/// Combines the four value heads into a single score on a scale comparable
+/// to the heuristic evaluator. sc_share (0-1) dominates, with bonuses for
+/// win probability and survival.
+fn neural_value_to_scalar(value: &[f32; 4]) -> f64 {
+    let sc_share = value[0] as f64;
+    let win_prob = value[1] as f64;
+    let _draw_prob = value[2] as f64;
+    let survival = value[3] as f64;
+
+    // Primary signal: expected SC share (0 to ~0.5+ for dominant powers)
+    // Secondary: win probability bonus, survival floor
+    let raw = sc_share * 0.7 + win_prob * 0.2 + survival * 0.1;
+
+    raw * NEURAL_VALUE_SCALE
+}
+
+/// Blended evaluation: combines heuristic rm_evaluate with neural value network.
+///
+/// When a neural evaluator with a loaded value model is provided, computes
+/// both heuristic and neural eval and blends them with NEURAL_VALUE_WEIGHT.
+/// Falls back to pure heuristic when no neural model is available.
+fn rm_evaluate_blended(power: Power, state: &BoardState, neural: Option<&NeuralEvaluator>) -> f64 {
+    let heuristic = rm_evaluate(power, state);
+
+    let evaluator = match neural {
+        Some(n) if n.has_value() => n,
+        _ => return heuristic,
+    };
+
+    match evaluator.value(state, power) {
+        Some(value) => {
+            let neural_score = neural_value_to_scalar(&value);
+            NEURAL_VALUE_WEIGHT * neural_score + (1.0 - NEURAL_VALUE_WEIGHT) * heuristic
+        }
+        None => heuristic,
+    }
+}
+
 /// Samples an index from a probability distribution.
 fn weighted_sample(probs: &[f64], rng: &mut SmallRng) -> usize {
     let r: f64 = rng.gen();
@@ -1256,7 +1303,7 @@ pub fn regret_matching_search<W: Write>(
                 let (results, dislodged) = tl_resolver.resolve(&all_orders, state);
                 let mut scratch = state.clone();
                 apply_resolution(&mut scratch, &results, &dislodged);
-                let score = rm_evaluate(power, &scratch) - coop_penalties[ci];
+                let score = rm_evaluate_blended(power, &scratch, neural) - coop_penalties[ci];
                 (ci, f64::max(0.0, score))
             })
             .collect();
@@ -1344,7 +1391,8 @@ pub fn regret_matching_search<W: Write>(
             &mut rng,
             &mut greedy_cache,
         );
-        let base_value = rm_evaluate(power, &future) - coop_penalties[sampled[our_power_idx]];
+        let base_value =
+            rm_evaluate_blended(power, &future, neural) - coop_penalties[sampled[our_power_idx]];
         nodes += 1;
 
         // Counterfactual regret update for our power's alternatives (parallelized with rayon)
@@ -1381,7 +1429,7 @@ pub fn regret_matching_search<W: Write>(
                     &mut tl_rng,
                     &mut tl_cache,
                 );
-                let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
+                let cf_value = rm_evaluate_blended(power, &alt_future, neural) - coop_penalties[ci];
                 (ci, cf_value)
             })
             .collect();
@@ -1417,13 +1465,14 @@ pub fn regret_matching_search<W: Write>(
         .map(|(o, _)| *o)
         .collect();
 
-    let best_score = rm_evaluate(power, state) as f32;
+    let best_score = rm_evaluate_blended(power, state, neural) as f32;
 
+    let has_value_net = neural.map_or(false, |n| n.has_value());
     let elapsed_ms = start.elapsed().as_millis() as u64;
     let _ = writeln!(
         out,
-        "info depth {} nodes {} score {} time {} iterations {}",
-        LOOKAHEAD_DEPTH, nodes, best_score as i32, elapsed_ms, iteration_count
+        "info depth {} nodes {} score {} time {} iterations {} value_net {}",
+        LOOKAHEAD_DEPTH, nodes, best_score as i32, elapsed_ms, iteration_count, has_value_net
     );
 
     SearchResult {
@@ -1815,6 +1864,83 @@ mod tests {
             (penalty - 1.0).abs() < 0.001,
             "Penalty for 2 powers should be 1.0, got {}",
             penalty
+        );
+    }
+
+    #[test]
+    fn neural_value_to_scalar_range() {
+        // Pure dominance: high sc_share, high win prob
+        let dominant = neural_value_to_scalar(&[0.5, 0.8, 0.1, 0.9]);
+        assert!(
+            dominant > 0.0,
+            "Dominant position should be positive: {}",
+            dominant
+        );
+
+        // Weak position: low sc_share, low win prob
+        let weak = neural_value_to_scalar(&[0.05, 0.01, 0.3, 0.5]);
+        assert!(
+            weak < dominant,
+            "Weak ({}) should be less than dominant ({})",
+            weak,
+            dominant
+        );
+
+        // Zero position
+        let zero = neural_value_to_scalar(&[0.0, 0.0, 0.0, 0.0]);
+        assert!(
+            (zero - 0.0).abs() < 0.001,
+            "All-zero should be ~0, got {}",
+            zero
+        );
+    }
+
+    #[test]
+    fn rm_evaluate_blended_fallback_matches_heuristic() {
+        // Without neural evaluator, blended should equal heuristic.
+        let state = initial_state();
+        let heuristic = rm_evaluate(Power::Austria, &state);
+        let blended = rm_evaluate_blended(Power::Austria, &state, None);
+        assert!(
+            (heuristic - blended).abs() < 0.001,
+            "Blended without neural ({}) should equal heuristic ({})",
+            blended,
+            heuristic
+        );
+    }
+
+    #[test]
+    fn rm_evaluate_blended_no_value_model() {
+        // NeuralEvaluator with no loaded value model falls back to heuristic.
+        let evaluator = crate::eval::NeuralEvaluator::new(None, None);
+        let state = initial_state();
+        let heuristic = rm_evaluate(Power::Austria, &state);
+        let blended = rm_evaluate_blended(Power::Austria, &state, Some(&evaluator));
+        assert!(
+            (heuristic - blended).abs() < 0.001,
+            "Blended with no-model evaluator ({}) should equal heuristic ({})",
+            blended,
+            heuristic
+        );
+    }
+
+    #[test]
+    fn rm_search_info_includes_value_net() {
+        let state = initial_state();
+        let mut out = Vec::new();
+        let _result = regret_matching_search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(500),
+            &mut out,
+            None,
+            100,
+        );
+        let output = String::from_utf8(out).unwrap();
+        assert!(
+            output.contains("value_net false"),
+            "Info should report value_net false when no neural: {}",
+            output
         );
     }
 }
