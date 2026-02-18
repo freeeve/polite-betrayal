@@ -1,27 +1,148 @@
 package bot
 
 import (
+	_ "embed"
+	"encoding/json"
+	"log"
 	"sort"
+	"sync"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
 
-// openingEntry represents a single opening: a named set of orders with a weight
-// proportional to historical popularity.
-type openingEntry struct {
-	name   string
-	weight float64
-	orders []OrderInput
+//go:embed opening_book.json
+var openingBookJSON []byte
+
+var bookData *OpeningBook
+var bookOnce sync.Once
+
+// getBook lazily loads and caches the embedded opening book JSON.
+func getBook() *OpeningBook {
+	bookOnce.Do(func() {
+		bookData = &OpeningBook{}
+		if err := json.Unmarshal(openingBookJSON, bookData); err != nil {
+			log.Printf("opening book: failed to parse JSON: %v", err)
+			bookData = &OpeningBook{}
+		}
+	})
+	return bookData
 }
 
-// fallCondition maps a set of unit positions to a weighted list of fall order sets.
-type fallCondition struct {
-	// positions maps province -> unit type ("army"/"fleet") for matching
-	positions map[string]string
-	entries   []openingEntry
+// OpeningBook holds the full set of opening book entries.
+type OpeningBook struct {
+	Entries []BookEntry `json:"entries"`
 }
 
-// unitKey builds a sorted position fingerprint for the power's units.
+// BookEntry represents one conditional entry in the opening book.
+type BookEntry struct {
+	Power     string        `json:"power"`
+	Year      int           `json:"year"`
+	Season    string        `json:"season"`
+	Phase     string        `json:"phase"`
+	Condition BookCondition `json:"condition"`
+	Options   []BookOption  `json:"options"`
+}
+
+// BookCondition holds the matching criteria for an entry. Multiple fields are AND-ed.
+type BookCondition struct {
+	Positions  map[string]string `json:"positions,omitempty"`
+	OwnedSCs   []string          `json:"owned_scs,omitempty"`
+	SCCountMin int               `json:"sc_count_min,omitempty"`
+	SCCountMax int               `json:"sc_count_max,omitempty"`
+	Theaters   map[string]int    `json:"theaters,omitempty"`
+	FleetCount int               `json:"fleet_count,omitempty"`
+	ArmyCount  int               `json:"army_count,omitempty"`
+}
+
+// BookOption is a named, weighted set of orders to choose from.
+type BookOption struct {
+	Name   string       `json:"name"`
+	Weight float64      `json:"weight"`
+	Orders []OrderInput `json:"orders"`
+}
+
+// conditionSpecificity returns the number of non-zero fields in a condition,
+// used to rank matches from most to least specific.
+func conditionSpecificity(c *BookCondition) int {
+	score := 0
+	if len(c.Positions) > 0 {
+		score += len(c.Positions) * 2
+	}
+	if len(c.OwnedSCs) > 0 {
+		score += len(c.OwnedSCs)
+	}
+	if c.SCCountMin > 0 || c.SCCountMax > 0 {
+		score++
+	}
+	if len(c.Theaters) > 0 {
+		score += len(c.Theaters)
+	}
+	if c.FleetCount > 0 {
+		score++
+	}
+	if c.ArmyCount > 0 {
+		score++
+	}
+	return score
+}
+
+// matchCondition returns true if all non-zero fields in the condition match the game state.
+func matchCondition(cond *BookCondition, gs *diplomacy.GameState, power diplomacy.Power) bool {
+	if len(cond.Positions) > 0 {
+		actual := unitKey(gs, power)
+		if !positionsMatch(cond.Positions, actual) {
+			return false
+		}
+	}
+
+	if len(cond.OwnedSCs) > 0 {
+		for _, sc := range cond.OwnedSCs {
+			if gs.SupplyCenters[sc] != power {
+				return false
+			}
+		}
+	}
+
+	if cond.SCCountMin > 0 || cond.SCCountMax > 0 {
+		count := gs.SupplyCenterCount(power)
+		if cond.SCCountMin > 0 && count < cond.SCCountMin {
+			return false
+		}
+		if cond.SCCountMax > 0 && count > cond.SCCountMax {
+			return false
+		}
+	}
+
+	if len(cond.Theaters) > 0 {
+		presence := TheaterPresence(gs, power)
+		for theater, expected := range cond.Theaters {
+			if presence[Theater(theater)] != expected {
+				return false
+			}
+		}
+	}
+
+	if cond.FleetCount > 0 || cond.ArmyCount > 0 {
+		fleets, armies := 0, 0
+		for _, u := range gs.UnitsOf(power) {
+			if u.Type == diplomacy.Fleet {
+				fleets++
+			} else {
+				armies++
+			}
+		}
+		if cond.FleetCount > 0 && fleets != cond.FleetCount {
+			return false
+		}
+		if cond.ArmyCount > 0 && armies != cond.ArmyCount {
+			return false
+		}
+	}
+
+	return true
+}
+
+// unitKey builds a position fingerprint mapping province to unit type string.
 func unitKey(gs *diplomacy.GameState, power diplomacy.Power) map[string]string {
 	m := make(map[string]string)
 	for _, u := range gs.UnitsOf(power) {
@@ -40,25 +161,24 @@ func positionsMatch(required, actual map[string]string) bool {
 	return true
 }
 
-// weightedSelect picks an entry from a weighted list using random selection
-// proportional to weights.
-func weightedSelect(entries []openingEntry) *openingEntry {
-	if len(entries) == 0 {
+// bookWeightedSelect picks an option from a weighted list using random selection.
+func bookWeightedSelect(options []BookOption) *BookOption {
+	if len(options) == 0 {
 		return nil
 	}
 	total := 0.0
-	for i := range entries {
-		total += entries[i].weight
+	for i := range options {
+		total += options[i].Weight
 	}
 	r := botFloat64() * total
 	cum := 0.0
-	for i := range entries {
-		cum += entries[i].weight
+	for i := range options {
+		cum += options[i].Weight
 		if r < cum {
-			return &entries[i]
+			return &options[i]
 		}
 	}
-	return &entries[len(entries)-1]
+	return &options[len(options)-1]
 }
 
 // validateOrders checks that all orders in the set are valid against the map
@@ -88,6 +208,36 @@ func validateOrders(orders []OrderInput, gs *diplomacy.GameState, power diplomac
 	return orders
 }
 
+// validateBuildOrders checks that all build/disband orders are valid.
+func validateBuildOrders(orders []OrderInput, gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
+	for _, o := range orders {
+		switch o.OrderType {
+		case "build":
+			bo := diplomacy.BuildOrder{
+				Power:    power,
+				Type:     diplomacy.BuildUnit,
+				UnitType: parseUnitTypeStr(o.UnitType),
+				Location: o.Location,
+				Coast:    diplomacy.Coast(o.Coast),
+			}
+			if err := diplomacy.ValidateBuildOrder(bo, gs, m); err != nil {
+				return nil
+			}
+		case "disband":
+			if gs.UnitAt(o.Location) == nil {
+				return nil
+			}
+			u := gs.UnitAt(o.Location)
+			if u.Power != power {
+				return nil
+			}
+		default:
+			return nil
+		}
+	}
+	return orders
+}
+
 // orderInputToOrder converts a single OrderInput to a diplomacy.Order.
 func orderInputToOrder(o OrderInput, power diplomacy.Power) diplomacy.Order {
 	return diplomacy.Order{
@@ -104,671 +254,144 @@ func orderInputToOrder(o OrderInput, power diplomacy.Power) diplomacy.Order {
 	}
 }
 
-// move is a shorthand constructor for a move OrderInput.
+// Shorthand constructors for building OrderInputs in tests.
+
 func mv(ut, loc, target string) OrderInput {
 	return OrderInput{UnitType: ut, Location: loc, OrderType: "move", Target: target}
 }
 
-// mvC is a shorthand constructor for a move OrderInput with a target coast.
 func mvC(ut, loc, coast, target, targetCoast string) OrderInput {
 	return OrderInput{UnitType: ut, Location: loc, Coast: coast, OrderType: "move", Target: target, TargetCoast: targetCoast}
 }
 
-// hld is a shorthand constructor for a hold OrderInput.
 func hld(ut, loc string) OrderInput {
 	return OrderInput{UnitType: ut, Location: loc, OrderType: "hold"}
 }
 
-// sup is a shorthand constructor for a support-move OrderInput.
 func sup(ut, loc, auxLoc, auxTarget, auxUt string) OrderInput {
 	return OrderInput{UnitType: ut, Location: loc, OrderType: "support", AuxLoc: auxLoc, AuxTarget: auxTarget, AuxUnitType: auxUt}
 }
 
-// con is a shorthand constructor for a convoy OrderInput.
 func con(loc, auxLoc, auxTarget string) OrderInput {
 	return OrderInput{UnitType: "fleet", Location: loc, OrderType: "convoy", AuxLoc: auxLoc, AuxTarget: auxTarget, AuxUnitType: "army"}
 }
 
-// springOpenings returns the Spring 1901 opening entries for a power.
-// All moves are validated against the actual map adjacencies in map_data.go.
-func springOpenings(power diplomacy.Power) []openingEntry {
-	switch power {
-	case diplomacy.England:
-		// lvp adjacent to: edi, wal, cly (both), iri, nao (fleet)
-		return []openingEntry{
-			{name: "Northern", weight: 37.6, orders: []OrderInput{
-				mv("fleet", "edi", "nrg"), mv("fleet", "lon", "nth"), mv("army", "lvp", "edi"),
-			}},
-			{name: "Welsh", weight: 20.4, orders: []OrderInput{
-				mv("fleet", "edi", "nrg"), mv("fleet", "lon", "nth"), mv("army", "lvp", "wal"),
-			}},
-			{name: "Channel", weight: 13.0, orders: []OrderInput{
-				mv("fleet", "edi", "nth"), mv("fleet", "lon", "eng"), mv("army", "lvp", "wal"),
-			}},
-			{name: "Edinburgh", weight: 11.0, orders: []OrderInput{
-				mv("fleet", "edi", "nth"), mv("fleet", "lon", "eng"), mv("army", "lvp", "edi"),
-			}},
-		}
-	case diplomacy.France:
-		return []openingEntry{
-			{name: "Maginot", weight: 23.1, orders: []OrderInput{
-				mv("fleet", "bre", "mao"), mv("army", "par", "bur"),
-				sup("army", "mar", "par", "bur", "army"),
-			}},
-			{name: "Picardy", weight: 17.4, orders: []OrderInput{
-				mv("fleet", "bre", "mao"), mv("army", "par", "pic"), mv("army", "mar", "spa"),
-			}},
-			{name: "Burgundy", weight: 17.0, orders: []OrderInput{
-				mv("fleet", "bre", "mao"), mv("army", "par", "bur"), mv("army", "mar", "spa"),
-			}},
-			{name: "Guernsey", weight: 7.3, orders: []OrderInput{
-				mv("fleet", "bre", "eng"), mv("army", "par", "pic"), mv("army", "mar", "spa"),
-			}},
-		}
-	case diplomacy.Germany:
-		// kie adjacent to: den, ber (both), mun, ruh (army), bal, hel (fleet)
-		return []openingEntry{
-			{name: "Danish Blitzkrieg", weight: 32.3, orders: []OrderInput{
-				mv("fleet", "kie", "den"), mv("army", "ber", "kie"), mv("army", "mun", "ruh"),
-			}},
-			{name: "Burgundian Attack", weight: 18.6, orders: []OrderInput{
-				mv("fleet", "kie", "den"), mv("army", "ber", "kie"), mv("army", "mun", "bur"),
-			}},
-			{name: "Baltic Opening", weight: 9.1, orders: []OrderInput{
-				mv("fleet", "kie", "bal"), mv("army", "ber", "kie"), mv("army", "mun", "ruh"),
-			}},
-			{name: "Helgoland Opening", weight: 4.0, orders: []OrderInput{
-				mv("fleet", "kie", "hel"), mv("army", "ber", "kie"), mv("army", "mun", "ruh"),
-			}},
-		}
-	case diplomacy.Italy:
-		// rom adjacent to: ven, nap, tus (both), tys (fleet)
-		// ven adjacent to: apu, rom, pie, tri (both), tyr (army), adr (fleet)
-		return []openingEntry{
-			{name: "Trentino Attack", weight: 20.0, orders: []OrderInput{
-				mv("fleet", "nap", "ion"), mv("army", "rom", "ven"), mv("army", "ven", "tyr"),
-			}},
-			{name: "Lepanto Preparation", weight: 19.1, orders: []OrderInput{
-				mv("fleet", "nap", "ion"), mv("army", "rom", "ven"), mv("army", "ven", "apu"),
-			}},
-			{name: "Alpine Chicken", weight: 8.0, orders: []OrderInput{
-				mv("fleet", "nap", "ion"), mv("army", "rom", "ven"), mv("army", "ven", "pie"),
-			}},
-			{name: "Trieste Strike", weight: 5.0, orders: []OrderInput{
-				mv("fleet", "nap", "ion"), mv("army", "rom", "ven"), mv("army", "ven", "tri"),
-			}},
-		}
-	case diplomacy.Austria:
-		return []openingEntry{
-			{name: "Slovenian", weight: 18.0, orders: []OrderInput{
-				mv("fleet", "tri", "alb"), mv("army", "bud", "ser"), mv("army", "vie", "tri"),
-			}},
-			{name: "Galician", weight: 16.0, orders: []OrderInput{
-				mv("fleet", "tri", "alb"), mv("army", "bud", "ser"), mv("army", "vie", "gal"),
-			}},
-			{name: "Balkan", weight: 14.0, orders: []OrderInput{
-				mv("fleet", "tri", "alb"), mv("army", "bud", "ser"), mv("army", "vie", "bud"),
-			}},
-			{name: "Hungarian Houseboat", weight: 4.8, orders: []OrderInput{
-				hld("fleet", "tri"), mv("army", "bud", "ser"), mv("army", "vie", "gal"),
-			}},
-		}
-	case diplomacy.Russia:
-		return []openingEntry{
-			{name: "Southern Defence", weight: 22.4, orders: []OrderInput{
-				mvC("fleet", "stp", "sc", "bot", ""),
-				mv("fleet", "sev", "bla"), mv("army", "mos", "ukr"), mv("army", "war", "gal"),
-			}},
-			{name: "Ukrainian System", weight: 9.2, orders: []OrderInput{
-				mvC("fleet", "stp", "sc", "bot", ""),
-				mv("fleet", "sev", "rum"), mv("army", "mos", "ukr"), mv("army", "war", "gal"),
-			}},
-			{name: "The Squid", weight: 7.8, orders: []OrderInput{
-				mvC("fleet", "stp", "sc", "bot", ""),
-				mv("fleet", "sev", "bla"), mv("army", "mos", "stp"), mv("army", "war", "ukr"),
-			}},
-			{name: "The Octopus", weight: 5.0, orders: []OrderInput{
-				mvC("fleet", "stp", "sc", "bot", ""),
-				mv("fleet", "sev", "bla"), mv("army", "mos", "stp"), mv("army", "war", "gal"),
-			}},
-		}
-	case diplomacy.Turkey:
-		// smy adjacent to: con, arm, syr (both), aeg, eas (fleet)
-		// ank adjacent to: con, arm (both), bla (fleet)
-		return []openingEntry{
-			{name: "Byzantine", weight: 47.5, orders: []OrderInput{
-				mv("army", "con", "bul"), mv("army", "smy", "con"), mv("fleet", "ank", "bla"),
-			}},
-			{name: "Armenian Attack", weight: 13.0, orders: []OrderInput{
-				mv("army", "con", "bul"), mv("army", "smy", "arm"), mv("fleet", "ank", "bla"),
-			}},
-			{name: "Anti-Lepanto", weight: 8.7, orders: []OrderInput{
-				mv("army", "con", "bul"), mv("army", "smy", "arm"), mv("fleet", "ank", "con"),
-			}},
-			{name: "Boston Strangler", weight: 4.7, orders: []OrderInput{
-				mv("army", "con", "bul"), mv("army", "smy", "con"), hld("fleet", "ank"),
-			}},
-		}
+// parsePhaseStr converts a phase string from JSON to the engine PhaseType.
+func parsePhaseStr(s string) diplomacy.PhaseType {
+	switch s {
+	case "movement":
+		return diplomacy.PhaseMovement
+	case "retreat":
+		return diplomacy.PhaseRetreat
+	case "build":
+		return diplomacy.PhaseBuild
+	default:
+		return diplomacy.PhaseMovement
 	}
-	return nil
 }
 
-// fallOpenings returns the Fall 1901 conditional opening data for a power.
-// Conditions match unit positions resulting from spring openings above.
-func fallOpenings(power diplomacy.Power) []fallCondition {
-	switch power {
-	case diplomacy.England:
-		return []fallCondition{
-			// Northern result: F nrg, F nth, A edi
-			{positions: map[string]string{"nrg": "fleet", "nth": "fleet", "edi": "army"},
-				entries: []openingEntry{
-					{name: "Northern: convoy edi to nwy", weight: 60, orders: []OrderInput{
-						con("nrg", "edi", "nwy"),
-						mv("army", "edi", "nwy"),
-						mv("fleet", "nth", "bel"),
-					}},
-					{name: "Northern: nrg to nwy, nth to bel", weight: 40, orders: []OrderInput{
-						mv("fleet", "nrg", "nwy"),
-						mv("fleet", "nth", "bel"),
-						mv("army", "edi", "yor"),
-					}},
-				}},
-			// Welsh result: F nrg, F nth, A wal
-			{positions: map[string]string{"nrg": "fleet", "nth": "fleet", "wal": "army"},
-				entries: []openingEntry{
-					{name: "Welsh: nwy+hol", weight: 60, orders: []OrderInput{
-						mv("fleet", "nrg", "nwy"),
-						mv("fleet", "nth", "hol"),
-						mv("army", "wal", "lon"),
-					}},
-					{name: "Welsh: nwy+bel", weight: 40, orders: []OrderInput{
-						mv("fleet", "nrg", "nwy"),
-						mv("fleet", "nth", "bel"),
-						mv("army", "wal", "lon"),
-					}},
-				}},
-			// Channel result: F nth, F eng, A wal
-			{positions: map[string]string{"nth": "fleet", "eng": "fleet", "wal": "army"},
-				entries: []openingEntry{
-					{name: "Channel: eng to bel, nth to nwy", weight: 60, orders: []OrderInput{
-						mv("fleet", "eng", "bel"),
-						mv("fleet", "nth", "nwy"),
-						mv("army", "wal", "lon"),
-					}},
-					{name: "Channel: eng to bre", weight: 40, orders: []OrderInput{
-						mv("fleet", "eng", "bre"),
-						mv("fleet", "nth", "nwy"),
-						mv("army", "wal", "lon"),
-					}},
-				}},
-			// Edinburgh result: F nth, F eng, A edi
-			{positions: map[string]string{"nth": "fleet", "eng": "fleet", "edi": "army"},
-				entries: []openingEntry{
-					{name: "Edinburgh: eng to bel, nth to nwy", weight: 60, orders: []OrderInput{
-						mv("fleet", "eng", "bel"),
-						mv("fleet", "nth", "nwy"),
-						mv("army", "edi", "yor"),
-					}},
-					{name: "Edinburgh: eng to bre", weight: 40, orders: []OrderInput{
-						mv("fleet", "eng", "bre"),
-						mv("fleet", "nth", "nwy"),
-						mv("army", "edi", "yor"),
-					}},
-				}},
-		}
-	case diplomacy.France:
-		return []fallCondition{
-			// Maginot result: F mao, A bur, A mar (mar stays because it supported)
-			{positions: map[string]string{"mao": "fleet", "bur": "army", "mar": "army"},
-				entries: []openingEntry{
-					{name: "Maginot: por+bel", weight: 50, orders: []OrderInput{
-						mv("fleet", "mao", "por"),
-						mv("army", "bur", "bel"),
-						mv("army", "mar", "spa"),
-					}},
-					{name: "Maginot: spa+mun", weight: 50, orders: []OrderInput{
-						mvC("fleet", "mao", "", "spa", "sc"),
-						mv("army", "bur", "mun"),
-						mv("army", "mar", "bur"),
-					}},
-				}},
-			// Picardy result: F mao, A pic, A spa
-			{positions: map[string]string{"mao": "fleet", "pic": "army", "spa": "army"},
-				entries: []openingEntry{
-					{name: "Picardy: pic to bel, spa to mar", weight: 60, orders: []OrderInput{
-						mv("fleet", "mao", "por"),
-						mv("army", "pic", "bel"),
-						mv("army", "spa", "mar"),
-					}},
-					{name: "Picardy: mao to spa(sc)", weight: 40, orders: []OrderInput{
-						mvC("fleet", "mao", "", "spa", "sc"),
-						mv("army", "pic", "bel"),
-						mv("army", "spa", "por"),
-					}},
-				}},
-			// Burgundy result: F mao, A bur, A spa
-			{positions: map[string]string{"mao": "fleet", "bur": "army", "spa": "army"},
-				entries: []openingEntry{
-					{name: "Burgundy: bel+por", weight: 60, orders: []OrderInput{
-						mv("fleet", "mao", "por"),
-						mv("army", "bur", "bel"),
-						mv("army", "spa", "mar"),
-					}},
-					{name: "Burgundy: mun push", weight: 40, orders: []OrderInput{
-						mv("fleet", "mao", "por"),
-						mv("army", "bur", "mun"),
-						mv("army", "spa", "mar"),
-					}},
-				}},
-			// Guernsey result: F eng, A pic, A spa
-			{positions: map[string]string{"eng": "fleet", "pic": "army", "spa": "army"},
-				entries: []openingEntry{
-					{name: "Guernsey: eng to bel, pic supports", weight: 60, orders: []OrderInput{
-						mv("fleet", "eng", "bel"),
-						sup("army", "pic", "eng", "bel", "fleet"),
-						mv("army", "spa", "por"),
-					}},
-					{name: "Guernsey: eng to nth", weight: 40, orders: []OrderInput{
-						mv("fleet", "eng", "nth"),
-						mv("army", "pic", "bel"),
-						mv("army", "spa", "por"),
-					}},
-				}},
-		}
-	case diplomacy.Germany:
-		return []fallCondition{
-			// Danish Blitzkrieg result: F den, A kie, A ruh
-			{positions: map[string]string{"den": "fleet", "kie": "army", "ruh": "army"},
-				entries: []openingEntry{
-					{name: "Danish: swe+hol", weight: 50, orders: []OrderInput{
-						mv("fleet", "den", "swe"),
-						mv("army", "kie", "mun"),
-						mv("army", "ruh", "hol"),
-					}},
-					{name: "Danish: swe+bel", weight: 50, orders: []OrderInput{
-						mv("fleet", "den", "swe"),
-						mv("army", "kie", "den"),
-						mv("army", "ruh", "bel"),
-					}},
-				}},
-			// Burgundian Attack result: F den, A kie, A bur (if succeeded)
-			{positions: map[string]string{"den": "fleet", "kie": "army", "bur": "army"},
-				entries: []openingEntry{
-					{name: "Burgundian: bur to bel", weight: 60, orders: []OrderInput{
-						mv("fleet", "den", "swe"),
-						mv("army", "kie", "mun"),
-						mv("army", "bur", "bel"),
-					}},
-					{name: "Burgundian: bur to mar", weight: 40, orders: []OrderInput{
-						mv("fleet", "den", "swe"),
-						mv("army", "kie", "mun"),
-						mv("army", "bur", "mar"),
-					}},
-				}},
-			// Burgundian bounce (A stayed in mun)
-			{positions: map[string]string{"den": "fleet", "kie": "army", "mun": "army"},
-				entries: []openingEntry{
-					{name: "Burgundian bounce: fallback", weight: 100, orders: []OrderInput{
-						mv("fleet", "den", "swe"),
-						mv("army", "kie", "den"),
-						mv("army", "mun", "ruh"),
-					}},
-				}},
-			// Baltic Opening result: F bal, A kie, A ruh
-			{positions: map[string]string{"bal": "fleet", "kie": "army", "ruh": "army"},
-				entries: []openingEntry{
-					{name: "Baltic: swe+hol", weight: 60, orders: []OrderInput{
-						mv("fleet", "bal", "swe"),
-						mv("army", "kie", "den"),
-						mv("army", "ruh", "hol"),
-					}},
-					{name: "Baltic: den+bel", weight: 40, orders: []OrderInput{
-						mv("fleet", "bal", "den"),
-						mv("army", "kie", "mun"),
-						mv("army", "ruh", "bel"),
-					}},
-				}},
-			// Helgoland Opening result: F hel, A kie, A ruh
-			{positions: map[string]string{"hel": "fleet", "kie": "army", "ruh": "army"},
-				entries: []openingEntry{
-					{name: "Helgoland: hol+den", weight: 60, orders: []OrderInput{
-						mv("fleet", "hel", "hol"),
-						mv("army", "kie", "den"),
-						mv("army", "ruh", "bel"),
-					}},
-					{name: "Helgoland: nth+den", weight: 40, orders: []OrderInput{
-						mv("fleet", "hel", "nth"),
-						mv("army", "kie", "den"),
-						mv("army", "ruh", "bel"),
-					}},
-				}},
-		}
-	case diplomacy.Italy:
-		return []fallCondition{
-			// Trentino result: F ion, A ven, A tyr
-			{positions: map[string]string{"ion": "fleet", "ven": "army", "tyr": "army"},
-				entries: []openingEntry{
-					{name: "Trentino: tun+mun", weight: 40, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						hld("army", "ven"),
-						mv("army", "tyr", "mun"),
-					}},
-					{name: "Trentino: tun+vie", weight: 30, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						hld("army", "ven"),
-						mv("army", "tyr", "vie"),
-					}},
-					{name: "Trentino: tun+tri", weight: 30, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						mv("army", "ven", "tri"),
-						sup("army", "tyr", "ven", "tri", "army"),
-					}},
-				}},
-			// Lepanto result: F ion, A ven, A apu (rom->ven, ven->apu)
-			{positions: map[string]string{"ion": "fleet", "ven": "army", "apu": "army"},
-				entries: []openingEntry{
-					{name: "Lepanto: convoy to tun", weight: 70, orders: []OrderInput{
-						con("ion", "apu", "tun"),
-						mv("army", "apu", "tun"),
-						hld("army", "ven"),
-					}},
-					{name: "Lepanto: ion to tun direct", weight: 30, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						mv("army", "apu", "nap"),
-						hld("army", "ven"),
-					}},
-				}},
-			// Alpine Chicken result: F ion, A ven, A pie (rom->ven, ven->pie)
-			{positions: map[string]string{"ion": "fleet", "ven": "army", "pie": "army"},
-				entries: []openingEntry{
-					{name: "Alpine: tun+mar", weight: 50, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						hld("army", "ven"),
-						mv("army", "pie", "mar"),
-					}},
-					{name: "Alpine: tun+tyr", weight: 50, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						hld("army", "ven"),
-						mv("army", "pie", "tyr"),
-					}},
-				}},
-			// Trieste Strike bounce: F ion, A rom, A ven (ven->tri bounced, rom->ven bounced)
-			{positions: map[string]string{"ion": "fleet", "rom": "army", "ven": "army"},
-				entries: []openingEntry{
-					{name: "Trieste bounce: tun+tyr", weight: 60, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						mv("army", "rom", "apu"),
-						mv("army", "ven", "tyr"),
-					}},
-					{name: "Trieste bounce: tun+tri retry", weight: 40, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						mv("army", "rom", "ven"),
-						mv("army", "ven", "tri"),
-					}},
-				}},
-			// Trieste Strike result: F ion, A ven, A tri (rom->ven, ven->tri)
-			{positions: map[string]string{"ion": "fleet", "ven": "army", "tri": "army"},
-				entries: []openingEntry{
-					{name: "Trieste: tun+ser", weight: 60, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						sup("army", "ven", "tri", "ser", "army"),
-						mv("army", "tri", "ser"),
-					}},
-					{name: "Trieste: tun+alb", weight: 40, orders: []OrderInput{
-						mv("fleet", "ion", "tun"),
-						sup("army", "ven", "tri", "alb", "army"),
-						mv("army", "tri", "alb"),
-					}},
-				}},
-		}
-	case diplomacy.Austria:
-		return []fallCondition{
-			// Slovenian result: F alb, A ser, A tri
-			{positions: map[string]string{"alb": "fleet", "ser": "army", "tri": "army"},
-				entries: []openingEntry{
-					{name: "Slovenian: gre+vie", weight: 50, orders: []OrderInput{
-						mv("fleet", "alb", "gre"),
-						sup("army", "ser", "alb", "gre", "fleet"),
-						mv("army", "tri", "vie"),
-					}},
-					{name: "Slovenian: gre+ven", weight: 50, orders: []OrderInput{
-						mv("fleet", "alb", "gre"),
-						sup("army", "ser", "alb", "gre", "fleet"),
-						mv("army", "tri", "ven"),
-					}},
-				}},
-			// Galician result: F alb, A ser, A gal
-			{positions: map[string]string{"alb": "fleet", "ser": "army", "gal": "army"},
-				entries: []openingEntry{
-					{name: "Galician: gre+rum", weight: 60, orders: []OrderInput{
-						mv("fleet", "alb", "gre"),
-						sup("army", "ser", "alb", "gre", "fleet"),
-						mv("army", "gal", "rum"),
-					}},
-					{name: "Galician: gre, gal holds", weight: 40, orders: []OrderInput{
-						mv("fleet", "alb", "gre"),
-						sup("army", "ser", "alb", "gre", "fleet"),
-						hld("army", "gal"),
-					}},
-				}},
-			// Balkan result: F alb, A ser, A bud
-			{positions: map[string]string{"alb": "fleet", "ser": "army", "bud": "army"},
-				entries: []openingEntry{
-					{name: "Balkan: gre+rum", weight: 60, orders: []OrderInput{
-						mv("fleet", "alb", "gre"),
-						sup("army", "ser", "alb", "gre", "fleet"),
-						mv("army", "bud", "rum"),
-					}},
-					{name: "Balkan: gre+gal", weight: 40, orders: []OrderInput{
-						mv("fleet", "alb", "gre"),
-						sup("army", "ser", "alb", "gre", "fleet"),
-						mv("army", "bud", "gal"),
-					}},
-				}},
-			// Hungarian Houseboat result: F tri, A ser, A gal
-			{positions: map[string]string{"tri": "fleet", "ser": "army", "gal": "army"},
-				entries: []openingEntry{
-					{name: "Houseboat: tri to alb, rum", weight: 60, orders: []OrderInput{
-						mv("fleet", "tri", "alb"),
-						mv("army", "ser", "gre"),
-						mv("army", "gal", "rum"),
-					}},
-					{name: "Houseboat: tri to adr", weight: 40, orders: []OrderInput{
-						mv("fleet", "tri", "adr"),
-						mv("army", "ser", "gre"),
-						mv("army", "gal", "rum"),
-					}},
-				}},
-		}
-	case diplomacy.Russia:
-		return []fallCondition{
-			// Southern Defence result: F bot, F bla, A ukr, A gal
-			{positions: map[string]string{"bot": "fleet", "bla": "fleet", "ukr": "army", "gal": "army"},
-				entries: []openingEntry{
-					{name: "Southern: swe+rum", weight: 60, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						sup("fleet", "bla", "ukr", "rum", "army"),
-						mv("army", "ukr", "rum"),
-						sup("army", "gal", "ukr", "rum", "army"),
-					}},
-					{name: "Southern: swe, bla to rum", weight: 40, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						mv("fleet", "bla", "rum"),
-						mv("army", "ukr", "sev"),
-						mv("army", "gal", "rum"),
-					}},
-				}},
-			// Ukrainian System result: F bot, F rum, A ukr, A gal
-			{positions: map[string]string{"bot": "fleet", "rum": "fleet", "ukr": "army", "gal": "army"},
-				entries: []openingEntry{
-					{name: "Ukrainian: swe, rum to bla", weight: 50, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						mv("fleet", "rum", "bla"),
-						mv("army", "ukr", "sev"),
-						hld("army", "gal"),
-					}},
-					{name: "Ukrainian: swe, rum to bul(ec)", weight: 50, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						mvC("fleet", "rum", "", "bul", "ec"),
-						mv("army", "ukr", "rum"),
-						hld("army", "gal"),
-					}},
-				}},
-			// The Squid result: F bot, F bla, A stp, A ukr
-			{positions: map[string]string{"bot": "fleet", "bla": "fleet", "stp": "army", "ukr": "army"},
-				entries: []openingEntry{
-					{name: "Squid: swe+nwy+rum", weight: 60, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						mv("fleet", "bla", "rum"),
-						mv("army", "stp", "nwy"),
-						mv("army", "ukr", "rum"),
-					}},
-					{name: "Squid: swe+nwy, bla supports", weight: 40, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						sup("fleet", "bla", "ukr", "rum", "army"),
-						mv("army", "stp", "nwy"),
-						mv("army", "ukr", "rum"),
-					}},
-				}},
-			// The Octopus result: F bot, F bla, A stp, A gal
-			{positions: map[string]string{"bot": "fleet", "bla": "fleet", "stp": "army", "gal": "army"},
-				entries: []openingEntry{
-					{name: "Octopus: swe+nwy+rum", weight: 60, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						mv("fleet", "bla", "rum"),
-						mv("army", "stp", "nwy"),
-						mv("army", "gal", "rum"),
-					}},
-					{name: "Octopus: swe+nwy, gal holds", weight: 40, orders: []OrderInput{
-						mv("fleet", "bot", "swe"),
-						mv("fleet", "bla", "rum"),
-						mv("army", "stp", "nwy"),
-						hld("army", "gal"),
-					}},
-				}},
-		}
-	case diplomacy.Turkey:
-		return []fallCondition{
-			// Byzantine result: A bul, A con, F bla
-			{positions: map[string]string{"bul": "army", "con": "army", "bla": "fleet"},
-				entries: []openingEntry{
-					{name: "Byzantine: gre+rum", weight: 40, orders: []OrderInput{
-						mv("army", "bul", "gre"),
-						mv("army", "con", "bul"),
-						sup("fleet", "bla", "bul", "rum", "army"),
-					}},
-					{name: "Byzantine: ser, bla to rum", weight: 30, orders: []OrderInput{
-						mv("army", "bul", "ser"),
-						mv("army", "con", "bul"),
-						mv("fleet", "bla", "rum"),
-					}},
-					{name: "Byzantine: rum direct", weight: 30, orders: []OrderInput{
-						mv("army", "bul", "rum"),
-						mv("army", "con", "bul"),
-						sup("fleet", "bla", "bul", "rum", "army"),
-					}},
-				}},
-			// Armenian Attack result: A bul, A arm, F bla
-			{positions: map[string]string{"bul": "army", "arm": "army", "bla": "fleet"},
-				entries: []openingEntry{
-					{name: "Armenian: bul to gre, arm to sev", weight: 50, orders: []OrderInput{
-						mv("army", "bul", "gre"),
-						mv("army", "arm", "sev"),
-						sup("fleet", "bla", "arm", "sev", "army"),
-					}},
-					{name: "Armenian: bul to rum, arm holds", weight: 50, orders: []OrderInput{
-						mv("army", "bul", "rum"),
-						hld("army", "arm"),
-						sup("fleet", "bla", "bul", "rum", "army"),
-					}},
-				}},
-			// Anti-Lepanto result: A bul, A arm, F con
-			{positions: map[string]string{"bul": "army", "arm": "army", "con": "fleet"},
-				entries: []openingEntry{
-					{name: "Anti-Lepanto: con to aeg, bul to gre", weight: 50, orders: []OrderInput{
-						mv("army", "bul", "gre"),
-						mv("army", "arm", "smy"),
-						mv("fleet", "con", "aeg"),
-					}},
-					{name: "Anti-Lepanto: con to bla, arm to sev", weight: 50, orders: []OrderInput{
-						mv("army", "bul", "gre"),
-						mv("army", "arm", "sev"),
-						mv("fleet", "con", "bla"),
-					}},
-				}},
-			// Boston Strangler result: A bul, A con, F ank
-			{positions: map[string]string{"bul": "army", "con": "army", "ank": "fleet"},
-				entries: []openingEntry{
-					{name: "Strangler: bul to gre, ank to bla", weight: 50, orders: []OrderInput{
-						mv("army", "bul", "gre"),
-						mv("army", "con", "bul"),
-						mv("fleet", "ank", "bla"),
-					}},
-					{name: "Strangler: bul to ser, ank to con", weight: 50, orders: []OrderInput{
-						mv("army", "bul", "ser"),
-						mv("army", "con", "bul"),
-						mv("fleet", "ank", "con"),
-					}},
-				}},
-		}
+// parseSeasonStr converts a season string from JSON to the engine Season.
+func parseSeasonStr(s string) diplomacy.Season {
+	if s == "fall" {
+		return diplomacy.Fall
 	}
-	return nil
+	return diplomacy.Spring
+}
+
+// parsePowerStr converts a power string from JSON to the engine Power.
+func parsePowerStr(s string) diplomacy.Power {
+	switch s {
+	case "austria":
+		return diplomacy.Austria
+	case "england":
+		return diplomacy.England
+	case "france":
+		return diplomacy.France
+	case "germany":
+		return diplomacy.Germany
+	case "italy":
+		return diplomacy.Italy
+	case "russia":
+		return diplomacy.Russia
+	case "turkey":
+		return diplomacy.Turkey
+	default:
+		return diplomacy.Power(s)
+	}
 }
 
 // LookupOpening returns a validated set of opening book orders for the given
-// power and game state, or nil if no opening matches. Only applies in 1901.
+// power and game state, or nil if no opening matches.
 func LookupOpening(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
-	if gs.Year != 1901 || gs.Phase != diplomacy.PhaseMovement {
+	book := getBook()
+
+	// Filter entries matching current (year, season, phase, power).
+	var candidates []BookEntry
+	for _, e := range book.Entries {
+		if e.Year != gs.Year {
+			continue
+		}
+		if parseSeasonStr(e.Season) != gs.Season {
+			continue
+		}
+		if parsePhaseStr(e.Phase) != gs.Phase {
+			continue
+		}
+		if parsePowerStr(e.Power) != power {
+			continue
+		}
+		candidates = append(candidates, e)
+	}
+
+	if len(candidates) == 0 {
 		return nil
 	}
 
-	if gs.Season == diplomacy.Spring {
-		entries := springOpenings(power)
-		if len(entries) == 0 {
-			return nil
-		}
-		// Verify units are in expected starting positions
-		units := gs.UnitsOf(power)
-		expected := initialUnitPositions(power)
-		if len(units) != len(expected) {
-			return nil
-		}
-		actual := unitKey(gs, power)
-		if !positionsMatch(expected, actual) {
-			return nil
-		}
-		entry := weightedSelect(entries)
-		if entry == nil {
-			return nil
-		}
-		return validateOrders(entry.orders, gs, power, m)
+	// Evaluate conditions and collect matching entries with specificity.
+	type match struct {
+		entry       *BookEntry
+		specificity int
 	}
-
-	if gs.Season == diplomacy.Fall {
-		conditions := fallOpenings(power)
-		if len(conditions) == 0 {
-			return nil
-		}
-		actual := unitKey(gs, power)
-		// Sort by number of positions descending for most-specific match first
-		sort.Slice(conditions, func(i, j int) bool {
-			return len(conditions[i].positions) > len(conditions[j].positions)
-		})
-		for _, cond := range conditions {
-			if positionsMatch(cond.positions, actual) {
-				entry := weightedSelect(cond.entries)
-				if entry == nil {
-					continue
-				}
-				result := validateOrders(entry.orders, gs, power, m)
-				if result != nil {
-					return result
-				}
-			}
+	var matches []match
+	for i := range candidates {
+		if matchCondition(&candidates[i].Condition, gs, power) {
+			matches = append(matches, match{
+				entry:       &candidates[i],
+				specificity: conditionSpecificity(&candidates[i].Condition),
+			})
 		}
 	}
 
-	return nil
+	if len(matches) == 0 {
+		return nil
+	}
+
+	// Sort by specificity descending; pick the highest tier.
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].specificity > matches[j].specificity
+	})
+
+	// Collect all entries at the top specificity level.
+	topSpec := matches[0].specificity
+	var topOptions []BookOption
+	for _, mt := range matches {
+		if mt.specificity < topSpec {
+			break
+		}
+		topOptions = append(topOptions, mt.entry.Options...)
+	}
+
+	// Weighted select from the combined top-tier options.
+	selected := bookWeightedSelect(topOptions)
+	if selected == nil {
+		return nil
+	}
+
+	// Validate based on phase type.
+	if gs.Phase == diplomacy.PhaseBuild {
+		return validateBuildOrders(selected.Orders, gs, power, m)
+	}
+	return validateOrders(selected.Orders, gs, power, m)
 }
 
 // initialUnitPositions returns the expected starting unit positions for a power.

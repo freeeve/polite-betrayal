@@ -6,6 +6,14 @@ import (
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
 
+// TestBookLoads verifies that the embedded JSON parses without error.
+func TestBookLoads(t *testing.T) {
+	book := getBook()
+	if len(book.Entries) == 0 {
+		t.Fatal("opening book has no entries")
+	}
+}
+
 // TestOpeningSpringAllPowers verifies that LookupOpening returns valid orders
 // for every power in the Spring 1901 starting position.
 func TestOpeningSpringAllPowers(t *testing.T) {
@@ -128,16 +136,16 @@ func TestOpeningFallConditional(t *testing.T) {
 	}
 }
 
-// TestOpeningReturnsNilForYear1902 ensures the opening book does not activate
-// outside of 1901.
-func TestOpeningReturnsNilForYear1902(t *testing.T) {
+// TestOpeningReturnsNilForNonBookYear ensures the opening book returns nil
+// for years with no entries.
+func TestOpeningReturnsNilForNonBookYear(t *testing.T) {
 	gs := diplomacy.NewInitialState()
-	gs.Year = 1902
+	gs.Year = 1950
 	m := diplomacy.StandardMap()
 
 	for _, power := range diplomacy.AllPowers() {
 		if orders := LookupOpening(gs, power, m); orders != nil {
-			t.Errorf("%s: expected nil for year 1902, got %d orders", power, len(orders))
+			t.Errorf("%s: expected nil for year 1950, got %d orders", power, len(orders))
 		}
 	}
 }
@@ -254,17 +262,21 @@ func TestOpeningDebugValidation(t *testing.T) {
 	gs := diplomacy.NewInitialState()
 	m := diplomacy.StandardMap()
 
-	for _, power := range diplomacy.AllPowers() {
-		entries := springOpenings(power)
-		for _, entry := range entries {
-			for _, o := range entry.orders {
+	book := getBook()
+	for _, entry := range book.Entries {
+		if entry.Year != 1901 || entry.Season != "spring" || entry.Phase != "movement" {
+			continue
+		}
+		power := parsePowerStr(entry.Power)
+		for _, opt := range entry.Options {
+			for _, o := range opt.Orders {
 				eng := orderInputToOrder(o, power)
 				if eng.Type == diplomacy.OrderHold {
 					continue
 				}
 				if err := diplomacy.ValidateOrder(eng, gs, m); err != nil {
 					t.Errorf("%s/%s: invalid order %s %s at %s -> %s (coast:%s, tc:%s): %v",
-						power, entry.name, o.UnitType, o.OrderType, o.Location, o.Target, o.Coast, o.TargetCoast, err)
+						power, opt.Name, o.UnitType, o.OrderType, o.Location, o.Target, o.Coast, o.TargetCoast, err)
 				}
 			}
 		}
@@ -290,6 +302,141 @@ func TestOpeningNoDuplicateLocations(t *testing.T) {
 				}
 				locs[o.Location] = true
 			}
+		}
+	}
+}
+
+// TestConditionMatchFeatureBased verifies feature-based matching for non-position conditions.
+func TestConditionMatchFeatureBased(t *testing.T) {
+	gs := diplomacy.NewInitialState()
+
+	// England starts with 3 home SCs
+	cond := &BookCondition{
+		SCCountMin: 3,
+		SCCountMax: 5,
+	}
+	if !matchCondition(cond, gs, diplomacy.England) {
+		t.Error("expected SC count condition to match for England (3 SCs)")
+	}
+
+	// Test with too-high minimum
+	cond2 := &BookCondition{
+		SCCountMin: 10,
+	}
+	if matchCondition(cond2, gs, diplomacy.England) {
+		t.Error("expected SC count condition to NOT match for England with min=10")
+	}
+
+	// Test OwnedSCs
+	cond3 := &BookCondition{
+		OwnedSCs: []string{"lon", "lvp", "edi"},
+	}
+	if !matchCondition(cond3, gs, diplomacy.England) {
+		t.Error("expected OwnedSCs condition to match for England home SCs")
+	}
+
+	// Test OwnedSCs with foreign SC
+	cond4 := &BookCondition{
+		OwnedSCs: []string{"lon", "par"},
+	}
+	if matchCondition(cond4, gs, diplomacy.England) {
+		t.Error("expected OwnedSCs to NOT match when England doesn't own Paris")
+	}
+}
+
+// TestConditionMatchArmyFleetCount verifies army/fleet count matching.
+func TestConditionMatchArmyFleetCount(t *testing.T) {
+	gs := diplomacy.NewInitialState()
+
+	// England: 2 fleets, 1 army
+	cond := &BookCondition{
+		FleetCount: 2,
+		ArmyCount:  1,
+	}
+	if !matchCondition(cond, gs, diplomacy.England) {
+		t.Error("expected fleet/army count to match for England")
+	}
+
+	// Wrong counts
+	condWrong := &BookCondition{
+		FleetCount: 1,
+		ArmyCount:  2,
+	}
+	if matchCondition(condWrong, gs, diplomacy.England) {
+		t.Error("expected wrong fleet/army count to NOT match")
+	}
+}
+
+// TestConditionSpecificity verifies that more-specific conditions score higher.
+func TestConditionSpecificity(t *testing.T) {
+	c1 := &BookCondition{
+		Positions: map[string]string{"lon": "fleet", "edi": "fleet", "lvp": "army"},
+	}
+	c2 := &BookCondition{
+		SCCountMin: 3,
+	}
+	if conditionSpecificity(c1) <= conditionSpecificity(c2) {
+		t.Errorf("3-position condition (%d) should be more specific than SC count (%d)",
+			conditionSpecificity(c1), conditionSpecificity(c2))
+	}
+}
+
+// TestTheaterMatchCondition verifies theater-based condition matching.
+func TestTheaterMatchCondition(t *testing.T) {
+	gs := diplomacy.NewInitialState()
+
+	// England starts with all units in west theater
+	cond := &BookCondition{
+		Theaters: map[string]int{"west": 3},
+	}
+	if !matchCondition(cond, gs, diplomacy.England) {
+		t.Error("expected theater condition to match for England (3 units in west)")
+	}
+
+	// Wrong theater count should fail
+	cond2 := &BookCondition{
+		Theaters: map[string]int{"west": 1},
+	}
+	if matchCondition(cond2, gs, diplomacy.England) {
+		t.Error("expected theater condition to NOT match for wrong count")
+	}
+}
+
+// TestValidateBuildOrders verifies build/disband order validation.
+func TestValidateBuildOrders(t *testing.T) {
+	m := diplomacy.StandardMap()
+
+	// Create a build phase state where England has 4 SCs but 3 units
+	gs := diplomacy.NewInitialState()
+	gs.Phase = diplomacy.PhaseBuild
+	gs.Season = diplomacy.Fall
+	gs.SupplyCenters["nwy"] = diplomacy.England
+
+	// Valid build
+	orders := []OrderInput{
+		{UnitType: "fleet", Location: "lon", OrderType: "build"},
+	}
+	// This should fail because lon already has a unit
+	result := validateBuildOrders(orders, gs, diplomacy.England, m)
+	if result != nil {
+		t.Error("expected nil for building on occupied province")
+	}
+}
+
+// TestParsePowerStr verifies all power name conversions.
+func TestParsePowerStr(t *testing.T) {
+	cases := map[string]diplomacy.Power{
+		"austria": diplomacy.Austria,
+		"england": diplomacy.England,
+		"france":  diplomacy.France,
+		"germany": diplomacy.Germany,
+		"italy":   diplomacy.Italy,
+		"russia":  diplomacy.Russia,
+		"turkey":  diplomacy.Turkey,
+	}
+	for s, expected := range cases {
+		if got := parsePowerStr(s); got != expected {
+			t.Errorf("parsePowerStr(%q) = %v, want %v", s, got, expected)
 		}
 	}
 }
