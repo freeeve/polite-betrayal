@@ -5,9 +5,14 @@ edition = "2021"
 description = "A Diplomacy engine implementing the DUI protocol"
 authors = ["polite-betrayal"]
 
+[features]
+default = []
+neural = ["ort"]
+
 [dependencies]
 thiserror = "2"
 rand = { version = "0.8", features = ["small_rng"] }
+ort = { version = "2", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
