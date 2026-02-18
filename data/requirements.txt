@@ -2,3 +2,6 @@
 # Core pipeline (download, parse, validate) uses only Python stdlib.
 # Feature extraction requires numpy.
 numpy>=1.24
+
+# GNN policy network training
+torch>=2.0
