@@ -254,3 +254,86 @@ func BenchmarkHardBot(b *testing.B) {
 		s.GenerateMovementOrders(gs, diplomacy.France, m)
 	}
 }
+
+// midGameState returns a realistic 1905 mid-game position where France has
+// 7 SCs and 7 units, with an active board of ~30 units.
+func midGameState() *diplomacy.GameState {
+	return &diplomacy.GameState{
+		Year:   1905,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseMovement,
+		Units: []diplomacy.Unit{
+			// France (7 units)
+			{diplomacy.Army, diplomacy.France, "par", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.France, "bur", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.France, "pie", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.France, "bel", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.France, "bre", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.France, "mao", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.France, "por", diplomacy.NoCoast},
+			// England (5 units)
+			{diplomacy.Fleet, diplomacy.England, "nth", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.England, "eng", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.England, "nwg", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.England, "lon", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.England, "edi", diplomacy.NoCoast},
+			// Germany (4 units)
+			{diplomacy.Army, diplomacy.Germany, "mun", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.Germany, "ruh", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Germany, "kie", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Germany, "den", diplomacy.NoCoast},
+			// Russia (4 units)
+			{diplomacy.Army, diplomacy.Russia, "war", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.Russia, "mos", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Russia, "sev", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Russia, "swe", diplomacy.NoCoast},
+			// Turkey (4 units)
+			{diplomacy.Army, diplomacy.Turkey, "con", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.Turkey, "bul", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Turkey, "ank", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Turkey, "bla", diplomacy.NoCoast},
+			// Austria (3 units)
+			{diplomacy.Army, diplomacy.Austria, "vie", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.Austria, "bud", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Austria, "tri", diplomacy.NoCoast},
+			// Italy (3 units)
+			{diplomacy.Army, diplomacy.Italy, "ven", diplomacy.NoCoast},
+			{diplomacy.Army, diplomacy.Italy, "rom", diplomacy.NoCoast},
+			{diplomacy.Fleet, diplomacy.Italy, "nap", diplomacy.NoCoast},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			// France (7 SCs)
+			"par": diplomacy.France, "bre": diplomacy.France, "mar": diplomacy.France,
+			"spa": diplomacy.France, "por": diplomacy.France, "bel": diplomacy.France,
+			"hol": diplomacy.France,
+			// England (5 SCs)
+			"lon": diplomacy.England, "edi": diplomacy.England, "lvp": diplomacy.England,
+			"nor": diplomacy.England, "nwy": diplomacy.England,
+			// Germany (4 SCs)
+			"ber": diplomacy.Germany, "mun": diplomacy.Germany, "kie": diplomacy.Germany,
+			"den": diplomacy.Germany,
+			// Russia (4 SCs)
+			"mos": diplomacy.Russia, "war": diplomacy.Russia, "sev": diplomacy.Russia,
+			"swe": diplomacy.Russia,
+			// Turkey (4 SCs)
+			"con": diplomacy.Turkey, "ank": diplomacy.Turkey, "smy": diplomacy.Turkey,
+			"bul": diplomacy.Turkey,
+			// Austria (3 SCs)
+			"vie": diplomacy.Austria, "bud": diplomacy.Austria, "tri": diplomacy.Austria,
+			// Italy (3 SCs)
+			"ven": diplomacy.Italy, "rom": diplomacy.Italy, "nap": diplomacy.Italy,
+		},
+	}
+}
+
+func BenchmarkHardBot_MidGame(b *testing.B) {
+	gs := midGameState()
+	m := diplomacy.StandardMap()
+	s := HardStrategy{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		s.GenerateMovementOrders(gs, diplomacy.France, m)
+	}
+}
