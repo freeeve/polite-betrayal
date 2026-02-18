@@ -529,30 +529,23 @@ func TestTacticalStrategy_DefendsOwnSCWhenEnemy2Away(t *testing.T) {
 }
 
 // TestTacticalStrategy_NoDefensePenaltyIn1901 verifies that the SC defense
-// heuristic does not apply in the opening year 1901. Uses multiple trials
-// because the opening book may include hold-heavy options via weighted random.
+// heuristic does not apply in the opening year 1901.
 func TestTacticalStrategy_NoDefensePenaltyIn1901(t *testing.T) {
 	gs := diplomacy.NewInitialState()
 	m := diplomacy.StandardMap()
 	s := TacticalStrategy{}
 
-	const trials = 10
 	for _, power := range diplomacy.AllPowers() {
-		sawMove := false
-		for range trials {
-			orders := s.GenerateMovementOrders(gs, power, m)
-			for _, o := range orders {
-				if o.OrderType == "move" {
-					sawMove = true
-					break
-				}
-			}
-			if sawMove {
-				break
+		orders := s.GenerateMovementOrders(gs, power, m)
+		// In 1901, units should move out from home SCs (opening book)
+		moveCount := 0
+		for _, o := range orders {
+			if o.OrderType == "move" {
+				moveCount++
 			}
 		}
-		if !sawMove {
-			t.Errorf("%s: expected at least one move in %d trials for 1901", power, trials)
+		if moveCount == 0 {
+			t.Errorf("%s: expected at least one move in 1901, got all holds/supports", power)
 		}
 	}
 }
