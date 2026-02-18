@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract opening book data from historical Diplomacy games (Spring 1901 through Fall 1902).
+"""Extract opening book data from historical Diplomacy games (Spring 1901 through Fall 1904).
 
 Reads data/processed/games.jsonl (streaming) and produces:
   1. data/processed/opening_book.json — weighted opening entries per power/phase
@@ -29,21 +29,36 @@ ANALYSIS_PATH = DATA_DIR.parent / "benchmarks" / "opening-book-analysis.md"
 
 POWERS = ["austria", "england", "france", "germany", "italy", "russia", "turkey"]
 
-# Phases we care about, in order
-TARGET_PHASES = ["S1901M", "F1901M", "W1901A", "S1902M", "F1902M"]
+# Phases we care about, in order (Spring 1901 through Fall 1904)
+TARGET_PHASES = [
+    "S1901M", "F1901M", "W1901A",
+    "S1902M", "F1902M", "W1902A",
+    "S1903M", "F1903M", "W1903A",
+    "S1904M", "F1904M",
+]
 
-# Minimum frequency threshold: a cluster must appear in at least this fraction
-# of games for a given power at a given phase to be included.
-MIN_FREQUENCY = 0.02  # 2% (relaxed from 5% since later phases fragment more)
+# Frequency thresholds per phase. A position+orders cluster must appear in at
+# least this fraction of games for that power/phase to be included.
+# Later phases fragment heavily so we use lower thresholds.
+# >5% for 1901, >3% for 1902, >2% for 1903-1904.
+# Additionally, we require at least MIN_ABS_COUNT games regardless of %.
+MIN_ABS_COUNT = 50
 
-# For Spring/Fall 1901 the 5% threshold is reasonable; later phases use 2%
 PHASE_THRESHOLDS = {
     "S1901M": 0.05,
-    "F1901M": 0.03,
-    "W1901A": 0.03,
-    "S1902M": 0.02,
-    "F1902M": 0.02,
+    "F1901M": 0.05,
+    "W1901A": 0.05,
+    "S1902M": 0.03,
+    "F1902M": 0.03,
+    "W1902A": 0.03,
+    "S1903M": 0.02,
+    "F1903M": 0.02,
+    "W1903A": 0.02,
+    "S1904M": 0.02,
+    "F1904M": 0.02,
 }
+
+DEFAULT_THRESHOLD = 0.02
 
 
 def parse_unit(unit_str):
@@ -293,12 +308,25 @@ def process_games():
 def build_opening_book(clusters, phase_totals, total_games):
     """Convert raw clusters into the opening book JSON format.
 
-    Filters by frequency threshold and computes statistics.
+    For each position cluster, computes the conditional frequency of each order
+    set (within that position). Includes positions with enough games and order
+    variants that appear in >10% of games for that position.
     """
     book_entries = []
     stats = defaultdict(lambda: defaultdict(lambda: {
         "total": 0, "covered": 0, "entries": []
     }))
+
+    # Minimum games for a position to be included at all
+    MIN_POS_GAMES = {
+        "S1901M": 5000, "F1901M": 2000, "W1901A": 2000,
+        "S1902M": 500, "F1902M": 500, "W1902A": 500,
+        "S1903M": 200, "F1903M": 200, "W1903A": 200,
+        "S1904M": 200, "F1904M": 200,
+    }
+    # Within a qualifying position, an order variant must appear in at least
+    # this fraction of games for that position to be included.
+    COND_THRESHOLD = 0.10
 
     for power in POWERS:
         for phase_name in TARGET_PHASES:
@@ -306,13 +334,16 @@ def build_opening_book(clusters, phase_totals, total_games):
             if total_for_phase == 0:
                 continue
 
-            threshold = PHASE_THRESHOLDS.get(phase_name, MIN_FREQUENCY)
-            min_count = max(10, int(total_for_phase * threshold))
-
+            min_pos = MIN_POS_GAMES.get(phase_name, 200)
             phase_clusters = clusters[power][phase_name]
             covered_games = 0
 
             for pos_key, order_variants in phase_clusters.items():
+                # Total games with this exact position
+                pos_total = sum(d["count"] for d in order_variants.values())
+                if pos_total < min_pos:
+                    continue
+
                 # Build condition from position key
                 condition = {}
                 for utype, loc in pos_key:
@@ -321,10 +352,11 @@ def build_opening_book(clusters, phase_totals, total_games):
                 entries_for_position = []
 
                 for ord_key, data in order_variants.items():
-                    if data["count"] < min_count:
+                    cond_freq = data["count"] / pos_total
+                    if cond_freq < COND_THRESHOLD or data["count"] < MIN_ABS_COUNT:
                         continue
 
-                    freq = data["count"] / total_for_phase
+                    global_freq = data["count"] / total_for_phase
                     avg_centers = data["total_centers"] / data["count"]
                     win_rate = data["wins"] / data["count"]
 
@@ -336,27 +368,34 @@ def build_opening_book(clusters, phase_totals, total_games):
                             parsed_orders.append(parsed)
 
                     entry = {
-                        "weight": round(freq, 4),
+                        "weight": round(cond_freq, 4),
+                        "global_freq": round(global_freq, 4),
                         "avg_centers": round(avg_centers, 2),
                         "win_rate": round(win_rate, 4),
                         "games": data["count"],
+                        "pos_games": pos_total,
                         "orders": parsed_orders,
                     }
                     entries_for_position.append(entry)
                     covered_games += data["count"]
 
                 if entries_for_position:
-                    # Sort by weight descending
+                    # Sort by weight (conditional frequency) descending
                     entries_for_position.sort(key=lambda e: -e["weight"])
 
                     # Name the entries by rank
                     for i, e in enumerate(entries_for_position):
                         e["name"] = f"{power}_{phase_name}_var{i+1}"
 
+                    # Format phase code like S1901M -> s_1901_m
+                    phase_readable = re.sub(
+                        r"([SF])(\d{4})([MRA])",
+                        lambda m: f"{m.group(1).lower()}_{m.group(2)}_{m.group(3).lower()}",
+                        phase_name,
+                    )
                     book_entries.append({
                         "power": power,
-                        "phase": phase_name.lower().replace("1901", "_1901_").replace(
-                            "1902", "_1902_").rstrip("_"),
+                        "phase": phase_readable,
                         "phase_code": phase_name,
                         "condition": condition,
                         "entries": entries_for_position,
@@ -375,40 +414,53 @@ def generate_analysis(book_entries, phase_totals, total_games, stats):
         "# Opening Book Analysis",
         "",
         f"**Total games analyzed:** {total_games:,}",
-        f"**Phases covered:** Spring 1901 through Fall 1902",
+        f"**Phases covered:** Spring 1901 through Fall 1904",
         f"**Map:** Standard only",
         "",
     ]
 
-    # Per-power coverage
+    # Per-power coverage — split by year for readability
     lines.append("## Coverage Statistics")
     lines.append("")
     lines.append("Percentage of games where at least one book entry matches.")
-    lines.append("")
-    header = "| Power |"
-    sep = "|-------|"
-    for phase in TARGET_PHASES:
-        header += f" {phase} |"
-        sep += "--------|"
-    lines.append(header)
-    lines.append(sep)
 
-    for power in POWERS:
-        row = f"| {power.capitalize()} |"
-        for phase in TARGET_PHASES:
-            total = phase_totals[power][phase]
-            if total == 0:
-                row += " N/A |"
-                continue
-            # Count covered games
-            covered = 0
-            for entry in book_entries:
-                if entry["power"] == power and entry["phase_code"] == phase:
-                    for e in entry["entries"]:
-                        covered += e["games"]
-            pct = min(100.0, 100.0 * covered / total)
-            row += f" {pct:.1f}% |"
-        lines.append(row)
+    # Group phases by year
+    year_groups = [
+        ("1901", [p for p in TARGET_PHASES if "1901" in p]),
+        ("1902", [p for p in TARGET_PHASES if "1902" in p]),
+        ("1903", [p for p in TARGET_PHASES if "1903" in p]),
+        ("1904", [p for p in TARGET_PHASES if "1904" in p]),
+    ]
+
+    for year_label, year_phases in year_groups:
+        if not year_phases:
+            continue
+        lines.append("")
+        lines.append(f"### {year_label}")
+        lines.append("")
+        header = "| Power |"
+        sep = "|-------|"
+        for phase in year_phases:
+            header += f" {phase} |"
+            sep += "--------|"
+        lines.append(header)
+        lines.append(sep)
+
+        for power in POWERS:
+            row = f"| {power.capitalize()} |"
+            for phase in year_phases:
+                total = phase_totals[power][phase]
+                if total == 0:
+                    row += " N/A |"
+                    continue
+                covered = 0
+                for entry in book_entries:
+                    if entry["power"] == power and entry["phase_code"] == phase:
+                        for e in entry["entries"]:
+                            covered += e["games"]
+                pct = min(100.0, 100.0 * covered / total)
+                row += f" {pct:.1f}% |"
+            lines.append(row)
     lines.append("")
 
     # Top openings per power per phase
@@ -438,18 +490,19 @@ def generate_analysis(book_entries, phase_totals, total_games, stats):
 
             all_variants.sort(key=lambda x: -x[1]["weight"])
 
-            lines.append("| # | Weight | Games | Avg SCs | Win Rate | Orders |")
-            lines.append("|---|--------|-------|---------|----------|--------|")
+            lines.append("| # | Cond% | Global% | Games | Pos Games | Avg SCs | Win% | Orders |")
+            lines.append("|---|-------|---------|-------|-----------|---------|------|--------|")
 
             for i, (cond, v) in enumerate(all_variants[:5]):
                 orders_str = "; ".join(
                     format_order_brief(o) for o in v["orders"]
                 )
-                if len(orders_str) > 80:
-                    orders_str = orders_str[:77] + "..."
+                if len(orders_str) > 70:
+                    orders_str = orders_str[:67] + "..."
                 lines.append(
-                    f"| {i+1} | {v['weight']:.1%} | {v['games']:,} | "
-                    f"{v['avg_centers']:.1f} | {v['win_rate']:.1%} | {orders_str} |"
+                    f"| {i+1} | {v['weight']:.1%} | {v.get('global_freq', v['weight']):.1%} "
+                    f"| {v['games']:,} | {v.get('pos_games', v['games']):,} "
+                    f"| {v['avg_centers']:.1f} | {v['win_rate']:.1%} | {orders_str} |"
                 )
 
             lines.append("")
