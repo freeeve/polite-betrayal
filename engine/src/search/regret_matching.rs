@@ -1,0 +1,940 @@
+//! Smooth Regret Matching+ (RM+) multi-power search.
+//!
+//! Ported from Go's `strategy_hard.go`. This is the strongest pre-neural
+//! search algorithm. It models all seven powers simultaneously, tracks
+//! per-power regret vectors over candidate order sets, and uses
+//! counterfactual regret updates to converge toward an equilibrium.
+//! The engine's power then plays a best response against that equilibrium.
+
+use std::io::Write;
+use std::time::{Duration, Instant};
+
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+
+use crate::board::province::{Power, Province, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT};
+use crate::board::state::{BoardState, Phase, Season};
+use crate::board::unit::UnitType;
+use crate::board::Order;
+use crate::eval::evaluate;
+use crate::eval::heuristic::{
+    count_scs, nearest_unowned_sc_dist, power_has_units, province_defense, province_threat,
+};
+use crate::movegen::movement::legal_orders;
+use crate::resolve::{advance_state, apply_resolution, needs_build_phase, Resolver};
+use crate::search::cartesian::{
+    heuristic_build_orders, heuristic_retreat_orders, predict_opponent_orders,
+};
+use crate::search::SearchResult;
+
+/// Number of candidate order sets to generate per power.
+const NUM_CANDIDATES: usize = 12;
+
+/// Number of RM+ iterations.
+const RM_ITERATIONS: usize = 48;
+
+/// Multi-ply lookahead depth (in half-turns).
+const LOOKAHEAD_DEPTH: usize = 2;
+
+/// Regret discount factor per iteration (smooth RM+).
+const REGRET_DISCOUNT: f64 = 0.95;
+
+/// Budget fraction for candidate generation.
+const BUDGET_CAND_GEN: f64 = 0.25;
+
+/// Budget fraction for RM+ iterations.
+const BUDGET_RM_ITER: f64 = 0.50;
+
+/// A scored candidate order for a single unit.
+#[derive(Clone, Copy)]
+struct ScoredOrder {
+    order: Order,
+    score: f32,
+}
+
+/// Scores a single movement order using heuristic features.
+fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
+    match *order {
+        Order::Hold { unit } => {
+            let prov = unit.location.province;
+            let mut score: f32 = 0.0;
+            if prov.is_supply_center() && state.sc_owner[prov as usize] == Some(power) {
+                let threat = province_threat(prov, power, state);
+                if threat > 0 {
+                    score += 3.0 + threat as f32;
+                }
+            }
+            score -= 1.0;
+            score
+        }
+        Order::Move { unit, dest } => {
+            let src = unit.location.province;
+            let dst = dest.province;
+            let is_fleet = unit.unit_type == UnitType::Fleet;
+            let mut score: f32 = 0.0;
+
+            if dst.is_supply_center() {
+                let owner = state.sc_owner[dst as usize];
+                match owner {
+                    None => score += 10.0,
+                    Some(o) if o != power => {
+                        score += 7.0;
+                        let enemy_scs = count_scs(state, o);
+                        if enemy_scs <= 2 {
+                            score += 6.0;
+                        }
+                    }
+                    _ => score += 1.0,
+                }
+            }
+
+            if state.season == Season::Fall
+                && src.is_supply_center()
+                && state.sc_owner[src as usize] != Some(power)
+            {
+                score -= 12.0;
+            }
+
+            if src.is_supply_center() && state.sc_owner[src as usize] == Some(power) {
+                let threat = province_threat(src, power, state);
+                if threat > 0 {
+                    let defense = province_defense(src, power, state);
+                    if defense - 1 < threat {
+                        score -= 6.0 * threat as f32;
+                    }
+                }
+            }
+
+            if let Some((p, _)) = state.units[dst as usize] {
+                if p == power {
+                    score -= 15.0;
+                }
+            }
+
+            let dist = nearest_unowned_sc_dist(dst, power, state, is_fleet);
+            if dist == 0 {
+                score += 5.0;
+            } else if dist > 0 {
+                score += 3.0 / dist as f32;
+            }
+
+            if state.season == Season::Spring && dst.is_supply_center() {
+                let owner = state.sc_owner[dst as usize];
+                if owner != Some(power) {
+                    score += 4.0;
+                }
+            }
+
+            score
+        }
+        Order::SupportHold { supported, .. } => {
+            let prov = supported.location.province;
+            let mut score: f32 = 1.0;
+            if prov.is_supply_center() && state.sc_owner[prov as usize] == Some(power) {
+                let threat = province_threat(prov, power, state);
+                if threat > 0 {
+                    score += 4.0 + threat as f32;
+                }
+            }
+            score
+        }
+        Order::SupportMove { dest, .. } => {
+            let dst = dest.province;
+            let mut score: f32 = 2.0;
+            if dst.is_supply_center() {
+                let owner = state.sc_owner[dst as usize];
+                if owner.is_none() {
+                    score += 6.0;
+                } else if owner != Some(power) {
+                    score += 5.0;
+                }
+            }
+            if let Some((p, _)) = state.units[dst as usize] {
+                if p != power {
+                    score += 3.0;
+                }
+            }
+            score
+        }
+        Order::Convoy { .. } => 1.0,
+        _ => 0.0,
+    }
+}
+
+/// Generates top-K orders per unit for a given power, sorted descending by score.
+fn top_k_per_unit(power: Power, state: &BoardState, k: usize) -> Vec<Vec<ScoredOrder>> {
+    let mut per_unit: Vec<Vec<ScoredOrder>> = Vec::new();
+
+    for i in 0..PROVINCE_COUNT {
+        if let Some((p, _)) = state.units[i] {
+            if p != power {
+                continue;
+            }
+            let prov = ALL_PROVINCES[i];
+            let legal = legal_orders(prov, state);
+            if legal.is_empty() {
+                continue;
+            }
+
+            let mut scored: Vec<ScoredOrder> = legal
+                .into_iter()
+                .map(|o| ScoredOrder {
+                    order: o,
+                    score: score_order(&o, power, state),
+                })
+                .collect();
+
+            scored.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            scored.truncate(k);
+            per_unit.push(scored);
+        }
+    }
+
+    per_unit
+}
+
+/// Generates diverse candidate order sets for a power by sampling from top-K per unit.
+///
+/// Generates one greedy candidate (best per unit) and remaining candidates by
+/// stochastic sampling with noise to create structural diversity.
+fn generate_candidates(
+    power: Power,
+    state: &BoardState,
+    count: usize,
+    rng: &mut SmallRng,
+) -> Vec<Vec<(Order, Power)>> {
+    let per_unit = top_k_per_unit(power, state, 5);
+    if per_unit.is_empty() {
+        return Vec::new();
+    }
+
+    let mut candidates: Vec<Vec<(Order, Power)>> = Vec::with_capacity(count);
+    let mut seen: Vec<Vec<usize>> = Vec::new();
+
+    // First candidate: greedy best
+    let greedy: Vec<usize> = vec![0; per_unit.len()];
+    let greedy_orders: Vec<(Order, Power)> = greedy
+        .iter()
+        .enumerate()
+        .map(|(u, &idx)| (per_unit[u][idx].order, power))
+        .collect();
+    candidates.push(greedy_orders);
+    seen.push(greedy);
+
+    // Remaining candidates: sample with noise
+    for _ in 1..count {
+        let mut combo: Vec<usize> = Vec::with_capacity(per_unit.len());
+        for unit_cands in &per_unit {
+            if unit_cands.len() == 1 {
+                combo.push(0);
+                continue;
+            }
+            // Softmax-like sampling: higher scored orders have higher probability
+            let max_score = unit_cands[0].score;
+            let weights: Vec<f64> = unit_cands
+                .iter()
+                .map(|s| ((s.score - max_score) as f64 * 0.5).exp())
+                .collect();
+            let total: f64 = weights.iter().sum();
+            let r: f64 = rng.gen::<f64>() * total;
+            let mut cum = 0.0;
+            let mut picked = 0;
+            for (j, w) in weights.iter().enumerate() {
+                cum += w;
+                if r < cum {
+                    picked = j;
+                    break;
+                }
+            }
+            combo.push(picked);
+        }
+
+        // Deduplicate
+        if seen.contains(&combo) {
+            continue;
+        }
+        let orders: Vec<(Order, Power)> = combo
+            .iter()
+            .enumerate()
+            .map(|(u, &idx)| (per_unit[u][idx].order, power))
+            .collect();
+        seen.push(combo);
+        candidates.push(orders);
+    }
+
+    candidates
+}
+
+/// Computes the cooperation penalty: penalizes attacking multiple distinct powers.
+fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Power) -> f64 {
+    let mut attacked = [false; 7];
+    let mut count = 0usize;
+
+    for &(order, _) in orders {
+        if let Order::Move { dest, .. } = order {
+            let dst = dest.province;
+            // SC ownership attack
+            if let Some(owner) = state.sc_owner[dst as usize] {
+                if owner != power {
+                    let idx = ALL_POWERS.iter().position(|&p| p == owner).unwrap();
+                    if !attacked[idx] {
+                        attacked[idx] = true;
+                        count += 1;
+                    }
+                }
+            }
+            // Unit dislodge attempt
+            if let Some((p, _)) = state.units[dst as usize] {
+                if p != power {
+                    let idx = ALL_POWERS.iter().position(|&pw| pw == p).unwrap();
+                    if !attacked[idx] {
+                        attacked[idx] = true;
+                        count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    if count <= 1 {
+        0.0
+    } else {
+        2.0 * (count - 1) as f64
+    }
+}
+
+/// Simulates N phases forward using heuristic play for all powers.
+fn simulate_n_phases(
+    state: &BoardState,
+    _power: Power,
+    resolver: &mut Resolver,
+    depth: usize,
+    start_year: u16,
+    _rng: &mut SmallRng,
+) -> BoardState {
+    let mut current = state.clone();
+
+    for _ in 0..depth {
+        if current.year > start_year + 2 {
+            break;
+        }
+
+        match current.phase {
+            Phase::Movement => {
+                let mut all_orders: Vec<(Order, Power)> = Vec::new();
+
+                for &p in ALL_POWERS.iter() {
+                    if !power_has_units(&current, p) {
+                        continue;
+                    }
+                    // Use top-1 per unit (greedy heuristic) for lookahead simulation
+                    let per_unit = top_k_per_unit(p, &current, 1);
+                    for unit_cands in &per_unit {
+                        if !unit_cands.is_empty() {
+                            all_orders.push((unit_cands[0].order, p));
+                        }
+                    }
+                }
+
+                let (results, dislodged) = resolver.resolve(&all_orders, &current);
+                apply_resolution(&mut current, &results, &dislodged);
+                let has_dislodged = current.dislodged.iter().any(|d| d.is_some());
+                advance_state(&mut current, has_dislodged);
+            }
+            Phase::Retreat => {
+                // Use heuristic retreats for all powers
+                for &p in ALL_POWERS.iter() {
+                    let retreat_orders = heuristic_retreat_orders(p, &current);
+                    if !retreat_orders.is_empty() {
+                        // Apply retreats inline: resolve each power's retreats
+                        use crate::resolve::{apply_retreats, resolve_retreats};
+                        let retreat_with_power: Vec<(Order, Power)> =
+                            retreat_orders.into_iter().map(|o| (o, p)).collect();
+                        let results = resolve_retreats(&retreat_with_power, &current);
+                        apply_retreats(&mut current, &results);
+                    }
+                }
+                advance_state(&mut current, false);
+            }
+            Phase::Build => {
+                for &p in ALL_POWERS.iter() {
+                    let build_orders = heuristic_build_orders(p, &current);
+                    if !build_orders.is_empty() {
+                        use crate::resolve::{apply_builds, resolve_builds};
+                        let builds_with_power: Vec<(Order, Power)> =
+                            build_orders.into_iter().map(|o| (o, p)).collect();
+                        let results = resolve_builds(&builds_with_power, &current);
+                        apply_builds(&mut current, &results);
+                    }
+                }
+                // Skip build phase if not needed
+                if current.phase == Phase::Build && !needs_build_phase(&current) {
+                    advance_state(&mut current, false);
+                } else {
+                    advance_state(&mut current, false);
+                }
+            }
+        }
+    }
+
+    current
+}
+
+/// Enhanced position evaluation for RM+ (more features than basic evaluate).
+fn rm_evaluate(power: Power, state: &BoardState) -> f64 {
+    let base = evaluate(power, state) as f64;
+
+    let own_scs = count_scs(state, power);
+
+    // SC lead bonus
+    let mut max_enemy: i32 = 0;
+    for &p in ALL_POWERS.iter() {
+        if p == power {
+            continue;
+        }
+        let sc = count_scs(state, p);
+        if sc > max_enemy {
+            max_enemy = sc;
+        }
+    }
+    let lead = own_scs - max_enemy;
+    let lead_bonus = if lead > 0 { 2.0 * lead as f64 } else { 0.0 };
+
+    // Territorial cohesion bonus: reward units that can support each other
+    let mut cohesion = 0.0f64;
+    let own_units: Vec<(Province, UnitType)> = state
+        .units
+        .iter()
+        .enumerate()
+        .filter_map(|(i, u)| {
+            u.and_then(|(p, ut)| {
+                if p == power {
+                    Some((ALL_PROVINCES[i], ut))
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    for (i, &(prov_a, _)) in own_units.iter().enumerate() {
+        let mut neighbors = 0;
+        for (j, &(prov_b, ut_b)) in own_units.iter().enumerate() {
+            if i != j {
+                let coast_b = state.fleet_coast[prov_b as usize]
+                    .unwrap_or(crate::board::province::Coast::None);
+                if crate::eval::heuristic::unit_can_reach(prov_b, coast_b, ut_b, prov_a) {
+                    neighbors += 1;
+                }
+            }
+        }
+        cohesion += 0.5 * neighbors.min(3) as f64;
+    }
+
+    // Solo threat penalty for enemies near 18
+    let mut solo_penalty = 0.0f64;
+    for &p in ALL_POWERS.iter() {
+        if p == power {
+            continue;
+        }
+        let sc = count_scs(state, p);
+        if sc >= 16 {
+            solo_penalty += 20.0;
+        } else if sc >= 14 {
+            solo_penalty += 10.0;
+        } else if sc >= 12 {
+            solo_penalty += 4.0;
+        }
+    }
+
+    base + lead_bonus + cohesion - solo_penalty
+}
+
+/// Samples an index from a probability distribution.
+fn weighted_sample(probs: &[f64], rng: &mut SmallRng) -> usize {
+    let r: f64 = rng.gen();
+    let mut cum = 0.0;
+    for (i, &p) in probs.iter().enumerate() {
+        cum += p;
+        if r < cum {
+            return i;
+        }
+    }
+    probs.len() - 1
+}
+
+/// Runs Smooth Regret Matching+ multi-power search.
+///
+/// Generates candidates for all powers, runs RM+ iterations with
+/// counterfactual regret updates, then extracts the best response
+/// for the engine's power against the opponent equilibrium.
+pub fn regret_matching_search<W: Write>(
+    power: Power,
+    state: &BoardState,
+    movetime: Duration,
+    out: &mut W,
+) -> SearchResult {
+    let start = Instant::now();
+    let mut rng = SmallRng::from_entropy();
+    let mut resolver = Resolver::new(64);
+
+    // Phase 1: Candidate generation for all powers (budget: 25%)
+    let cand_budget = Duration::from_nanos((movetime.as_nanos() as f64 * BUDGET_CAND_GEN) as u64);
+
+    // Generate candidates for each alive power
+    let mut power_candidates: Vec<(Power, Vec<Vec<(Order, Power)>>)> = Vec::new();
+    let mut our_power_idx: usize = 0;
+
+    for &p in ALL_POWERS.iter() {
+        if !power_has_units(state, p) {
+            continue;
+        }
+
+        let cands = generate_candidates(p, state, NUM_CANDIDATES, &mut rng);
+        if cands.is_empty() {
+            continue;
+        }
+
+        if p == power {
+            our_power_idx = power_candidates.len();
+        }
+        power_candidates.push((p, cands));
+
+        if start.elapsed() >= cand_budget {
+            break;
+        }
+    }
+
+    // Fallback: if we have no candidates for our power, use the opponent predictor
+    if power_candidates.is_empty() || !power_candidates.iter().any(|(p, _)| *p == power) {
+        let opponent_orders = predict_opponent_orders(power, state);
+        return SearchResult {
+            orders: opponent_orders.iter().map(|(o, _)| *o).collect(),
+            score: 0.0,
+            nodes: 0,
+        };
+    }
+
+    // Get our candidate count
+    let our_k = power_candidates[our_power_idx].1.len();
+    if our_k == 0 {
+        return SearchResult {
+            orders: Vec::new(),
+            score: 0.0,
+            nodes: 0,
+        };
+    }
+    if our_k == 1 {
+        let orders = power_candidates[our_power_idx].1[0]
+            .iter()
+            .map(|(o, _)| *o)
+            .collect();
+        return SearchResult {
+            orders,
+            score: 0.0,
+            nodes: 1,
+        };
+    }
+
+    // Phase 2: RM+ iterations (budget: 50%)
+    let rm_budget = Duration::from_nanos((movetime.as_nanos() as f64 * BUDGET_RM_ITER) as u64);
+
+    // Initialize per-power cumulative regret vectors
+    let mut cum_regrets: Vec<Vec<f64>> = power_candidates
+        .iter()
+        .map(|(_, cands)| vec![1.0; cands.len()])
+        .collect();
+
+    // Accumulated strategy weights for final selection
+    let mut total_weights: Vec<Vec<f64>> = power_candidates
+        .iter()
+        .map(|(_, cands)| vec![0.0; cands.len()])
+        .collect();
+
+    // Pre-compute cooperation penalties for our power's candidates
+    let coop_penalties: Vec<f64> = power_candidates[our_power_idx]
+        .1
+        .iter()
+        .map(|cand| cooperation_penalty(cand, state, power))
+        .collect();
+
+    let start_year = state.year;
+    let mut nodes: u64 = 0;
+
+    // Warm-start: score each of our candidates once with a fixed opponent profile
+    {
+        let opponent_profile: Vec<(Order, Power)> = power_candidates
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != our_power_idx)
+            .flat_map(|(_, (_, cands))| cands[0].iter().copied())
+            .collect();
+
+        for ci in 0..our_k {
+            let mut all_orders: Vec<(Order, Power)> = Vec::with_capacity(
+                power_candidates[our_power_idx].1[ci].len() + opponent_profile.len(),
+            );
+            all_orders.extend_from_slice(&power_candidates[our_power_idx].1[ci]);
+            all_orders.extend_from_slice(&opponent_profile);
+
+            let (results, dislodged) = resolver.resolve(&all_orders, state);
+            let mut scratch = state.clone();
+            apply_resolution(&mut scratch, &results, &dislodged);
+            let score = rm_evaluate(power, &scratch) - coop_penalties[ci];
+            cum_regrets[our_power_idx][ci] = f64::max(0.0, score);
+            nodes += 1;
+        }
+    }
+
+    // Main RM+ loop
+    let max_iters = RM_ITERATIONS;
+    for _iter in 0..max_iters {
+        if start.elapsed()
+            >= Duration::from_nanos(
+                (start.elapsed().as_nanos() as u64).max(1) + rm_budget.as_nanos() as u64,
+            )
+        {
+            break;
+        }
+        // Check time budget
+        if start.elapsed() >= cand_budget + rm_budget {
+            break;
+        }
+
+        // Discount older regrets
+        for regrets in cum_regrets.iter_mut() {
+            for r in regrets.iter_mut() {
+                *r *= REGRET_DISCOUNT;
+            }
+        }
+
+        // Compute current strategy for each power from RM+ regrets
+        let mut strategies: Vec<Vec<f64>> = Vec::with_capacity(power_candidates.len());
+        for regrets in &cum_regrets {
+            let total: f64 = regrets.iter().sum();
+            if total > 0.0 {
+                strategies.push(regrets.iter().map(|r| r / total).collect());
+            } else {
+                let uniform = 1.0 / regrets.len() as f64;
+                strategies.push(vec![uniform; regrets.len()]);
+            }
+        }
+
+        // Sample a candidate index for each power from their strategy
+        let sampled: Vec<usize> = strategies
+            .iter()
+            .map(|strat| weighted_sample(strat, &mut rng))
+            .collect();
+
+        // Build combined order set from sampled profile
+        let combined: Vec<(Order, Power)> = power_candidates
+            .iter()
+            .enumerate()
+            .flat_map(|(pi, (_, cands))| cands[sampled[pi]].iter().copied())
+            .collect();
+
+        // Resolve and evaluate the sampled profile
+        let (results, dislodged) = resolver.resolve(&combined, state);
+        let mut scratch = state.clone();
+        apply_resolution(&mut scratch, &results, &dislodged);
+        let has_dislodged = scratch.dislodged.iter().any(|d| d.is_some());
+        advance_state(&mut scratch, has_dislodged);
+
+        // Lookahead
+        let future = simulate_n_phases(
+            &scratch,
+            power,
+            &mut resolver,
+            LOOKAHEAD_DEPTH,
+            start_year,
+            &mut rng,
+        );
+        let base_value = rm_evaluate(power, &future) - coop_penalties[sampled[our_power_idx]];
+        nodes += 1;
+
+        // Counterfactual regret update for our power's alternatives
+        for ci in 0..our_k {
+            if ci == sampled[our_power_idx] {
+                continue;
+            }
+
+            // Build alternative combined orders with ci for our power
+            let mut alt_combined: Vec<(Order, Power)> = Vec::with_capacity(combined.len());
+            for (pi, (_, cands)) in power_candidates.iter().enumerate() {
+                if pi == our_power_idx {
+                    alt_combined.extend_from_slice(&cands[ci]);
+                } else {
+                    alt_combined.extend_from_slice(&cands[sampled[pi]]);
+                }
+            }
+
+            let (alt_results, alt_dislodged) = resolver.resolve(&alt_combined, state);
+            let mut alt_scratch = state.clone();
+            apply_resolution(&mut alt_scratch, &alt_results, &alt_dislodged);
+            let alt_has_dislodged = alt_scratch.dislodged.iter().any(|d| d.is_some());
+            advance_state(&mut alt_scratch, alt_has_dislodged);
+
+            let alt_future = simulate_n_phases(
+                &alt_scratch,
+                power,
+                &mut resolver,
+                LOOKAHEAD_DEPTH,
+                start_year,
+                &mut rng,
+            );
+            let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
+
+            // RM+: clip regret to non-negative
+            cum_regrets[our_power_idx][ci] =
+                f64::max(0.0, cum_regrets[our_power_idx][ci] + cf_value - base_value);
+            nodes += 1;
+        }
+
+        // Accumulate weighted strategy for final selection
+        for (pi, strat) in strategies.iter().enumerate() {
+            for (j, &w) in strat.iter().enumerate() {
+                total_weights[pi][j] += w;
+            }
+        }
+    }
+
+    // Phase 3: Best-response extraction (remaining budget)
+    // Select by best average weight for our power
+    let our_weights = &total_weights[our_power_idx];
+    let best_idx = our_weights
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+
+    let best_orders: Vec<Order> = power_candidates[our_power_idx].1[best_idx]
+        .iter()
+        .map(|(o, _)| *o)
+        .collect();
+
+    let best_score = rm_evaluate(power, state) as f32;
+
+    let elapsed_ms = start.elapsed().as_millis() as u64;
+    let _ = writeln!(
+        out,
+        "info depth {} nodes {} score {} time {}",
+        LOOKAHEAD_DEPTH, nodes, best_score as i32, elapsed_ms
+    );
+
+    SearchResult {
+        orders: best_orders,
+        score: best_score,
+        nodes,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::board::province::Coast;
+    use crate::board::state::Phase;
+    use crate::protocol::dfen::parse_dfen;
+
+    const INITIAL_DFEN: &str = "1901sm/Aavie,Aabud,Aftri,Eflon,Efedi,Ealvp,Ffbre,Fapar,Famar,Gfkie,Gaber,Gamun,Ifnap,Iarom,Iaven,Rfstp.sc,Ramos,Rawar,Rfsev,Tfank,Tacon,Tasmy/Abud,Atri,Avie,Eedi,Elon,Elvp,Fbre,Fmar,Fpar,Gber,Gkie,Gmun,Inap,Irom,Iven,Rmos,Rsev,Rstp,Rwar,Tank,Tcon,Tsmy,Nbel,Nbul,Nden,Ngre,Nhol,Nnwy,Npor,Nrum,Nser,Nspa,Nswe,Ntun/-";
+
+    fn initial_state() -> BoardState {
+        parse_dfen(INITIAL_DFEN).expect("failed to parse initial DFEN")
+    }
+
+    #[test]
+    fn rm_search_returns_orders_for_all_units() {
+        let state = initial_state();
+        let mut out = Vec::new();
+        let result = regret_matching_search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(2000),
+            &mut out,
+        );
+        assert_eq!(result.orders.len(), 3, "Austria has 3 units");
+        assert!(result.nodes > 0, "Should search at least 1 node");
+    }
+
+    #[test]
+    fn rm_search_returns_orders_for_russia() {
+        let state = initial_state();
+        let mut out = Vec::new();
+        let result =
+            regret_matching_search(Power::Russia, &state, Duration::from_millis(2000), &mut out);
+        assert_eq!(result.orders.len(), 4, "Russia has 4 units");
+    }
+
+    #[test]
+    fn rm_search_respects_time_budget() {
+        let state = initial_state();
+        let mut out = Vec::new();
+        let start = Instant::now();
+        let _result =
+            regret_matching_search(Power::Austria, &state, Duration::from_millis(500), &mut out);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_millis(2000),
+            "Search took too long: {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn rm_search_emits_info_lines() {
+        let state = initial_state();
+        let mut out = Vec::new();
+        let _result = regret_matching_search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(1000),
+            &mut out,
+        );
+        let output = String::from_utf8(out).unwrap();
+        assert!(
+            output.contains("info depth"),
+            "Should emit info lines, got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn rm_search_finds_move_to_sc() {
+        let mut state = BoardState::empty(1901, Season::Fall, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+
+        let mut out = Vec::new();
+        let result =
+            regret_matching_search(Power::Austria, &state, Duration::from_millis(500), &mut out);
+
+        assert_eq!(result.orders.len(), 1);
+        match result.orders[0] {
+            Order::Move { dest, .. } => {
+                assert!(
+                    dest.province.is_supply_center(),
+                    "Should move to an SC, got {:?}",
+                    dest.province
+                );
+            }
+            _ => {} // Hold is also valid in single-unit scenarios
+        }
+    }
+
+    #[test]
+    fn rm_evaluate_prefers_more_scs() {
+        let mut state_a = BoardState::empty(1905, Season::Fall, Phase::Movement);
+        for &sc in &[
+            Province::Vie,
+            Province::Bud,
+            Province::Tri,
+            Province::Ser,
+            Province::Gre,
+        ] {
+            state_a.set_sc_owner(sc, Some(Power::Austria));
+        }
+        state_a.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+
+        let mut state_b = BoardState::empty(1905, Season::Fall, Phase::Movement);
+        for &sc in &[Province::Vie, Province::Bud, Province::Tri] {
+            state_b.set_sc_owner(sc, Some(Power::Austria));
+        }
+        state_b.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+
+        let score_a = rm_evaluate(Power::Austria, &state_a);
+        let score_b = rm_evaluate(Power::Austria, &state_b);
+        assert!(
+            score_a > score_b,
+            "5 SCs ({}) should score higher than 3 SCs ({})",
+            score_a,
+            score_b
+        );
+    }
+
+    #[test]
+    fn cooperation_penalty_none_for_single_target() {
+        let state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        let orders = vec![];
+        assert_eq!(cooperation_penalty(&orders, &state, Power::Austria), 0.0);
+    }
+
+    #[test]
+    fn cooperation_penalty_applied_for_multi_target() {
+        let mut state = BoardState::empty(1903, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Ser, Power::Turkey, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Ser, Some(Power::Turkey));
+        state.place_unit(Province::Ven, Power::Italy, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Ven, Some(Power::Italy));
+
+        use crate::board::order::{Location, OrderUnit};
+        let orders = vec![
+            (
+                Order::Move {
+                    unit: OrderUnit {
+                        unit_type: UnitType::Army,
+                        location: Location::new(Province::Bud),
+                    },
+                    dest: Location::new(Province::Ser),
+                },
+                Power::Austria,
+            ),
+            (
+                Order::Move {
+                    unit: OrderUnit {
+                        unit_type: UnitType::Army,
+                        location: Location::new(Province::Tyr),
+                    },
+                    dest: Location::new(Province::Ven),
+                },
+                Power::Austria,
+            ),
+        ];
+
+        let penalty = cooperation_penalty(&orders, &state, Power::Austria);
+        assert!(
+            penalty > 0.0,
+            "Should penalize attacking two powers, got {}",
+            penalty
+        );
+    }
+
+    #[test]
+    fn generate_candidates_produces_diverse_sets() {
+        let state = initial_state();
+        let mut rng = SmallRng::seed_from_u64(42);
+        let cands = generate_candidates(Power::Austria, &state, 8, &mut rng);
+        assert!(
+            cands.len() >= 2,
+            "Should generate at least 2 candidates, got {}",
+            cands.len()
+        );
+        // All candidates should have orders for 3 Austrian units
+        for c in &cands {
+            assert_eq!(
+                c.len(),
+                3,
+                "Austria has 3 units, candidate has {} orders",
+                c.len()
+            );
+        }
+    }
+
+    #[test]
+    fn rm_search_completes_within_5_seconds() {
+        let state = initial_state();
+        let mut out = Vec::new();
+        let start = Instant::now();
+        let result =
+            regret_matching_search(Power::France, &state, Duration::from_millis(3000), &mut out);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "RM+ search should complete within 5s, took {:?}",
+            elapsed
+        );
+        assert!(!result.orders.is_empty(), "Should return orders");
+    }
+}

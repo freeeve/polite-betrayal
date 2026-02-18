@@ -1,7 +1,8 @@
 //! Engine state management.
 //!
 //! Holds the current board position, active power, engine options, and
-//! runs the Cartesian product search for the `go` command.
+//! runs search for the `go` command. Uses RM+ search at high strength
+//! (>= 80) and Cartesian search otherwise.
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -15,7 +16,9 @@ use crate::board::state::{BoardState, Phase};
 use crate::movegen::random_orders;
 use crate::protocol::dfen::parse_dfen;
 use crate::protocol::dson::format_orders;
-use crate::search::{heuristic_build_orders, heuristic_retreat_orders, search};
+use crate::search::{
+    heuristic_build_orders, heuristic_retreat_orders, regret_matching_search, search,
+};
 
 /// Default search time in milliseconds.
 const DEFAULT_MOVETIME_MS: u64 = 5000;
@@ -110,8 +113,16 @@ impl Engine {
         out.flush().unwrap();
     }
 
-    /// Handles the `go` command using Cartesian product search for movement,
-    /// heuristic selection for retreat/build phases.
+    /// Returns the configured strength from options (default 100).
+    fn strength(&self) -> u64 {
+        self.options
+            .get("Strength")
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(100)
+    }
+
+    /// Handles the `go` command. Uses RM+ search at high strength (>= 80)
+    /// and Cartesian search otherwise. Retreat/build phases use heuristics.
     pub fn handle_go<W: Write>(&mut self, out: &mut W) {
         let state = match &self.position {
             Some(s) => s,
@@ -132,9 +143,13 @@ impl Engine {
         let orders = match state.phase {
             Phase::Movement => {
                 let movetime = self.movetime();
-                let result = search(power, state, movetime, out);
+                let strength = self.strength();
+                let result = if strength >= 80 {
+                    regret_matching_search(power, state, movetime, out)
+                } else {
+                    search(power, state, movetime, out)
+                };
                 if result.orders.is_empty() {
-                    // Fallback to random if search returns nothing
                     random_orders(power, state, &mut self.rng)
                 } else {
                     result.orders

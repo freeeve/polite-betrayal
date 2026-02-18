@@ -200,7 +200,7 @@ fn top_k_per_unit(power: Power, state: &BoardState, k: usize) -> Vec<Vec<ScoredO
 }
 
 /// Predicts opponent orders: each enemy unit plays its highest-scored move.
-fn predict_opponent_orders(power: Power, state: &BoardState) -> Vec<(Order, Power)> {
+pub(crate) fn predict_opponent_orders(power: Power, state: &BoardState) -> Vec<(Order, Power)> {
     let mut orders: Vec<(Order, Power)> = Vec::new();
 
     for &p in ALL_POWERS.iter() {
