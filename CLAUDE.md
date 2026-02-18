@@ -34,6 +34,7 @@
   - `chore: add task tracking and project docs`
 - Always use HEREDOC format for commit messages
 - Stage specific files, never `git add -A` or `git add .`
+- NEVER use `git stash` — parallel agents will conflict with each other's stashes
 
 ### Task Tracking
 - Task files live in `tasks/` (see global CLAUDE.md for naming convention)
