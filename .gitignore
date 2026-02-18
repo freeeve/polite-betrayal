@@ -15,7 +15,10 @@ Thumbs.db
 # === Go ===
 api/server
 api/bot
+api/botmatch
+api/bot.test
 api/tmp/
+api/.air.toml
 *.exe
 
 # === Flutter ===
