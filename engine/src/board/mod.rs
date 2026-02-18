@@ -9,11 +9,14 @@ pub mod province;
 pub mod state;
 pub mod unit;
 
-pub use adjacency::{is_adjacent, provinces_adjacent_to, fleet_coasts_to, AdjacencyEntry, ADJACENCIES, ADJACENCY_COUNT};
+pub use adjacency::{
+    adj_from, fleet_coasts_to, is_adjacent, is_adjacent_fast, provinces_adjacent_to,
+    AdjacencyEntry, ADJACENCIES, ADJACENCY_COUNT,
+};
+pub use order::{Location, Order, OrderUnit};
 pub use province::{
-    Coast, Power, Province, ProvinceInfo, ProvinceType,
-    ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT, PROVINCE_INFO, SUPPLY_CENTER_COUNT,
+    Coast, Power, Province, ProvinceInfo, ProvinceType, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT,
+    PROVINCE_INFO, SUPPLY_CENTER_COUNT,
 };
 pub use state::{BoardState, DislodgedUnit, Phase, Season};
-pub use order::{Location, Order, OrderUnit};
 pub use unit::{Unit, UnitPosition, UnitType};

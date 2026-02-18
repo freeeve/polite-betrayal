@@ -4,8 +4,8 @@
 //! phase at the end of a game year.
 
 use crate::board::{
-    BoardState, Coast, Location, Order, OrderUnit, Power, ProvinceType,
-    UnitType, ALL_PROVINCES, PROVINCE_COUNT,
+    BoardState, Coast, Location, Order, OrderUnit, Power, ProvinceType, UnitType, ALL_PROVINCES,
+    PROVINCE_COUNT,
 };
 
 /// Generates all legal build-phase orders for a given power.
@@ -34,9 +34,11 @@ fn count_supply_centers(power: Power, state: &BoardState) -> usize {
 
 /// Counts units belonging to the given power.
 fn count_units(power: Power, state: &BoardState) -> usize {
-    state.units.iter().filter(|u| {
-        matches!(u, Some((p, _)) if *p == power)
-    }).count()
+    state
+        .units
+        .iter()
+        .filter(|u| matches!(u, Some((p, _)) if *p == power))
+        .count()
 }
 
 /// Generates build orders for a power that has more SCs than units.
@@ -164,7 +166,10 @@ mod tests {
         // Should have Waive, plus builds in Bud and Tri (Vie is occupied)
         assert!(orders.iter().any(|o| *o == Order::Waive));
 
-        let builds: Vec<&Order> = orders.iter().filter(|o| matches!(o, Order::Build { .. })).collect();
+        let builds: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Build { .. }))
+            .collect();
         // Bud is inland -> only army
         // Tri is coastal -> army + fleet
         assert_eq!(builds.len(), 3); // Army Bud, Army Tri, Fleet Tri
@@ -180,7 +185,10 @@ mod tests {
         state.set_sc_owner(Province::Ser, Some(Power::Austria)); // 4 SCs, 2 units
 
         let orders = legal_builds(Power::Austria, &state);
-        let builds: Vec<&Order> = orders.iter().filter(|o| matches!(o, Order::Build { .. })).collect();
+        let builds: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Build { .. }))
+            .collect();
         // Tri is unoccupied home SC: army + fleet
         assert_eq!(builds.len(), 2);
     }
@@ -194,7 +202,10 @@ mod tests {
         state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
 
         let orders = legal_builds(Power::Austria, &state);
-        let disbands: Vec<&Order> = orders.iter().filter(|o| matches!(o, Order::Disband { .. })).collect();
+        let disbands: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Disband { .. }))
+            .collect();
         assert_eq!(disbands.len(), 2); // Must choose which to disband
     }
 
@@ -209,9 +220,12 @@ mod tests {
 
         let orders = legal_builds(Power::Russia, &state);
         // Stp builds: Army + Fleet(NC) + Fleet(SC) = 3 builds
-        let stp_builds: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Build { unit } if unit.location.province == Province::Stp)
-        }).collect();
+        let stp_builds: Vec<&Order> = orders
+            .iter()
+            .filter(
+                |o| matches!(o, Order::Build { unit } if unit.location.province == Province::Stp),
+            )
+            .collect();
         assert_eq!(stp_builds.len(), 3); // Army, Fleet NC, Fleet SC
     }
 
@@ -233,9 +247,10 @@ mod tests {
         let orders = legal_builds(Power::Austria, &state);
 
         // Vie is Land, Bud is Land: only Army builds, no Fleet
-        let fleet_builds: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Build { unit } if unit.unit_type == UnitType::Fleet)
-        }).collect();
+        let fleet_builds: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Build { unit } if unit.unit_type == UnitType::Fleet))
+            .collect();
         assert!(fleet_builds.is_empty());
     }
 
@@ -248,9 +263,12 @@ mod tests {
         // Ser is neutral home (None), not an Austrian home SC
 
         let orders = legal_builds(Power::Austria, &state);
-        let ser_builds: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Build { unit } if unit.location.province == Province::Ser)
-        }).collect();
+        let ser_builds: Vec<&Order> = orders
+            .iter()
+            .filter(
+                |o| matches!(o, Order::Build { unit } if unit.location.province == Province::Ser),
+            )
+            .collect();
         assert!(ser_builds.is_empty());
     }
 }

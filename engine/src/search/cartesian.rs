@@ -352,27 +352,38 @@ fn enumerate_combinations(
     let mut current: Vec<usize> = vec![0; n_units];
     let mut nodes: u64 = 0;
 
+    // Pre-allocate order buffer and reuse across iterations.
+    let total_orders = n_units + opponent_orders.len();
+    let mut all_orders: Vec<(Order, Power)> = Vec::with_capacity(total_orders);
+    // Fill with placeholder, then overwrite player orders each iteration.
+    for i in 0..n_units {
+        all_orders.push((candidates[i][0].order, power));
+    }
+    all_orders.extend_from_slice(opponent_orders);
+
+    // Pre-allocate a reusable clone buffer.
+    let mut scratch = state.clone();
+
+    let deadline = start + time_budget;
+
     loop {
         // Check time budget periodically (every 64 nodes)
-        if nodes & 63 == 0 && start.elapsed() >= time_budget {
+        if nodes & 63 == 0 && Instant::now() >= deadline {
             break;
         }
 
-        // Build order set for current combination
-        let mut all_orders: Vec<(Order, Power)> =
-            Vec::with_capacity(n_units + opponent_orders.len());
+        // Update only the player order slots (avoid Vec reallocation).
         for (i, &idx) in current.iter().enumerate() {
-            all_orders.push((candidates[i][idx].order, power));
+            all_orders[i].0 = candidates[i][idx].order;
         }
-        all_orders.extend_from_slice(opponent_orders);
 
         // Resolve
         let (results, dislodged) = resolver.resolve(&all_orders, state);
 
-        // Apply to cloned state and evaluate
-        let mut clone = state.clone();
-        apply_resolution(&mut clone, &results, &dislodged);
-        let score = evaluate(power, &clone);
+        // Copy state into scratch buffer and evaluate (avoids alloc).
+        scratch.clone_from(state);
+        apply_resolution(&mut scratch, &results, &dislodged);
+        let score = evaluate(power, &scratch);
 
         nodes += 1;
 

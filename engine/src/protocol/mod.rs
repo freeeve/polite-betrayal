@@ -8,6 +8,6 @@ pub mod dfen;
 pub mod dson;
 pub mod parser;
 
-pub use dfen::{parse_dfen, encode_dfen, DfenError};
-pub use dson::{parse_order, parse_orders, format_order, format_orders, DsonError};
+pub use dfen::{encode_dfen, parse_dfen, DfenError};
+pub use dson::{format_order, format_orders, parse_order, parse_orders, DsonError};
 pub use parser::{parse_command, Command, GoParams};

@@ -3,8 +3,8 @@
 //! Enumerates legal retreat and disband orders for dislodged units.
 
 use crate::board::{
-    BoardState, Location, Order, OrderUnit, Province, ProvinceType,
-    UnitType, provinces_adjacent_to, fleet_coasts_to,
+    fleet_coasts_to, provinces_adjacent_to, BoardState, Location, Order, OrderUnit, Province,
+    ProvinceType, UnitType,
 };
 
 /// Generates all legal retreat-phase orders for a dislodged unit at the given province.
@@ -81,7 +81,9 @@ pub fn legal_retreats(province: Province, state: &BoardState) -> Vec<Order> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::{BoardState, Coast, DislodgedUnit, Phase, Power, Province, Season, UnitType};
+    use crate::board::{
+        BoardState, Coast, DislodgedUnit, Phase, Power, Province, Season, UnitType,
+    };
 
     /// Helper: create a state and place a dislodged army at `prov`, attacked from `attacker_from`.
     fn state_with_dislodged_army(
@@ -90,17 +92,22 @@ mod tests {
         attacker_from: Province,
     ) -> BoardState {
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Retreat);
-        state.set_dislodged(prov, DislodgedUnit {
-            power,
-            unit_type: UnitType::Army,
-            coast: Coast::None,
-            attacker_from,
-        });
+        state.set_dislodged(
+            prov,
+            DislodgedUnit {
+                power,
+                unit_type: UnitType::Army,
+                coast: Coast::None,
+                attacker_from,
+            },
+        );
         state
     }
 
     fn has_retreat_to(orders: &[Order], dest: Province) -> bool {
-        orders.iter().any(|o| matches!(o, Order::Retreat { dest: d, .. } if d.province == dest))
+        orders
+            .iter()
+            .any(|o| matches!(o, Order::Retreat { dest: d, .. } if d.province == dest))
     }
 
     fn has_disband(orders: &[Order]) -> bool {
@@ -163,12 +170,15 @@ mod tests {
     fn fleet_retreat_with_coast() {
         // Fleet dislodged from Con, attacked from Bul
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Retreat);
-        state.set_dislodged(Province::Con, DislodgedUnit {
-            power: Power::Turkey,
-            unit_type: UnitType::Fleet,
-            coast: Coast::None,
-            attacker_from: Province::Bul,
-        });
+        state.set_dislodged(
+            Province::Con,
+            DislodgedUnit {
+                power: Power::Turkey,
+                unit_type: UnitType::Fleet,
+                coast: Coast::None,
+                attacker_from: Province::Bul,
+            },
+        );
 
         let orders = legal_retreats(Province::Con, &state);
         // Fleet Con adjacencies: aeg, bla, bul(ec), bul(sc), ank, smy
@@ -201,12 +211,15 @@ mod tests {
         // Aeg fleet can retreat to: Eas, Bul(SC), Con, Gre, Smy
         // Not to Ion (attacker_from)
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Retreat);
-        state.set_dislodged(Province::Aeg, DislodgedUnit {
-            power: Power::Turkey,
-            unit_type: UnitType::Fleet,
-            coast: Coast::None,
-            attacker_from: Province::Ion,
-        });
+        state.set_dislodged(
+            Province::Aeg,
+            DislodgedUnit {
+                power: Power::Turkey,
+                unit_type: UnitType::Fleet,
+                coast: Coast::None,
+                attacker_from: Province::Ion,
+            },
+        );
 
         let orders = legal_retreats(Province::Aeg, &state);
         assert!(has_retreat_to(&orders, Province::Eas));
@@ -216,9 +229,10 @@ mod tests {
         assert!(!has_retreat_to(&orders, Province::Ion));
 
         // Check Bul has SC coast
-        let bul_retreats: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Retreat { dest, .. } if dest.province == Province::Bul)
-        }).collect();
+        let bul_retreats: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Retreat { dest, .. } if dest.province == Province::Bul))
+            .collect();
         assert_eq!(bul_retreats.len(), 1);
         match bul_retreats[0] {
             Order::Retreat { dest, .. } => assert_eq!(dest.coast, Coast::South),

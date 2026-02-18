@@ -33,10 +33,7 @@ pub enum DsonError {
     UnexpectedEnd(String),
 
     #[error("unexpected token '{found}', expected {expected}")]
-    UnexpectedToken {
-        expected: String,
-        found: String,
-    },
+    UnexpectedToken { expected: String, found: String },
 }
 
 /// Parses a single DSON order string into an `Order`.
@@ -63,7 +60,9 @@ pub fn parse_order(s: &str) -> Result<Order, DsonError> {
     let pos = 2; // consumed unit_char and location
 
     if pos >= tokens.len() {
-        return Err(DsonError::UnexpectedEnd("action (H, -, S, C, R, D, B)".to_string()));
+        return Err(DsonError::UnexpectedEnd(
+            "action (H, -, S, C, R, D, B)".to_string(),
+        ));
     }
 
     match tokens[pos] {
@@ -81,14 +80,20 @@ pub fn parse_order(s: &str) -> Result<Order, DsonError> {
             let sup_pos = pos + 3; // past S, unit_char, location
 
             if sup_pos >= tokens.len() {
-                return Err(DsonError::UnexpectedEnd("H or - after supported unit".to_string()));
+                return Err(DsonError::UnexpectedEnd(
+                    "H or - after supported unit".to_string(),
+                ));
             }
 
             match tokens[sup_pos] {
                 "H" => Ok(Order::SupportHold { unit, supported }),
                 "-" => {
                     let dest = parse_location(&tokens, sup_pos + 1)?;
-                    Ok(Order::SupportMove { unit, supported, dest })
+                    Ok(Order::SupportMove {
+                        unit,
+                        supported,
+                        dest,
+                    })
                 }
                 other => Err(DsonError::UnexpectedToken {
                     expected: "H or -".to_string(),
@@ -174,7 +179,11 @@ pub fn format_order(order: &Order) -> String {
         Order::SupportHold { unit, supported } => {
             format!("{} S {} H", format_unit(unit), format_unit(supported))
         }
-        Order::SupportMove { unit, supported, dest } => {
+        Order::SupportMove {
+            unit,
+            supported,
+            dest,
+        } => {
             format!(
                 "{} S {} - {}",
                 format_unit(unit),
@@ -182,7 +191,11 @@ pub fn format_order(order: &Order) -> String {
                 format_location(dest)
             )
         }
-        Order::Convoy { unit, convoyed_from, convoyed_to } => {
+        Order::Convoy {
+            unit,
+            convoyed_from,
+            convoyed_to,
+        } => {
             format!(
                 "{} C A {} - {}",
                 format_unit(unit),
@@ -226,7 +239,10 @@ fn parse_unit(tokens: &[&str], idx: usize) -> Result<OrderUnit, DsonError> {
 
     let location = parse_location(tokens, idx + 1)?;
 
-    Ok(OrderUnit { unit_type, location })
+    Ok(OrderUnit {
+        unit_type,
+        location,
+    })
 }
 
 /// Parses a location (prov_id or prov_id/coast) from token slice at given index.
@@ -288,15 +304,24 @@ mod tests {
     }
 
     fn army(prov: Province) -> OrderUnit {
-        OrderUnit { unit_type: UnitType::Army, location: loc(prov) }
+        OrderUnit {
+            unit_type: UnitType::Army,
+            location: loc(prov),
+        }
     }
 
     fn fleet(prov: Province) -> OrderUnit {
-        OrderUnit { unit_type: UnitType::Fleet, location: loc(prov) }
+        OrderUnit {
+            unit_type: UnitType::Fleet,
+            location: loc(prov),
+        }
     }
 
     fn fleet_coast(prov: Province, coast: Coast) -> OrderUnit {
-        OrderUnit { unit_type: UnitType::Fleet, location: loc_coast(prov, coast) }
+        OrderUnit {
+            unit_type: UnitType::Fleet,
+            location: loc_coast(prov, coast),
+        }
     }
 
     // -- Movement phase parse tests --
@@ -304,7 +329,12 @@ mod tests {
     #[test]
     fn parse_hold() {
         let order = parse_order("A vie H").unwrap();
-        assert_eq!(order, Order::Hold { unit: army(Province::Vie) });
+        assert_eq!(
+            order,
+            Order::Hold {
+                unit: army(Province::Vie)
+            }
+        );
     }
 
     #[test]
@@ -312,7 +342,10 @@ mod tests {
         let order = parse_order("A bud - rum").unwrap();
         assert_eq!(
             order,
-            Order::Move { unit: army(Province::Bud), dest: loc(Province::Rum) }
+            Order::Move {
+                unit: army(Province::Bud),
+                dest: loc(Province::Rum)
+            }
         );
     }
 
@@ -321,7 +354,10 @@ mod tests {
         let order = parse_order("F tri - adr").unwrap();
         assert_eq!(
             order,
-            Order::Move { unit: fleet(Province::Tri), dest: loc(Province::Adr) }
+            Order::Move {
+                unit: fleet(Province::Tri),
+                dest: loc(Province::Adr)
+            }
         );
     }
 
@@ -408,7 +444,10 @@ mod tests {
         let order = parse_order("A vie R boh").unwrap();
         assert_eq!(
             order,
-            Order::Retreat { unit: army(Province::Vie), dest: loc(Province::Boh) }
+            Order::Retreat {
+                unit: army(Province::Vie),
+                dest: loc(Province::Boh)
+            }
         );
     }
 
@@ -427,7 +466,12 @@ mod tests {
     #[test]
     fn parse_disband_retreat_phase() {
         let order = parse_order("F tri D").unwrap();
-        assert_eq!(order, Order::Disband { unit: fleet(Province::Tri) });
+        assert_eq!(
+            order,
+            Order::Disband {
+                unit: fleet(Province::Tri)
+            }
+        );
     }
 
     // -- Build phase parse tests --
@@ -435,7 +479,12 @@ mod tests {
     #[test]
     fn parse_build_army() {
         let order = parse_order("A vie B").unwrap();
-        assert_eq!(order, Order::Build { unit: army(Province::Vie) });
+        assert_eq!(
+            order,
+            Order::Build {
+                unit: army(Province::Vie)
+            }
+        );
     }
 
     #[test]
@@ -452,7 +501,12 @@ mod tests {
     #[test]
     fn parse_disband_build_phase() {
         let order = parse_order("A war D").unwrap();
-        assert_eq!(order, Order::Disband { unit: army(Province::War) });
+        assert_eq!(
+            order,
+            Order::Disband {
+                unit: army(Province::War)
+            }
+        );
     }
 
     #[test]
@@ -469,15 +523,24 @@ mod tests {
         assert_eq!(orders.len(), 3);
         assert_eq!(
             orders[0],
-            Order::Move { unit: army(Province::Vie), dest: loc(Province::Tri) }
+            Order::Move {
+                unit: army(Province::Vie),
+                dest: loc(Province::Tri)
+            }
         );
         assert_eq!(
             orders[1],
-            Order::Move { unit: army(Province::Bud), dest: loc(Province::Ser) }
+            Order::Move {
+                unit: army(Province::Bud),
+                dest: loc(Province::Ser)
+            }
         );
         assert_eq!(
             orders[2],
-            Order::Move { unit: fleet(Province::Tri), dest: loc(Province::Alb) }
+            Order::Move {
+                unit: fleet(Province::Tri),
+                dest: loc(Province::Alb)
+            }
         );
     }
 
@@ -485,7 +548,12 @@ mod tests {
     fn parse_single_order_via_parse_orders() {
         let orders = parse_orders("A vie H").unwrap();
         assert_eq!(orders.len(), 1);
-        assert_eq!(orders[0], Order::Hold { unit: army(Province::Vie) });
+        assert_eq!(
+            orders[0],
+            Order::Hold {
+                unit: army(Province::Vie)
+            }
+        );
     }
 
     #[test]
@@ -494,16 +562,29 @@ mod tests {
         assert_eq!(orders.len(), 2);
         assert_eq!(
             orders[0],
-            Order::Retreat { unit: army(Province::Vie), dest: loc(Province::Boh) }
+            Order::Retreat {
+                unit: army(Province::Vie),
+                dest: loc(Province::Boh)
+            }
         );
-        assert_eq!(orders[1], Order::Disband { unit: fleet(Province::Tri) });
+        assert_eq!(
+            orders[1],
+            Order::Disband {
+                unit: fleet(Province::Tri)
+            }
+        );
     }
 
     #[test]
     fn parse_multi_build_orders() {
         let orders = parse_orders("A vie B ; F stp/sc B").unwrap();
         assert_eq!(orders.len(), 2);
-        assert_eq!(orders[0], Order::Build { unit: army(Province::Vie) });
+        assert_eq!(
+            orders[0],
+            Order::Build {
+                unit: army(Province::Vie)
+            }
+        );
         assert_eq!(
             orders[1],
             Order::Build {
@@ -523,7 +604,9 @@ mod tests {
 
     #[test]
     fn format_hold() {
-        let s = format_order(&Order::Hold { unit: army(Province::Vie) });
+        let s = format_order(&Order::Hold {
+            unit: army(Province::Vie),
+        });
         assert_eq!(s, "A vie H");
     }
 
@@ -594,13 +677,17 @@ mod tests {
 
     #[test]
     fn format_disband() {
-        let s = format_order(&Order::Disband { unit: fleet(Province::Tri) });
+        let s = format_order(&Order::Disband {
+            unit: fleet(Province::Tri),
+        });
         assert_eq!(s, "F tri D");
     }
 
     #[test]
     fn format_build_army() {
-        let s = format_order(&Order::Build { unit: army(Province::Vie) });
+        let s = format_order(&Order::Build {
+            unit: army(Province::Vie),
+        });
         assert_eq!(s, "A vie B");
     }
 
@@ -621,9 +708,18 @@ mod tests {
     #[test]
     fn format_multi_orders() {
         let orders = vec![
-            Order::Move { unit: army(Province::Vie), dest: loc(Province::Tri) },
-            Order::Move { unit: army(Province::Bud), dest: loc(Province::Ser) },
-            Order::Move { unit: fleet(Province::Tri), dest: loc(Province::Alb) },
+            Order::Move {
+                unit: army(Province::Vie),
+                dest: loc(Province::Tri),
+            },
+            Order::Move {
+                unit: army(Province::Bud),
+                dest: loc(Province::Ser),
+            },
+            Order::Move {
+                unit: fleet(Province::Tri),
+                dest: loc(Province::Alb),
+            },
         ];
         let s = format_orders(&orders);
         assert_eq!(s, "A vie - tri ; A bud - ser ; F tri - alb");
@@ -871,7 +967,10 @@ mod tests {
         // From DUI_PROTOCOL.md section 5.1 session flow
         let orders = parse_orders("A vie - tri ; A bud - ser ; F tri - alb").unwrap();
         assert_eq!(orders.len(), 3);
-        assert_eq!(format_orders(&orders), "A vie - tri ; A bud - ser ; F tri - alb");
+        assert_eq!(
+            format_orders(&orders),
+            "A vie - tri ; A bud - ser ; F tri - alb"
+        );
     }
 
     #[test]
@@ -893,7 +992,12 @@ mod tests {
     #[test]
     fn leading_trailing_whitespace_ignored() {
         let order = parse_order("  A vie H  ").unwrap();
-        assert_eq!(order, Order::Hold { unit: army(Province::Vie) });
+        assert_eq!(
+            order,
+            Order::Hold {
+                unit: army(Province::Vie)
+            }
+        );
     }
 
     #[test]

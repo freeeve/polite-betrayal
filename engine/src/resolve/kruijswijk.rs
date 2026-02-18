@@ -4,7 +4,7 @@
 //! Uses an optimistic initial guess (all moves succeed) and iterates until
 //! a consistent resolution is found.
 
-use crate::board::adjacency::is_adjacent;
+use crate::board::adjacency::is_adjacent_fast as is_adjacent;
 use crate::board::order::{Location, Order, OrderUnit};
 use crate::board::province::{Coast, Power, Province, ProvinceType, PROVINCE_COUNT};
 use crate::board::state::{BoardState, DislodgedUnit as StateDislodgedUnit};
@@ -101,9 +101,7 @@ impl Resolver {
 
     fn init(&mut self, orders: &[(Order, Power)]) {
         self.adj_buf.clear();
-        for v in self.lookup.iter_mut() {
-            *v = -1;
-        }
+        self.lookup.fill(-1);
 
         for (i, (order, power)) in orders.iter().enumerate() {
             let (prov_idx, target_idx, aux_loc_idx, aux_target_idx) = order_indices(order);

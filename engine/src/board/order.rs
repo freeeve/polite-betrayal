@@ -18,7 +18,10 @@ pub struct Location {
 impl Location {
     /// Creates a location without a coast.
     pub fn new(province: Province) -> Self {
-        Self { province, coast: Coast::None }
+        Self {
+            province,
+            coast: Coast::None,
+        }
     }
 
     /// Creates a location with a coast specifier.
@@ -41,15 +44,10 @@ pub struct OrderUnit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Order {
     /// Hold: `A vie H`
-    Hold {
-        unit: OrderUnit,
-    },
+    Hold { unit: OrderUnit },
 
     /// Move: `A bud - rum` or `F nrg - stp/nc`
-    Move {
-        unit: OrderUnit,
-        dest: Location,
-    },
+    Move { unit: OrderUnit, dest: Location },
 
     /// Support hold: `A tyr S A vie H`
     SupportHold {
@@ -72,20 +70,13 @@ pub enum Order {
     },
 
     /// Retreat: `A vie R boh`
-    Retreat {
-        unit: OrderUnit,
-        dest: Location,
-    },
+    Retreat { unit: OrderUnit, dest: Location },
 
     /// Disband: `F tri D` (retreat phase) or `A war D` (build phase)
-    Disband {
-        unit: OrderUnit,
-    },
+    Disband { unit: OrderUnit },
 
     /// Build: `A vie B` or `F stp/sc B`
-    Build {
-        unit: OrderUnit,
-    },
+    Build { unit: OrderUnit },
 
     /// Waive: `W` (voluntarily skip one build)
     Waive,

@@ -4,9 +4,8 @@
 //! unit during a movement phase.
 
 use crate::board::{
-    BoardState, Coast, Location, Order, OrderUnit, Province, ProvinceType,
-    UnitType, ALL_PROVINCES, PROVINCE_COUNT,
-    provinces_adjacent_to, fleet_coasts_to,
+    fleet_coasts_to, provinces_adjacent_to, BoardState, Coast, Location, Order, OrderUnit,
+    Province, ProvinceType, UnitType, ALL_PROVINCES, PROVINCE_COUNT,
 };
 
 /// Returns whether the unit type can occupy the given province type.
@@ -56,7 +55,16 @@ pub fn legal_orders(province: Province, state: &BoardState) -> Vec<Order> {
     }
 
     // Support hold and support move for every other unit on the board.
-    generate_supports(province, coast, unit_type, is_fleet, unit, state, &move_targets, &mut orders);
+    generate_supports(
+        province,
+        coast,
+        unit_type,
+        is_fleet,
+        unit,
+        state,
+        &move_targets,
+        &mut orders,
+    );
 
     // Convoy orders: fleet in sea province can convoy armies.
     if is_fleet && province.province_type() == ProvinceType::Sea {
@@ -127,10 +135,7 @@ fn generate_supports(
 
         // Support hold: this unit must be able to move to the supported unit's province.
         if reachable.contains(&other_prov) {
-            orders.push(Order::SupportHold {
-                unit,
-                supported,
-            });
+            orders.push(Order::SupportHold { unit, supported });
         }
 
         // Support move: for each province the other unit could move to,
@@ -214,7 +219,9 @@ mod tests {
 
     /// Returns true if any order in the list is a Move to the given province.
     fn has_move_to(orders: &[Order], dest: Province) -> bool {
-        orders.iter().any(|o| matches!(o, Order::Move { dest: d, .. } if d.province == dest))
+        orders
+            .iter()
+            .any(|o| matches!(o, Order::Move { dest: d, .. } if d.province == dest))
     }
 
     /// Returns true if any order is a Hold.
@@ -293,14 +300,19 @@ mod tests {
         let state = state_with_unit(Province::Mao, Power::France, UnitType::Fleet, Coast::None);
         let orders = legal_orders(Province::Mao, &state);
 
-        let spa_moves: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Move { dest, .. } if dest.province == Province::Spa)
-        }).collect();
+        let spa_moves: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Move { dest, .. } if dest.province == Province::Spa))
+            .collect();
         // Should have moves to Spa(NC) and Spa(SC)
         assert_eq!(spa_moves.len(), 2);
-        let coasts: Vec<Coast> = spa_moves.iter().map(|o| {
-            match o { Order::Move { dest, .. } => dest.coast, _ => Coast::None }
-        }).collect();
+        let coasts: Vec<Coast> = spa_moves
+            .iter()
+            .map(|o| match o {
+                Order::Move { dest, .. } => dest.coast,
+                _ => Coast::None,
+            })
+            .collect();
         assert!(coasts.contains(&Coast::North));
         assert!(coasts.contains(&Coast::South));
     }
@@ -350,10 +362,13 @@ mod tests {
 
         let orders = legal_orders(Province::Gal, &state);
         // Gal can support Bud moving to Rum (Gal can reach Rum, Bud can reach Rum)
-        let support_rum: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::SupportMove { supported, dest, .. }
+        let support_rum: Vec<&Order> = orders
+            .iter()
+            .filter(|o| {
+                matches!(o, Order::SupportMove { supported, dest, .. }
                 if supported.location.province == Province::Bud && dest.province == Province::Rum)
-        }).collect();
+            })
+            .collect();
         assert_eq!(support_rum.len(), 1);
     }
 
@@ -365,9 +380,12 @@ mod tests {
 
         let orders = legal_orders(Province::Tyr, &state);
         // Tyr should NOT generate a support for Vie moving to Tyr
-        let bad_supports: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::SupportMove { dest, .. } if dest.province == Province::Tyr)
-        }).collect();
+        let bad_supports: Vec<&Order> = orders
+            .iter()
+            .filter(
+                |o| matches!(o, Order::SupportMove { dest, .. } if dest.province == Province::Tyr),
+            )
+            .collect();
         assert!(bad_supports.is_empty());
     }
 
@@ -393,9 +411,10 @@ mod tests {
         state.place_unit(Province::Lon, Power::England, UnitType::Army, Coast::None);
 
         let orders = legal_orders(Province::Eng, &state);
-        let convoys: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Convoy { .. })
-        }).collect();
+        let convoys: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Convoy { .. }))
+            .collect();
         assert!(!convoys.is_empty());
     }
 
@@ -406,9 +425,10 @@ mod tests {
         state.place_unit(Province::Yor, Power::England, UnitType::Army, Coast::None);
 
         let orders = legal_orders(Province::Lon, &state);
-        let convoys: Vec<&Order> = orders.iter().filter(|o| {
-            matches!(o, Order::Convoy { .. })
-        }).collect();
+        let convoys: Vec<&Order> = orders
+            .iter()
+            .filter(|o| matches!(o, Order::Convoy { .. }))
+            .collect();
         // London is coastal, not sea, so no convoys
         assert!(convoys.is_empty());
     }

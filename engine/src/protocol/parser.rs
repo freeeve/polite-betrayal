@@ -35,23 +35,16 @@ pub enum Command {
     IsReady,
 
     /// Set an engine option: `setoption name <id> [value <x>]`.
-    SetOption {
-        name: String,
-        value: Option<String>,
-    },
+    SetOption { name: String, value: Option<String> },
 
     /// Reset engine state for a new game.
     NewGame,
 
     /// Set the board position from a DFEN string.
-    Position {
-        dfen: String,
-    },
+    Position { dfen: String },
 
     /// Set the active power for the current position.
-    SetPower {
-        power: Power,
-    },
+    SetPower { power: Power },
 
     /// Begin calculating orders with optional search constraints.
     Go(GoParams),
@@ -60,9 +53,7 @@ pub enum Command {
     Stop,
 
     /// Deliver a diplomatic press message (structured intent).
-    Press {
-        raw: String,
-    },
+    Press { raw: String },
 
     /// Terminate the engine process.
     Quit,

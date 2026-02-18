@@ -96,25 +96,81 @@ pub enum Province {
 
 /// All province variants in index order.
 pub const ALL_PROVINCES: [Province; PROVINCE_COUNT] = [
-    Province::Adr, Province::Aeg, Province::Alb, Province::Ank,
-    Province::Apu, Province::Arm, Province::Bal, Province::Bar,
-    Province::Bel, Province::Ber, Province::Bla, Province::Boh,
-    Province::Bot, Province::Bre, Province::Bud, Province::Bul,
-    Province::Bur, Province::Cly, Province::Con, Province::Den,
-    Province::Eas, Province::Edi, Province::Eng, Province::Fin,
-    Province::Gal, Province::Gas, Province::Gol, Province::Gre,
-    Province::Hel, Province::Hol, Province::Ion, Province::Iri,
-    Province::Kie, Province::Lon, Province::Lvn, Province::Lvp,
-    Province::Mao, Province::Mar, Province::Mos, Province::Mun,
-    Province::Naf, Province::Nao, Province::Nap, Province::Nrg,
-    Province::Nth, Province::Nwy, Province::Par, Province::Pic,
-    Province::Pie, Province::Por, Province::Pru, Province::Rom,
-    Province::Ruh, Province::Rum, Province::Ser, Province::Sev,
-    Province::Sil, Province::Ska, Province::Smy, Province::Spa,
-    Province::Stp, Province::Swe, Province::Syr, Province::Tri,
-    Province::Tun, Province::Tus, Province::Tyr, Province::Tys,
-    Province::Ukr, Province::Ven, Province::Vie, Province::Wal,
-    Province::War, Province::Wes, Province::Yor,
+    Province::Adr,
+    Province::Aeg,
+    Province::Alb,
+    Province::Ank,
+    Province::Apu,
+    Province::Arm,
+    Province::Bal,
+    Province::Bar,
+    Province::Bel,
+    Province::Ber,
+    Province::Bla,
+    Province::Boh,
+    Province::Bot,
+    Province::Bre,
+    Province::Bud,
+    Province::Bul,
+    Province::Bur,
+    Province::Cly,
+    Province::Con,
+    Province::Den,
+    Province::Eas,
+    Province::Edi,
+    Province::Eng,
+    Province::Fin,
+    Province::Gal,
+    Province::Gas,
+    Province::Gol,
+    Province::Gre,
+    Province::Hel,
+    Province::Hol,
+    Province::Ion,
+    Province::Iri,
+    Province::Kie,
+    Province::Lon,
+    Province::Lvn,
+    Province::Lvp,
+    Province::Mao,
+    Province::Mar,
+    Province::Mos,
+    Province::Mun,
+    Province::Naf,
+    Province::Nao,
+    Province::Nap,
+    Province::Nrg,
+    Province::Nth,
+    Province::Nwy,
+    Province::Par,
+    Province::Pic,
+    Province::Pie,
+    Province::Por,
+    Province::Pru,
+    Province::Rom,
+    Province::Ruh,
+    Province::Rum,
+    Province::Ser,
+    Province::Sev,
+    Province::Sil,
+    Province::Ska,
+    Province::Smy,
+    Province::Spa,
+    Province::Stp,
+    Province::Swe,
+    Province::Syr,
+    Province::Tri,
+    Province::Tun,
+    Province::Tus,
+    Province::Tyr,
+    Province::Tys,
+    Province::Ukr,
+    Province::Ven,
+    Province::Vie,
+    Province::Wal,
+    Province::War,
+    Province::Wes,
+    Province::Yor,
 ];
 
 impl Province {
@@ -291,184 +347,759 @@ pub struct ProvinceInfo {
 /// Compile-time lookup table: index by `Province as usize`.
 pub static PROVINCE_INFO: [ProvinceInfo; PROVINCE_COUNT] = [
     // 0: Adr - Adriatic Sea
-    ProvinceInfo { abbr: "adr", name: "Adriatic Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "adr",
+        name: "Adriatic Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 1: Aeg - Aegean Sea
-    ProvinceInfo { abbr: "aeg", name: "Aegean Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "aeg",
+        name: "Aegean Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 2: Alb - Albania
-    ProvinceInfo { abbr: "alb", name: "Albania", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "alb",
+        name: "Albania",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 3: Ank - Ankara
-    ProvinceInfo { abbr: "ank", name: "Ankara", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Turkey), coasts: &[] },
+    ProvinceInfo {
+        abbr: "ank",
+        name: "Ankara",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Turkey),
+        coasts: &[],
+    },
     // 4: Apu - Apulia
-    ProvinceInfo { abbr: "apu", name: "Apulia", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "apu",
+        name: "Apulia",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 5: Arm - Armenia
-    ProvinceInfo { abbr: "arm", name: "Armenia", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "arm",
+        name: "Armenia",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 6: Bal - Baltic Sea
-    ProvinceInfo { abbr: "bal", name: "Baltic Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "bal",
+        name: "Baltic Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 7: Bar - Barents Sea
-    ProvinceInfo { abbr: "bar", name: "Barents Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "bar",
+        name: "Barents Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 8: Bel - Belgium
-    ProvinceInfo { abbr: "bel", name: "Belgium", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "bel",
+        name: "Belgium",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 9: Ber - Berlin
-    ProvinceInfo { abbr: "ber", name: "Berlin", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Germany), coasts: &[] },
+    ProvinceInfo {
+        abbr: "ber",
+        name: "Berlin",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Germany),
+        coasts: &[],
+    },
     // 10: Bla - Black Sea
-    ProvinceInfo { abbr: "bla", name: "Black Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "bla",
+        name: "Black Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 11: Boh - Bohemia
-    ProvinceInfo { abbr: "boh", name: "Bohemia", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "boh",
+        name: "Bohemia",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 12: Bot - Gulf of Bothnia
-    ProvinceInfo { abbr: "bot", name: "Gulf of Bothnia", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "bot",
+        name: "Gulf of Bothnia",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 13: Bre - Brest
-    ProvinceInfo { abbr: "bre", name: "Brest", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::France), coasts: &[] },
+    ProvinceInfo {
+        abbr: "bre",
+        name: "Brest",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::France),
+        coasts: &[],
+    },
     // 14: Bud - Budapest
-    ProvinceInfo { abbr: "bud", name: "Budapest", province_type: ProvinceType::Land, is_supply_center: true, home_power: Some(Power::Austria), coasts: &[] },
+    ProvinceInfo {
+        abbr: "bud",
+        name: "Budapest",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: Some(Power::Austria),
+        coasts: &[],
+    },
     // 15: Bul - Bulgaria
-    ProvinceInfo { abbr: "bul", name: "Bulgaria", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[Coast::East, Coast::South] },
+    ProvinceInfo {
+        abbr: "bul",
+        name: "Bulgaria",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[Coast::East, Coast::South],
+    },
     // 16: Bur - Burgundy
-    ProvinceInfo { abbr: "bur", name: "Burgundy", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "bur",
+        name: "Burgundy",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 17: Cly - Clyde
-    ProvinceInfo { abbr: "cly", name: "Clyde", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "cly",
+        name: "Clyde",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 18: Con - Constantinople
-    ProvinceInfo { abbr: "con", name: "Constantinople", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Turkey), coasts: &[] },
+    ProvinceInfo {
+        abbr: "con",
+        name: "Constantinople",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Turkey),
+        coasts: &[],
+    },
     // 19: Den - Denmark
-    ProvinceInfo { abbr: "den", name: "Denmark", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "den",
+        name: "Denmark",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 20: Eas - Eastern Mediterranean
-    ProvinceInfo { abbr: "eas", name: "Eastern Mediterranean", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "eas",
+        name: "Eastern Mediterranean",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 21: Edi - Edinburgh
-    ProvinceInfo { abbr: "edi", name: "Edinburgh", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::England), coasts: &[] },
+    ProvinceInfo {
+        abbr: "edi",
+        name: "Edinburgh",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::England),
+        coasts: &[],
+    },
     // 22: Eng - English Channel
-    ProvinceInfo { abbr: "eng", name: "English Channel", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "eng",
+        name: "English Channel",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 23: Fin - Finland
-    ProvinceInfo { abbr: "fin", name: "Finland", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "fin",
+        name: "Finland",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 24: Gal - Galicia
-    ProvinceInfo { abbr: "gal", name: "Galicia", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "gal",
+        name: "Galicia",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 25: Gas - Gascony
-    ProvinceInfo { abbr: "gas", name: "Gascony", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "gas",
+        name: "Gascony",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 26: Gol - Gulf of Lyon
-    ProvinceInfo { abbr: "gol", name: "Gulf of Lyon", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "gol",
+        name: "Gulf of Lyon",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 27: Gre - Greece
-    ProvinceInfo { abbr: "gre", name: "Greece", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "gre",
+        name: "Greece",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 28: Hel - Heligoland Bight
-    ProvinceInfo { abbr: "hel", name: "Heligoland Bight", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "hel",
+        name: "Heligoland Bight",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 29: Hol - Holland
-    ProvinceInfo { abbr: "hol", name: "Holland", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "hol",
+        name: "Holland",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 30: Ion - Ionian Sea
-    ProvinceInfo { abbr: "ion", name: "Ionian Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "ion",
+        name: "Ionian Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 31: Iri - Irish Sea
-    ProvinceInfo { abbr: "iri", name: "Irish Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "iri",
+        name: "Irish Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 32: Kie - Kiel
-    ProvinceInfo { abbr: "kie", name: "Kiel", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Germany), coasts: &[] },
+    ProvinceInfo {
+        abbr: "kie",
+        name: "Kiel",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Germany),
+        coasts: &[],
+    },
     // 33: Lon - London
-    ProvinceInfo { abbr: "lon", name: "London", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::England), coasts: &[] },
+    ProvinceInfo {
+        abbr: "lon",
+        name: "London",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::England),
+        coasts: &[],
+    },
     // 34: Lvn - Livonia
-    ProvinceInfo { abbr: "lvn", name: "Livonia", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "lvn",
+        name: "Livonia",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 35: Lvp - Liverpool
-    ProvinceInfo { abbr: "lvp", name: "Liverpool", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::England), coasts: &[] },
+    ProvinceInfo {
+        abbr: "lvp",
+        name: "Liverpool",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::England),
+        coasts: &[],
+    },
     // 36: Mao - Mid-Atlantic Ocean
-    ProvinceInfo { abbr: "mao", name: "Mid-Atlantic Ocean", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "mao",
+        name: "Mid-Atlantic Ocean",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 37: Mar - Marseilles
-    ProvinceInfo { abbr: "mar", name: "Marseilles", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::France), coasts: &[] },
+    ProvinceInfo {
+        abbr: "mar",
+        name: "Marseilles",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::France),
+        coasts: &[],
+    },
     // 38: Mos - Moscow
-    ProvinceInfo { abbr: "mos", name: "Moscow", province_type: ProvinceType::Land, is_supply_center: true, home_power: Some(Power::Russia), coasts: &[] },
+    ProvinceInfo {
+        abbr: "mos",
+        name: "Moscow",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: Some(Power::Russia),
+        coasts: &[],
+    },
     // 39: Mun - Munich
-    ProvinceInfo { abbr: "mun", name: "Munich", province_type: ProvinceType::Land, is_supply_center: true, home_power: Some(Power::Germany), coasts: &[] },
+    ProvinceInfo {
+        abbr: "mun",
+        name: "Munich",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: Some(Power::Germany),
+        coasts: &[],
+    },
     // 40: Naf - North Africa
-    ProvinceInfo { abbr: "naf", name: "North Africa", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "naf",
+        name: "North Africa",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 41: Nao - North Atlantic Ocean
-    ProvinceInfo { abbr: "nao", name: "North Atlantic Ocean", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "nao",
+        name: "North Atlantic Ocean",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 42: Nap - Naples
-    ProvinceInfo { abbr: "nap", name: "Naples", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Italy), coasts: &[] },
+    ProvinceInfo {
+        abbr: "nap",
+        name: "Naples",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Italy),
+        coasts: &[],
+    },
     // 43: Nrg - Norwegian Sea
-    ProvinceInfo { abbr: "nrg", name: "Norwegian Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "nrg",
+        name: "Norwegian Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 44: Nth - North Sea
-    ProvinceInfo { abbr: "nth", name: "North Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "nth",
+        name: "North Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 45: Nwy - Norway
-    ProvinceInfo { abbr: "nwy", name: "Norway", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "nwy",
+        name: "Norway",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 46: Par - Paris
-    ProvinceInfo { abbr: "par", name: "Paris", province_type: ProvinceType::Land, is_supply_center: true, home_power: Some(Power::France), coasts: &[] },
+    ProvinceInfo {
+        abbr: "par",
+        name: "Paris",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: Some(Power::France),
+        coasts: &[],
+    },
     // 47: Pic - Picardy
-    ProvinceInfo { abbr: "pic", name: "Picardy", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "pic",
+        name: "Picardy",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 48: Pie - Piedmont
-    ProvinceInfo { abbr: "pie", name: "Piedmont", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "pie",
+        name: "Piedmont",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 49: Por - Portugal
-    ProvinceInfo { abbr: "por", name: "Portugal", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "por",
+        name: "Portugal",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 50: Pru - Prussia
-    ProvinceInfo { abbr: "pru", name: "Prussia", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "pru",
+        name: "Prussia",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 51: Rom - Rome
-    ProvinceInfo { abbr: "rom", name: "Rome", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Italy), coasts: &[] },
+    ProvinceInfo {
+        abbr: "rom",
+        name: "Rome",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Italy),
+        coasts: &[],
+    },
     // 52: Ruh - Ruhr
-    ProvinceInfo { abbr: "ruh", name: "Ruhr", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "ruh",
+        name: "Ruhr",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 53: Rum - Rumania
-    ProvinceInfo { abbr: "rum", name: "Rumania", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "rum",
+        name: "Rumania",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 54: Ser - Serbia
-    ProvinceInfo { abbr: "ser", name: "Serbia", province_type: ProvinceType::Land, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "ser",
+        name: "Serbia",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 55: Sev - Sevastopol
-    ProvinceInfo { abbr: "sev", name: "Sevastopol", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Russia), coasts: &[] },
+    ProvinceInfo {
+        abbr: "sev",
+        name: "Sevastopol",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Russia),
+        coasts: &[],
+    },
     // 56: Sil - Silesia
-    ProvinceInfo { abbr: "sil", name: "Silesia", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "sil",
+        name: "Silesia",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 57: Ska - Skagerrak
-    ProvinceInfo { abbr: "ska", name: "Skagerrak", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "ska",
+        name: "Skagerrak",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 58: Smy - Smyrna
-    ProvinceInfo { abbr: "smy", name: "Smyrna", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Turkey), coasts: &[] },
+    ProvinceInfo {
+        abbr: "smy",
+        name: "Smyrna",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Turkey),
+        coasts: &[],
+    },
     // 59: Spa - Spain
-    ProvinceInfo { abbr: "spa", name: "Spain", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[Coast::North, Coast::South] },
+    ProvinceInfo {
+        abbr: "spa",
+        name: "Spain",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[Coast::North, Coast::South],
+    },
     // 60: Stp - St. Petersburg
-    ProvinceInfo { abbr: "stp", name: "St. Petersburg", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Russia), coasts: &[Coast::North, Coast::South] },
+    ProvinceInfo {
+        abbr: "stp",
+        name: "St. Petersburg",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Russia),
+        coasts: &[Coast::North, Coast::South],
+    },
     // 61: Swe - Sweden
-    ProvinceInfo { abbr: "swe", name: "Sweden", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "swe",
+        name: "Sweden",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 62: Syr - Syria
-    ProvinceInfo { abbr: "syr", name: "Syria", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "syr",
+        name: "Syria",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 63: Tri - Trieste
-    ProvinceInfo { abbr: "tri", name: "Trieste", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Austria), coasts: &[] },
+    ProvinceInfo {
+        abbr: "tri",
+        name: "Trieste",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Austria),
+        coasts: &[],
+    },
     // 64: Tun - Tunisia
-    ProvinceInfo { abbr: "tun", name: "Tunisia", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "tun",
+        name: "Tunisia",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: None,
+        coasts: &[],
+    },
     // 65: Tus - Tuscany
-    ProvinceInfo { abbr: "tus", name: "Tuscany", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "tus",
+        name: "Tuscany",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 66: Tyr - Tyrolia
-    ProvinceInfo { abbr: "tyr", name: "Tyrolia", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "tyr",
+        name: "Tyrolia",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 67: Tys - Tyrrhenian Sea
-    ProvinceInfo { abbr: "tys", name: "Tyrrhenian Sea", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "tys",
+        name: "Tyrrhenian Sea",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 68: Ukr - Ukraine
-    ProvinceInfo { abbr: "ukr", name: "Ukraine", province_type: ProvinceType::Land, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "ukr",
+        name: "Ukraine",
+        province_type: ProvinceType::Land,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 69: Ven - Venice
-    ProvinceInfo { abbr: "ven", name: "Venice", province_type: ProvinceType::Coastal, is_supply_center: true, home_power: Some(Power::Italy), coasts: &[] },
+    ProvinceInfo {
+        abbr: "ven",
+        name: "Venice",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: true,
+        home_power: Some(Power::Italy),
+        coasts: &[],
+    },
     // 70: Vie - Vienna
-    ProvinceInfo { abbr: "vie", name: "Vienna", province_type: ProvinceType::Land, is_supply_center: true, home_power: Some(Power::Austria), coasts: &[] },
+    ProvinceInfo {
+        abbr: "vie",
+        name: "Vienna",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: Some(Power::Austria),
+        coasts: &[],
+    },
     // 71: Wal - Wales
-    ProvinceInfo { abbr: "wal", name: "Wales", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "wal",
+        name: "Wales",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 72: War - Warsaw
-    ProvinceInfo { abbr: "war", name: "Warsaw", province_type: ProvinceType::Land, is_supply_center: true, home_power: Some(Power::Russia), coasts: &[] },
+    ProvinceInfo {
+        abbr: "war",
+        name: "Warsaw",
+        province_type: ProvinceType::Land,
+        is_supply_center: true,
+        home_power: Some(Power::Russia),
+        coasts: &[],
+    },
     // 73: Wes - Western Mediterranean
-    ProvinceInfo { abbr: "wes", name: "Western Mediterranean", province_type: ProvinceType::Sea, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "wes",
+        name: "Western Mediterranean",
+        province_type: ProvinceType::Sea,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
     // 74: Yor - Yorkshire
-    ProvinceInfo { abbr: "yor", name: "Yorkshire", province_type: ProvinceType::Coastal, is_supply_center: false, home_power: None, coasts: &[] },
+    ProvinceInfo {
+        abbr: "yor",
+        name: "Yorkshire",
+        province_type: ProvinceType::Coastal,
+        is_supply_center: false,
+        home_power: None,
+        coasts: &[],
+    },
 ];
 
 /// Abbreviation-to-Province lookup table (sorted alphabetically).
 static ABBR_TABLE: [(&str, Province); PROVINCE_COUNT] = [
-    ("adr", Province::Adr), ("aeg", Province::Aeg), ("alb", Province::Alb),
-    ("ank", Province::Ank), ("apu", Province::Apu), ("arm", Province::Arm),
-    ("bal", Province::Bal), ("bar", Province::Bar), ("bel", Province::Bel),
-    ("ber", Province::Ber), ("bla", Province::Bla), ("boh", Province::Boh),
-    ("bot", Province::Bot), ("bre", Province::Bre), ("bud", Province::Bud),
-    ("bul", Province::Bul), ("bur", Province::Bur), ("cly", Province::Cly),
-    ("con", Province::Con), ("den", Province::Den), ("eas", Province::Eas),
-    ("edi", Province::Edi), ("eng", Province::Eng), ("fin", Province::Fin),
-    ("gal", Province::Gal), ("gas", Province::Gas), ("gol", Province::Gol),
-    ("gre", Province::Gre), ("hel", Province::Hel), ("hol", Province::Hol),
-    ("ion", Province::Ion), ("iri", Province::Iri), ("kie", Province::Kie),
-    ("lon", Province::Lon), ("lvn", Province::Lvn), ("lvp", Province::Lvp),
-    ("mao", Province::Mao), ("mar", Province::Mar), ("mos", Province::Mos),
-    ("mun", Province::Mun), ("naf", Province::Naf), ("nao", Province::Nao),
-    ("nap", Province::Nap), ("nrg", Province::Nrg), ("nth", Province::Nth),
-    ("nwy", Province::Nwy), ("par", Province::Par), ("pic", Province::Pic),
-    ("pie", Province::Pie), ("por", Province::Por), ("pru", Province::Pru),
-    ("rom", Province::Rom), ("ruh", Province::Ruh), ("rum", Province::Rum),
-    ("ser", Province::Ser), ("sev", Province::Sev), ("sil", Province::Sil),
-    ("ska", Province::Ska), ("smy", Province::Smy), ("spa", Province::Spa),
-    ("stp", Province::Stp), ("swe", Province::Swe), ("syr", Province::Syr),
-    ("tri", Province::Tri), ("tun", Province::Tun), ("tus", Province::Tus),
-    ("tyr", Province::Tyr), ("tys", Province::Tys), ("ukr", Province::Ukr),
-    ("ven", Province::Ven), ("vie", Province::Vie), ("wal", Province::Wal),
-    ("war", Province::War), ("wes", Province::Wes), ("yor", Province::Yor),
+    ("adr", Province::Adr),
+    ("aeg", Province::Aeg),
+    ("alb", Province::Alb),
+    ("ank", Province::Ank),
+    ("apu", Province::Apu),
+    ("arm", Province::Arm),
+    ("bal", Province::Bal),
+    ("bar", Province::Bar),
+    ("bel", Province::Bel),
+    ("ber", Province::Ber),
+    ("bla", Province::Bla),
+    ("boh", Province::Boh),
+    ("bot", Province::Bot),
+    ("bre", Province::Bre),
+    ("bud", Province::Bud),
+    ("bul", Province::Bul),
+    ("bur", Province::Bur),
+    ("cly", Province::Cly),
+    ("con", Province::Con),
+    ("den", Province::Den),
+    ("eas", Province::Eas),
+    ("edi", Province::Edi),
+    ("eng", Province::Eng),
+    ("fin", Province::Fin),
+    ("gal", Province::Gal),
+    ("gas", Province::Gas),
+    ("gol", Province::Gol),
+    ("gre", Province::Gre),
+    ("hel", Province::Hel),
+    ("hol", Province::Hol),
+    ("ion", Province::Ion),
+    ("iri", Province::Iri),
+    ("kie", Province::Kie),
+    ("lon", Province::Lon),
+    ("lvn", Province::Lvn),
+    ("lvp", Province::Lvp),
+    ("mao", Province::Mao),
+    ("mar", Province::Mar),
+    ("mos", Province::Mos),
+    ("mun", Province::Mun),
+    ("naf", Province::Naf),
+    ("nao", Province::Nao),
+    ("nap", Province::Nap),
+    ("nrg", Province::Nrg),
+    ("nth", Province::Nth),
+    ("nwy", Province::Nwy),
+    ("par", Province::Par),
+    ("pic", Province::Pic),
+    ("pie", Province::Pie),
+    ("por", Province::Por),
+    ("pru", Province::Pru),
+    ("rom", Province::Rom),
+    ("ruh", Province::Ruh),
+    ("rum", Province::Rum),
+    ("ser", Province::Ser),
+    ("sev", Province::Sev),
+    ("sil", Province::Sil),
+    ("ska", Province::Ska),
+    ("smy", Province::Smy),
+    ("spa", Province::Spa),
+    ("stp", Province::Stp),
+    ("swe", Province::Swe),
+    ("syr", Province::Syr),
+    ("tri", Province::Tri),
+    ("tun", Province::Tun),
+    ("tus", Province::Tus),
+    ("tyr", Province::Tyr),
+    ("tys", Province::Tys),
+    ("ukr", Province::Ukr),
+    ("ven", Province::Ven),
+    ("vie", Province::Vie),
+    ("wal", Province::Wal),
+    ("war", Province::War),
+    ("wes", Province::Wes),
+    ("yor", Province::Yor),
 ];
 
 #[cfg(test)]
@@ -483,7 +1114,8 @@ mod tests {
 
     #[test]
     fn supply_center_count_is_34() {
-        let sc_count = ALL_PROVINCES.iter()
+        let sc_count = ALL_PROVINCES
+            .iter()
             .filter(|p| p.is_supply_center())
             .count();
         assert_eq!(sc_count, SUPPLY_CENTER_COUNT);
@@ -508,12 +1140,24 @@ mod tests {
 
     #[test]
     fn province_type_counts() {
-        let land = ALL_PROVINCES.iter().filter(|p| p.province_type() == ProvinceType::Land).count();
-        let sea = ALL_PROVINCES.iter().filter(|p| p.province_type() == ProvinceType::Sea).count();
-        let coastal = ALL_PROVINCES.iter().filter(|p| p.province_type() == ProvinceType::Coastal).count();
+        let land = ALL_PROVINCES
+            .iter()
+            .filter(|p| p.province_type() == ProvinceType::Land)
+            .count();
+        let sea = ALL_PROVINCES
+            .iter()
+            .filter(|p| p.province_type() == ProvinceType::Sea)
+            .count();
+        let coastal = ALL_PROVINCES
+            .iter()
+            .filter(|p| p.province_type() == ProvinceType::Coastal)
+            .count();
         assert_eq!(land, 14, "Expected 14 inland provinces");
         assert_eq!(sea, 19, "Expected 19 sea provinces");
-        assert_eq!(coastal, 42, "Expected 42 coastal provinces (39 + 3 split-coast)");
+        assert_eq!(
+            coastal, 42,
+            "Expected 42 coastal provinces (39 + 3 split-coast)"
+        );
         assert_eq!(land + sea + coastal, 75);
     }
 
@@ -530,19 +1174,21 @@ mod tests {
     #[test]
     fn home_supply_center_counts() {
         let count_for = |power: Power| -> usize {
-            ALL_PROVINCES.iter()
+            ALL_PROVINCES
+                .iter()
                 .filter(|p| p.is_supply_center() && p.home_power() == Some(power))
                 .count()
         };
         assert_eq!(count_for(Power::Austria), 3); // bud, tri, vie
         assert_eq!(count_for(Power::England), 3); // edi, lon, lvp
-        assert_eq!(count_for(Power::France), 3);  // bre, mar, par
-        assert_eq!(count_for(Power::Germany), 3);  // ber, kie, mun
-        assert_eq!(count_for(Power::Italy), 3);    // nap, rom, ven
-        assert_eq!(count_for(Power::Russia), 4);   // mos, sev, stp, war
-        assert_eq!(count_for(Power::Turkey), 3);   // ank, con, smy
+        assert_eq!(count_for(Power::France), 3); // bre, mar, par
+        assert_eq!(count_for(Power::Germany), 3); // ber, kie, mun
+        assert_eq!(count_for(Power::Italy), 3); // nap, rom, ven
+        assert_eq!(count_for(Power::Russia), 4); // mos, sev, stp, war
+        assert_eq!(count_for(Power::Turkey), 3); // ank, con, smy
 
-        let neutral_sc = ALL_PROVINCES.iter()
+        let neutral_sc = ALL_PROVINCES
+            .iter()
             .filter(|p| p.is_supply_center() && p.home_power().is_none())
             .count();
         assert_eq!(neutral_sc, 12);

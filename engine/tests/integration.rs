@@ -52,8 +52,14 @@ fn dui_handshake_with_protocol_version() {
 
     // duiok must be the last line of the handshake
     let duiok_idx = lines.iter().position(|l| l == "duiok").unwrap();
-    let proto_idx = lines.iter().position(|l| l == "protocol_version 1").unwrap();
-    assert!(proto_idx < duiok_idx, "protocol_version must appear before duiok");
+    let proto_idx = lines
+        .iter()
+        .position(|l| l == "protocol_version 1")
+        .unwrap();
+    assert!(
+        proto_idx < duiok_idx,
+        "protocol_version must appear before duiok"
+    );
 }
 
 #[test]
@@ -62,7 +68,10 @@ fn dui_handshake_includes_options() {
 
     // At least one option line should be present
     let option_lines: Vec<&String> = lines.iter().filter(|l| l.starts_with("option ")).collect();
-    assert!(!option_lines.is_empty(), "handshake should include option declarations");
+    assert!(
+        !option_lines.is_empty(),
+        "handshake should include option declarations"
+    );
 
     // Verify option format: "option name <id> type <type> ..."
     for opt in &option_lines {
@@ -126,13 +135,25 @@ fn position_setpower_go_produces_bestorders() {
     ]);
 
     // Should contain a bestorders line
-    let bestorders: Vec<&String> = lines.iter().filter(|l| l.starts_with("bestorders ")).collect();
-    assert_eq!(bestorders.len(), 1, "expected exactly one bestorders response");
+    let bestorders: Vec<&String> = lines
+        .iter()
+        .filter(|l| l.starts_with("bestorders "))
+        .collect();
+    assert_eq!(
+        bestorders.len(),
+        1,
+        "expected exactly one bestorders response"
+    );
 
     let orders_str = bestorders[0].strip_prefix("bestorders ").unwrap();
     // Austria has 3 units; should have 3 orders separated by " ; "
     let order_parts: Vec<&str> = orders_str.split(" ; ").collect();
-    assert_eq!(order_parts.len(), 3, "Austria should have 3 orders, got: {}", orders_str);
+    assert_eq!(
+        order_parts.len(),
+        3,
+        "Austria should have 3 orders, got: {}",
+        orders_str
+    );
 }
 
 #[test]
@@ -158,8 +179,16 @@ fn go_for_all_seven_powers() {
             "quit",
         ]);
 
-        let bestorders: Vec<&String> = lines.iter().filter(|l| l.starts_with("bestorders ")).collect();
-        assert_eq!(bestorders.len(), 1, "expected bestorders for {}", power_name);
+        let bestorders: Vec<&String> = lines
+            .iter()
+            .filter(|l| l.starts_with("bestorders "))
+            .collect();
+        assert_eq!(
+            bestorders.len(),
+            1,
+            "expected bestorders for {}",
+            power_name
+        );
 
         let orders_str = bestorders[0].strip_prefix("bestorders ").unwrap();
         let order_parts: Vec<&str> = orders_str.split(" ; ").collect();
@@ -190,8 +219,15 @@ fn newgame_resets_state() {
     ]);
 
     // Should have exactly one bestorders line (the second go has no position)
-    let bestorders: Vec<&String> = lines.iter().filter(|l| l.starts_with("bestorders ")).collect();
-    assert_eq!(bestorders.len(), 1, "second go after newgame should produce no bestorders");
+    let bestorders: Vec<&String> = lines
+        .iter()
+        .filter(|l| l.starts_with("bestorders "))
+        .collect();
+    assert_eq!(
+        bestorders.len(),
+        1,
+        "second go after newgame should produce no bestorders"
+    );
 }
 
 #[test]
@@ -210,8 +246,15 @@ fn multi_power_sequential_query() {
         "quit",
     ]);
 
-    let bestorders: Vec<&String> = lines.iter().filter(|l| l.starts_with("bestorders ")).collect();
-    assert_eq!(bestorders.len(), 2, "expected two bestorders responses for two powers");
+    let bestorders: Vec<&String> = lines
+        .iter()
+        .filter(|l| l.starts_with("bestorders "))
+        .collect();
+    assert_eq!(
+        bestorders.len(),
+        2,
+        "expected two bestorders responses for two powers"
+    );
 }
 
 #[test]
@@ -225,7 +268,10 @@ fn retreat_phase_produces_disband_orders() {
         "quit",
     ]);
 
-    let bestorders: Vec<&String> = lines.iter().filter(|l| l.starts_with("bestorders ")).collect();
+    let bestorders: Vec<&String> = lines
+        .iter()
+        .filter(|l| l.starts_with("bestorders "))
+        .collect();
     assert_eq!(bestorders.len(), 1);
 
     let orders_str = bestorders[0].strip_prefix("bestorders ").unwrap();
@@ -250,7 +296,10 @@ fn build_phase_produces_waive_orders() {
         "quit",
     ]);
 
-    let bestorders: Vec<&String> = lines.iter().filter(|l| l.starts_with("bestorders ")).collect();
+    let bestorders: Vec<&String> = lines
+        .iter()
+        .filter(|l| l.starts_with("bestorders "))
+        .collect();
     assert_eq!(bestorders.len(), 1);
 
     let orders_str = bestorders[0].strip_prefix("bestorders ").unwrap();
@@ -268,17 +317,14 @@ fn build_phase_produces_waive_orders() {
 
 #[test]
 fn malformed_position_does_not_crash() {
-    let lines = run_engine(&[
-        "dui",
-        "isready",
-        "position garbage_dfen",
-        "isready",
-        "quit",
-    ]);
+    let lines = run_engine(&["dui", "isready", "position garbage_dfen", "isready", "quit"]);
 
     // Engine should still respond to isready after malformed position
     let readyok_count = lines.iter().filter(|l| *l == "readyok").count();
-    assert_eq!(readyok_count, 2, "engine should respond to both isready commands");
+    assert_eq!(
+        readyok_count, 2,
+        "engine should respond to both isready commands"
+    );
 }
 
 #[test]

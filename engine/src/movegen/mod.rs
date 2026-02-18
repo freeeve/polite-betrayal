@@ -9,10 +9,7 @@ pub mod retreat;
 
 use rand::Rng;
 
-use crate::board::{
-    BoardState, Order, Phase, Power,
-    ALL_PROVINCES, PROVINCE_COUNT,
-};
+use crate::board::{BoardState, Order, Phase, Power, ALL_PROVINCES, PROVINCE_COUNT};
 
 /// Generates a set of random legal orders for the given power.
 ///
@@ -75,10 +72,10 @@ fn random_retreat_orders(power: Power, state: &BoardState, rng: &mut impl Rng) -
 /// build count, potentially choosing Waive for some or all.
 /// When disbanding: selects the required number of disband orders randomly.
 fn random_build_orders(power: Power, state: &BoardState, rng: &mut impl Rng) -> Vec<Order> {
-    let sc_count = state.sc_owner.iter()
-        .filter(|o| **o == Some(power))
-        .count();
-    let unit_count = state.units.iter()
+    let sc_count = state.sc_owner.iter().filter(|o| **o == Some(power)).count();
+    let unit_count = state
+        .units
+        .iter()
         .filter(|u| matches!(u, Some((p, _)) if *p == power))
         .count();
 
@@ -108,13 +105,14 @@ fn random_build_choices(
 
     for _ in 0..count {
         // Filter out builds in provinces we already chose to build in.
-        let available: Vec<&Order> = legal.iter().filter(|o| {
-            match o {
+        let available: Vec<&Order> = legal
+            .iter()
+            .filter(|o| match o {
                 Order::Build { unit } => !used_provinces.contains(&unit.location.province),
                 Order::Waive => true,
                 _ => false,
-            }
-        }).collect();
+            })
+            .collect();
 
         if available.is_empty() {
             orders.push(Order::Waive);
@@ -143,7 +141,8 @@ fn random_disband_choices(
     // legal_builds returns all disband options when units > SCs
 
     // Collect disband orders.
-    let disbands: Vec<&Order> = legal.iter()
+    let disbands: Vec<&Order> = legal
+        .iter()
         .filter(|o| matches!(o, Order::Disband { .. }))
         .collect();
 
@@ -168,8 +167,8 @@ mod tests {
     use crate::board::{
         BoardState, Coast, DislodgedUnit, Phase, Power, Province, Season, UnitType,
     };
-    use rand::SeedableRng;
     use rand::rngs::StdRng;
+    use rand::SeedableRng;
 
     fn seeded_rng() -> StdRng {
         StdRng::seed_from_u64(42)
@@ -201,12 +200,15 @@ mod tests {
     #[test]
     fn random_retreat_orders_for_dislodged() {
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Retreat);
-        state.set_dislodged(Province::Ser, DislodgedUnit {
-            power: Power::Austria,
-            unit_type: UnitType::Army,
-            coast: Coast::None,
-            attacker_from: Province::Bul,
-        });
+        state.set_dislodged(
+            Province::Ser,
+            DislodgedUnit {
+                power: Power::Austria,
+                unit_type: UnitType::Army,
+                coast: Coast::None,
+                attacker_from: Province::Bul,
+            },
+        );
 
         let mut rng = seeded_rng();
         let orders = random_orders(Power::Austria, &state, &mut rng);
@@ -287,7 +289,11 @@ mod tests {
                     }
                     Order::SupportHold { unit, .. } | Order::SupportMove { unit, .. } => {
                         let legal = movement::legal_orders(unit.location.province, &state);
-                        assert!(legal.contains(order), "Generated illegal support: {:?}", order);
+                        assert!(
+                            legal.contains(order),
+                            "Generated illegal support: {:?}",
+                            order
+                        );
                     }
                     _ => {}
                 }

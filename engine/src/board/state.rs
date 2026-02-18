@@ -104,7 +104,13 @@ impl BoardState {
     }
 
     /// Places a unit on the board. Returns false if the province is already occupied.
-    pub fn place_unit(&mut self, province: Province, power: Power, unit_type: UnitType, coast: Coast) -> bool {
+    pub fn place_unit(
+        &mut self,
+        province: Province,
+        power: Power,
+        unit_type: UnitType,
+        coast: Coast,
+    ) -> bool {
         let idx = province as usize;
         if self.units[idx].is_some() {
             return false;
@@ -162,7 +168,10 @@ mod tests {
     fn place_unit_works() {
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
         assert!(state.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None));
-        assert_eq!(state.units[Province::Vie as usize], Some((Power::Austria, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Vie as usize],
+            Some((Power::Austria, UnitType::Army))
+        );
     }
 
     #[test]
@@ -176,8 +185,14 @@ mod tests {
     fn place_fleet_with_coast() {
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
         assert!(state.place_unit(Province::Stp, Power::Russia, UnitType::Fleet, Coast::South));
-        assert_eq!(state.units[Province::Stp as usize], Some((Power::Russia, UnitType::Fleet)));
-        assert_eq!(state.fleet_coast[Province::Stp as usize], Some(Coast::South));
+        assert_eq!(
+            state.units[Province::Stp as usize],
+            Some((Power::Russia, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.fleet_coast[Province::Stp as usize],
+            Some(Coast::South)
+        );
     }
 
     #[test]
@@ -186,12 +201,15 @@ mod tests {
         state.set_sc_owner(Province::Vie, Some(Power::Austria));
         assert_eq!(state.sc_owner[Province::Vie as usize], Some(Power::Austria));
 
-        state.set_dislodged(Province::Ser, DislodgedUnit {
-            power: Power::Austria,
-            unit_type: UnitType::Army,
-            coast: Coast::None,
-            attacker_from: Province::Bul,
-        });
+        state.set_dislodged(
+            Province::Ser,
+            DislodgedUnit {
+                power: Power::Austria,
+                unit_type: UnitType::Army,
+                coast: Coast::None,
+                attacker_from: Province::Bul,
+            },
+        );
         let d = state.dislodged[Province::Ser as usize].unwrap();
         assert_eq!(d.power, Power::Austria);
         assert_eq!(d.attacker_from, Province::Bul);

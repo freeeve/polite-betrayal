@@ -11,7 +11,7 @@
 use std::collections::VecDeque;
 use std::sync::LazyLock;
 
-use crate::board::adjacency::ADJACENCIES;
+use crate::board::adjacency::{adj_from, ADJACENCIES};
 use crate::board::province::{
     Coast, Power, Province, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT, SUPPLY_CENTER_COUNT,
 };
@@ -43,10 +43,7 @@ fn build_dist_matrix(fleet: bool) -> DistMatrix {
 
         while let Some((cur, d)) = queue.pop_front() {
             let cur_prov = ALL_PROVINCES[cur];
-            for adj in ADJACENCIES.iter() {
-                if adj.from != cur_prov {
-                    continue;
-                }
+            for adj in adj_from(cur_prov) {
                 if fleet && !adj.fleet_ok {
                     continue;
                 }
@@ -125,8 +122,8 @@ pub(crate) fn unit_can_reach(
     target: Province,
 ) -> bool {
     let is_fleet = unit_type == UnitType::Fleet;
-    for adj in ADJACENCIES.iter() {
-        if adj.from != unit_prov || adj.to != target {
+    for adj in adj_from(unit_prov) {
+        if adj.to != target {
             continue;
         }
         if is_fleet && !adj.fleet_ok {

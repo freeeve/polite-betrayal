@@ -112,11 +112,10 @@ fn parse_phase_info(s: &str) -> Result<(u16, Season, Phase), DfenError> {
         .parse()
         .map_err(|_| DfenError::InvalidYear(year_str.to_string()))?;
 
-    let season = Season::from_dfen_char(season_char)
-        .ok_or(DfenError::InvalidSeason(season_char))?;
+    let season =
+        Season::from_dfen_char(season_char).ok_or(DfenError::InvalidSeason(season_char))?;
 
-    let phase = Phase::from_dfen_char(phase_char)
-        .ok_or(DfenError::InvalidPhase(phase_char))?;
+    let phase = Phase::from_dfen_char(phase_char).ok_or(DfenError::InvalidPhase(phase_char))?;
 
     Ok((year, season, phase))
 }
@@ -138,8 +137,8 @@ fn parse_units(s: &str, state: &mut BoardState) -> Result<(), DfenError> {
         let location_str: String = chars.collect();
 
         let power = parse_power(power_char)?;
-        let unit_type = UnitType::from_dui_char(unit_char)
-            .ok_or(DfenError::InvalidUnitType(unit_char))?;
+        let unit_type =
+            UnitType::from_dui_char(unit_char).ok_or(DfenError::InvalidUnitType(unit_char))?;
         let (province, coast) = parse_location(&location_str)?;
 
         let idx = province as usize;
@@ -208,8 +207,8 @@ fn parse_dislodged(s: &str, state: &mut BoardState) -> Result<(), DfenError> {
         let location_str: String = chars.collect();
 
         let power = parse_power(power_char)?;
-        let unit_type = UnitType::from_dui_char(unit_char)
-            .ok_or(DfenError::InvalidUnitType(unit_char))?;
+        let unit_type =
+            UnitType::from_dui_char(unit_char).ok_or(DfenError::InvalidUnitType(unit_char))?;
         let (province, coast) = parse_location(&location_str)?;
         let attacker_from = Province::from_abbr(attacker_prov_str)
             .ok_or_else(|| DfenError::UnknownProvince(attacker_prov_str.to_string()))?;
@@ -411,18 +410,42 @@ mod tests {
         assert_eq!(state.phase, Phase::Movement);
 
         // Austrian units
-        assert_eq!(state.units[Province::Vie as usize], Some((Power::Austria, UnitType::Army)));
-        assert_eq!(state.units[Province::Bud as usize], Some((Power::Austria, UnitType::Army)));
-        assert_eq!(state.units[Province::Tri as usize], Some((Power::Austria, UnitType::Fleet)));
+        assert_eq!(
+            state.units[Province::Vie as usize],
+            Some((Power::Austria, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Bud as usize],
+            Some((Power::Austria, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Tri as usize],
+            Some((Power::Austria, UnitType::Fleet))
+        );
 
         // English units
-        assert_eq!(state.units[Province::Lon as usize], Some((Power::England, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Edi as usize], Some((Power::England, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Lvp as usize], Some((Power::England, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Lon as usize],
+            Some((Power::England, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Edi as usize],
+            Some((Power::England, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Lvp as usize],
+            Some((Power::England, UnitType::Army))
+        );
 
         // Russian fleet on south coast of StP
-        assert_eq!(state.units[Province::Stp as usize], Some((Power::Russia, UnitType::Fleet)));
-        assert_eq!(state.fleet_coast[Province::Stp as usize], Some(Coast::South));
+        assert_eq!(
+            state.units[Province::Stp as usize],
+            Some((Power::Russia, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.fleet_coast[Province::Stp as usize],
+            Some(Coast::South)
+        );
 
         // SC ownership
         assert_eq!(state.sc_owner[Province::Vie as usize], Some(Power::Austria));
@@ -450,13 +473,27 @@ mod tests {
         assert_eq!(state.phase, Phase::Movement);
 
         // Austria expanded: A bud, A rum, F gre, A vie
-        assert_eq!(state.units[Province::Bud as usize], Some((Power::Austria, UnitType::Army)));
-        assert_eq!(state.units[Province::Rum as usize], Some((Power::Austria, UnitType::Army)));
-        assert_eq!(state.units[Province::Gre as usize], Some((Power::Austria, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Vie as usize], Some((Power::Austria, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Bud as usize],
+            Some((Power::Austria, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Rum as usize],
+            Some((Power::Austria, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Gre as usize],
+            Some((Power::Austria, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Vie as usize],
+            Some((Power::Austria, UnitType::Army))
+        );
 
         // Germany has 5 units
-        let german_count = state.units.iter()
+        let german_count = state
+            .units
+            .iter()
             .filter(|u| matches!(u, Some((Power::Germany, _))))
             .count();
         assert_eq!(german_count, 5);
@@ -512,7 +549,11 @@ mod tests {
             let state1 = parse_dfen(dfen).expect("failed to parse");
             let encoded = encode_dfen(&state1);
             let state2 = parse_dfen(&encoded).expect("failed to reparse");
-            assert_eq!(state1, state2, "State mismatch after roundtrip for: {}", dfen);
+            assert_eq!(
+                state1, state2,
+                "State mismatch after roundtrip for: {}",
+                dfen
+            );
 
             // Encoding the re-parsed state should produce identical output
             let re_encoded = encode_dfen(&state2);
@@ -571,8 +612,15 @@ mod tests {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
 
         for power in ALL_POWERS.iter() {
-            let has_unit = state.units.iter().any(|u| matches!(u, Some((p, _)) if *p == *power));
-            assert!(has_unit, "Power {:?} should have units in initial position", power);
+            let has_unit = state
+                .units
+                .iter()
+                .any(|u| matches!(u, Some((p, _)) if *p == *power));
+            assert!(
+                has_unit,
+                "Power {:?} should have units in initial position",
+                power
+            );
         }
     }
 
@@ -580,8 +628,14 @@ mod tests {
     fn both_unit_types_present() {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
 
-        let has_army = state.units.iter().any(|u| matches!(u, Some((_, UnitType::Army))));
-        let has_fleet = state.units.iter().any(|u| matches!(u, Some((_, UnitType::Fleet))));
+        let has_army = state
+            .units
+            .iter()
+            .any(|u| matches!(u, Some((_, UnitType::Army))));
+        let has_fleet = state
+            .units
+            .iter()
+            .any(|u| matches!(u, Some((_, UnitType::Fleet))));
         assert!(has_army);
         assert!(has_fleet);
     }
@@ -590,17 +644,26 @@ mod tests {
     fn all_coast_types_covered() {
         // South coast: stp.sc in initial position
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
-        assert_eq!(state.fleet_coast[Province::Stp as usize], Some(Coast::South));
+        assert_eq!(
+            state.fleet_coast[Province::Stp as usize],
+            Some(Coast::South)
+        );
 
         // North coast
         let nc_dfen = "1901sm/Rfstp.nc/Abud,Atri,Avie,Eedi,Elon,Elvp,Fbre,Fmar,Fpar,Gber,Gkie,Gmun,Inap,Irom,Iven,Rmos,Rsev,Rstp,Rwar,Tank,Tcon,Tsmy,Nbel,Nbul,Nden,Ngre,Nhol,Nnwy,Npor,Nrum,Nser,Nspa,Nswe,Ntun/-";
         let state_nc = parse_dfen(nc_dfen).expect("failed to parse NC");
-        assert_eq!(state_nc.fleet_coast[Province::Stp as usize], Some(Coast::North));
+        assert_eq!(
+            state_nc.fleet_coast[Province::Stp as usize],
+            Some(Coast::North)
+        );
 
         // East coast
         let ec_dfen = "1901sm/Tfbul.ec/Abud,Atri,Avie,Eedi,Elon,Elvp,Fbre,Fmar,Fpar,Gber,Gkie,Gmun,Inap,Irom,Iven,Rmos,Rsev,Rstp,Rwar,Tank,Tcon,Tsmy,Nbel,Nbul,Nden,Ngre,Nhol,Nnwy,Npor,Nrum,Nser,Nspa,Nswe,Ntun/-";
         let state_ec = parse_dfen(ec_dfen).expect("failed to parse EC");
-        assert_eq!(state_ec.fleet_coast[Province::Bul as usize], Some(Coast::East));
+        assert_eq!(
+            state_ec.fleet_coast[Province::Bul as usize],
+            Some(Coast::East)
+        );
     }
 
     #[test]
@@ -728,7 +791,8 @@ mod tests {
         assert_eq!(count_for(Power::Russia), 4);
         assert_eq!(count_for(Power::Turkey), 3);
 
-        let neutral_count = ALL_PROVINCES.iter()
+        let neutral_count = ALL_PROVINCES
+            .iter()
             .filter(|p| p.is_supply_center() && state.sc_owner[**p as usize].is_none())
             .count();
         assert_eq!(neutral_count, 12);
@@ -756,7 +820,10 @@ mod tests {
         // Round-trip the dislodged section
         let encoded = encode_dfen(&state);
         let reparsed = parse_dfen(&encoded).expect("failed to reparse");
-        assert_eq!(reparsed.dislodged[Province::Stp as usize], state.dislodged[Province::Stp as usize]);
+        assert_eq!(
+            reparsed.dislodged[Province::Stp as usize],
+            state.dislodged[Province::Stp as usize]
+        );
     }
 
     #[test]
@@ -785,42 +852,90 @@ mod tests {
     #[test]
     fn turkey_units_parse_correctly() {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
-        assert_eq!(state.units[Province::Ank as usize], Some((Power::Turkey, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Con as usize], Some((Power::Turkey, UnitType::Army)));
-        assert_eq!(state.units[Province::Smy as usize], Some((Power::Turkey, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Ank as usize],
+            Some((Power::Turkey, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Con as usize],
+            Some((Power::Turkey, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Smy as usize],
+            Some((Power::Turkey, UnitType::Army))
+        );
     }
 
     #[test]
     fn france_units_parse_correctly() {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
-        assert_eq!(state.units[Province::Bre as usize], Some((Power::France, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Par as usize], Some((Power::France, UnitType::Army)));
-        assert_eq!(state.units[Province::Mar as usize], Some((Power::France, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Bre as usize],
+            Some((Power::France, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Par as usize],
+            Some((Power::France, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Mar as usize],
+            Some((Power::France, UnitType::Army))
+        );
     }
 
     #[test]
     fn germany_units_parse_correctly() {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
-        assert_eq!(state.units[Province::Kie as usize], Some((Power::Germany, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Ber as usize], Some((Power::Germany, UnitType::Army)));
-        assert_eq!(state.units[Province::Mun as usize], Some((Power::Germany, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Kie as usize],
+            Some((Power::Germany, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Ber as usize],
+            Some((Power::Germany, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Mun as usize],
+            Some((Power::Germany, UnitType::Army))
+        );
     }
 
     #[test]
     fn italy_units_parse_correctly() {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
-        assert_eq!(state.units[Province::Nap as usize], Some((Power::Italy, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Rom as usize], Some((Power::Italy, UnitType::Army)));
-        assert_eq!(state.units[Province::Ven as usize], Some((Power::Italy, UnitType::Army)));
+        assert_eq!(
+            state.units[Province::Nap as usize],
+            Some((Power::Italy, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Rom as usize],
+            Some((Power::Italy, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Ven as usize],
+            Some((Power::Italy, UnitType::Army))
+        );
     }
 
     #[test]
     fn russia_units_parse_correctly() {
         let state = parse_dfen(INITIAL_DFEN).expect("failed to parse");
-        assert_eq!(state.units[Province::Stp as usize], Some((Power::Russia, UnitType::Fleet)));
-        assert_eq!(state.units[Province::Mos as usize], Some((Power::Russia, UnitType::Army)));
-        assert_eq!(state.units[Province::War as usize], Some((Power::Russia, UnitType::Army)));
-        assert_eq!(state.units[Province::Sev as usize], Some((Power::Russia, UnitType::Fleet)));
+        assert_eq!(
+            state.units[Province::Stp as usize],
+            Some((Power::Russia, UnitType::Fleet))
+        );
+        assert_eq!(
+            state.units[Province::Mos as usize],
+            Some((Power::Russia, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::War as usize],
+            Some((Power::Russia, UnitType::Army))
+        );
+        assert_eq!(
+            state.units[Province::Sev as usize],
+            Some((Power::Russia, UnitType::Fleet))
+        );
     }
 
     #[test]
