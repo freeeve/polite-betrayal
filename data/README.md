@@ -103,6 +103,43 @@ All territory identifiers use lowercase 3-letter codes matching `engine/src/boar
 - `survive` -- alive but not in the draw
 - `eliminated` -- 0 centers
 
+## Feature Extraction
+
+The `features.py` script converts parsed game data into training-ready numpy arrays for GNN policy and value networks.
+
+### Board State Tensor: `[81, 36]`
+
+81 areas = 75 provinces + 6 bicoastal variants (spa/nc, spa/sc, stp/nc, stp/sc, bul/ec, bul/sc).
+
+36 features per area:
+
+| Offset | Width | Feature |
+|--------|-------|---------|
+| 0 | 3 | Unit present: army, fleet, empty |
+| 3 | 8 | Unit owner: A, E, F, G, I, R, T, none |
+| 11 | 9 | SC owner: A, E, F, G, I, R, T, neutral, none |
+| 20 | 1 | Can build |
+| 21 | 1 | Can disband |
+| 22 | 3 | Dislodged unit: army, fleet, none |
+| 25 | 8 | Dislodged owner: A, E, F, G, I, R, T, none |
+| 33 | 3 | Province type: land, sea, coast |
+
+### Order Labels: `[N, max_orders, 169]`
+
+Each order is encoded as a 169-dim vector: 7 order types + 81 source area + 81 destination area.
+
+### Value Labels: `[N, 4]`
+
+Per-power outcome: normalized SC count, win indicator, draw indicator, survival indicator.
+
+### Adjacency Matrix: `[81, 81]`
+
+Binary symmetric matrix with self-loops. Bicoastal variants inherit base province adjacency.
+
+### Dataset Splits
+
+90/5/5 train/val/test split by game ID (all phases from the same game stay together). Reproducible via `--seed`.
+
 ## Idempotency
 
 All scripts are idempotent:
@@ -121,4 +158,10 @@ python3 scripts/parse.py --limit 100
 
 # Custom output path
 python3 scripts/parse.py --output /tmp/test_games.jsonl
+
+# Extract features (limit for testing)
+python3 scripts/features.py --limit 100
+
+# Custom output directory
+python3 scripts/features.py --output-dir /tmp/features
 ```
