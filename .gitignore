@@ -40,5 +40,8 @@ test/e2e/test-results/
 !.env.example
 credentials.json
 
+# === Rust ===
+engine/target/
+
 # === Misc ===
 *.log
