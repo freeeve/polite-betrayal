@@ -4,8 +4,10 @@
 
 ## Dependencies
 - 054 (Self-play pipeline — needs self-play data)
-- 048 (GNN policy network — model to improve)
-- 049 (Value network — model to improve)
+- 089 (Previous-state board encoding — fix architecture first)
+- 090 (Larger policy network — scale up before RL)
+- 091 (Value network RM+ integration — eval must work before RL trains on it)
+- 092d (Autoregressive order decoder ONNX + Rust integration — fix candidate generation before RL)
 
 ## Description
 Implement the RL training loop that improves the model using self-play data, following an AlphaZero-style iterative approach.

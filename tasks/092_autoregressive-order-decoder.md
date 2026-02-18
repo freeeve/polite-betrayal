@@ -1,8 +1,14 @@
 # Autoregressive Order Decoder
 
-## Status: Pending
+## Status: Decomposed
 
-## Dependencies
+This task has been broken down into four subtasks:
+- **092a**: Order Embedding + Decoder Architecture
+- **092b**: Teacher Forcing Training Pipeline
+- **092c**: Beam Search / Top-K Inference
+- **092d**: ONNX Export + Rust Integration
+
+## Original Dependencies
 - 089 (Previous-state encoding — do architecture changes together)
 - 090 (Larger policy network — combine with this if possible)
 

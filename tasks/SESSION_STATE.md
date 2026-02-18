@@ -1,111 +1,151 @@
-# Session State — 2026-02-18 (Session 4)
+# Session State — 2026-02-18 (Session 6)
 
-## Session 4 Commits
+## Session 6 Summary
 
-| # | Hash | Description |
-|---|------|-------------|
-| 1 | `b60eaa6` | feat(engine): port opening book with JSON loading and match scoring |
-| 2 | `045e2fc` | feat(engine): neural-guided candidate generation and search initialization |
-| 3 | `8d4f5ed` | chore(tasks): mark rust retreat/build gen task as done |
-| 4 | `38c7218` | fix(api/internal/bot): guard nil SupplyCenters in NearestUnownedSC |
-| 5 | `25d4d6a` | feat(api/internal/bot): add BENCH_GAMES and BENCH_VERBOSE env vars |
-| 6 | `c988bc3` | chore: add git stash prohibition to CLAUDE.md |
-| 7 | `bec3c64` | chore: add BENCH_VERBOSE prohibition to CLAUDE.md |
-| 8 | `79d6d49` | feat(engine): add performance profiling benchmarks |
-| 9 | `ba151d6` | refactor(api/internal/bot): reset medium bot to clean easy baseline with opening book |
-| 10 | `d7a07fc` | docs(benchmarks): Phase 2 Rust engine vs Go bots arena results |
-| 11 | `7d325e9` | feat(api/internal/bot): add 1-ply lookahead to medium bot |
-| 12 | `900b1e1` | perf(engine): cached lookahead orders and adaptive RM+ iterations |
-| 13 | `3e4a951` | feat(engine): wire opening book into move selection pipeline |
-| 14 | `20047e5` | feat(api/internal/bot): add front-aware build decisions to medium bot |
-| 15 | `5986af4` | revert(api/internal/bot): restore pure 1-ply lookahead (blend was worse) |
-| 16 | `b6462a2` | feat(engine): post-optimization profiling benchmarks |
+### Medium Bot: 23% → 35.3% (+12.3pp)
+- **Experiment C (083)**: buildOrdersFromScored candidates → 23% to 28% (+5pp)
+- **Experiment F (078)**: 3-ply blend (0.5p1 + 0.2p2 + 0.3p3) → 28% to 35.3% (+7.3pp)
+- **Opening book extension**: 1901-only → 1901-1907 (2,587 clusters) — benchmarking
 
-## Key Results
+### Rust Engine Fixes
+- **Build shortfall fix**: Units now vacate home SCs in Fall + waive protocol bug fixed
+- **Phantom support fix**: Support-move orders now validated against actual unit orders
+- **Value network RM+ blend**: 0.6 neural + 0.4 heuristic (needs retraining to validate)
 
-### Rust Engine Profiling
-- Bottleneck was movegen in lookahead simulation (67% of node cost)
-- RM+ was capped at 48 iterations, wasting 90%+ of 5s time budget
-- Fix: cached lookahead orders (P0) + adaptive iterations (P1)
-- Result: 10x nodes/sec, 75x total nodes searched
+### Neural Architecture
+- **Task 089**: Board encoding extended from 36 to 47 features (previous-state encoding)
+- **Task 090**: Policy network scaled to 6 GAT layers / 512-d / 15.4M params — training in progress (~5hrs remaining)
+- **Task 091**: Value network blended into RM+ eval in Rust engine
 
-### Rust Engine Post-Optimization Profiling
-- 12x throughput improvement confirmed: ~65,000 nodes/sec (was ~5,500)
-- Adaptive iterations: ~3,000 at 500ms budget (was fixed 48)
-- Budget utilization: 75% (was 10%)
-- New bottleneck: second-ply movegen (98% of per-node cost, ~14us of ~15us per node)
-- Resolver, clone, apply, eval all negligible (<2% combined)
-- Top optimization opportunities:
-  - P0: Lightweight greedy movegen (skip support/convoy in lookahead) → 3-5x gain
-  - P1: LRU cache for second-ply orders (similar states across iterations)
-  - P2: Pre-allocate hot loop Vecs
-  - P3: Rayon parallelism for counterfactual evals
+### Other
+- **Task 056**: Structured press DUI protocol with trust model
 
-### Rust Engine vs Go Bots (Pre-Optimization)
-| Tier | Games | Win Rate | Target |
-|------|-------|----------|--------|
-| Easy | 10 | 30% | >80% |
-| Medium | 10 | 10% | >40% |
-| Hard | 3 | 0% | -- |
+---
 
-### Medium Bot Rebuild (Incremental from Easy)
-| Version | Overall Win% | France | Turkey | Germany | England | Italy | Russia | Austria |
-|---------|-------------|--------|--------|---------|---------|-------|--------|---------|
-| Baseline (=easy) | 14% | 25% | 50% | 35% | 0% | 10% | 0% | 5% |
-| +1-ply lookahead | 30% | 65% | 65% | 30% | 15% | 25% | 5% | 5% |
-| +front-aware builds | 33% | 60% | 75% | 30% | 20% | 25% | 20% | 0% |
-| +2-ply (reverted) | 25% | 50% | 40% | 40% | 25% | 15% | 0% | 5% |
-| +blend 0.7/0.3 (reverted) | 27% | 55% | 55% | 20% | 20% | 20% | 15% | 5% |
+## Task 083: A/B Testing Reverted Medium Bot Changes
 
-Current best: 1-ply + front-aware builds = ~33% (20-game estimate, 700-game run in progress)
+**Baseline**: Medium vs Easy All Powers, 23% overall win rate
 
-## Active Work (in progress)
+| Power   | Baseline |
+|---------|----------|
+| Turkey  | 51%      |
+| France  | 44%      |
+| Germany | 20%      |
+| Italy   | 18%      |
+| England | 15%      |
+| Austria | 9%       |
+| Russia  | 4%       |
+| **Overall** | **23%** |
 
-| Agent | Task | Status |
-|-------|------|--------|
-| medium-reset | 700-game medium vs easy benchmark | Running |
-| rust-bench-700 | 700-game Rust vs Easy (rebuilding with optimizations) | Running |
-| rust-profiler2 | Post-optimization Rust profiling | Running |
+### Experiment A — Territorial cohesion bonus
+- **Verdict**: DROP — Overall 21.4% (-1.6pp). Russia +7pp, but Turkey -6pp, Austria -5pp, France -4pp.
 
-## CRITICAL: Rust Engine Regression
-- Post-optimization Rust engine dropped from 30% to 2.8% win rate vs Easy
-- Commits between pre-opt (30%) and post-opt (2.8%): 900b1e1 (adaptive iterations), 3e4a951 (opening book wiring)
-- One of these introduced a regression — need to bisect
-- Possible causes: adaptive iterations changing search behavior, opening book returning bad moves, cached lookahead orders being stale/wrong
-- **First action next session**: investigate and fix this regression
+### Experiment B — injectSupports post-search
+- **Result**: Overall 26% (+3pp) but France -11pp, Austria -2pp. England +15pp, Turkey +8pp.
+- **Verdict**: DROP — France regression too severe despite overall gain.
 
-## Action Items After Compaction
-- **Verify strategy_medium.go state**: medium-bot-dev may have overwritten medium-reset's clean 98-line file. Check `git log` and `wc -l` to confirm it's the right version (should be ~200 lines with 1-ply lookahead + front-aware builds, NOT the old 2000+ line version)
-- Run 700-game medium vs easy benchmark (1-ply + builds baseline)
-- Run 700-game Rust vs Easy benchmark (post-optimization with opening book)
-- Start ply experiment matrix (task 078)
+### Experiment C — buildOrdersFromScored candidates ✓ COMMITTED
+- **Change**: Add 2 extra candidates from hard bot with "aggressive" and "expansionist" biases
+- **Location**: `strategy_medium.go` GenerateMovementOrders() Phase 3
+- **Commit**: `df77acb`
+- **Verdict**: KEEP — Overall 28% (+5pp). Balanced improvement across all powers.
 
-## Pending Tasks for Next Session
+---
 
-| Task | File | Description |
-|------|------|-------------|
-| 078 | `078_medium-bot-ply-experiments.md` | Test 1-ply, 3-ply, blend(1+3), blend(1+2+3) at 700 games each |
-| 025 | (team task) | Investigate CoreML/Metal GPU acceleration for ONNX inference |
-| 045 | `045_rust-perf-optimization.md` | Further Rust engine optimization (post-profiling) |
-| 053 | `053_phase3-arena-evaluation.md` | Phase 3 neural engine vs Go hard bot |
-| 054 | `054_self-play-pipeline.md` | Self-play game generation for RL training |
-| 056 | `056_structured-press-dui.md` | Structured press intent in DUI protocol |
+## Task 078: Ply-Depth Experiments
 
-## Artifacts Produced
+Baseline after 083 rework: Medium 28% vs Easy (after Experiment C committed)
 
-### Rust Engine Improvements
-- Opening book: loaded from JSON, wired into move selection (book hit → skip search)
-- Neural-guided search: policy network scores candidates, RM+ init from policy probs, strength parameter
-- Performance: 10x throughput via cached lookahead + adaptive iterations
-- Profiling benchmarks: criterion benches for movegen, RM+, resolve+eval
+### Experiment D — Pure 3-ply
+- **Verdict**: DROP — No improvement, slower.
 
-### Medium Bot Rebuild
-- Reset to 98-line clean base (easy bot + opening book)
-- 1-ply lookahead: 16 candidates, best-of-eval
-- Front-aware builds: prioritize home SCs near active front, army/fleet preference by front type
-- Old medium logic saved as `strategy_medium_old.go.bak`
+### Experiment E — Blend ply-1 + ply-3 (0.6 + 0.4)
+- **Result**: +4.6pp to 32.6%
+- **Verdict**: IMPROVEMENT but not winner.
 
-### Benchmark Infrastructure
-- BENCH_GAMES env var for configurable game count
-- BENCH_VERBOSE env var (default quiet, opt-in verbose)
-- TestBenchmark_RustVsEasyAllPowers test added
+### Experiment F — Blend all three plies (0.5 + 0.2 + 0.3) ✓ COMMITTED
+- **Change**: `score = 0.5 * eval(ply1) + 0.2 * eval(ply2) + 0.3 * eval(ply3)`
+- **Location**: `strategy_medium.go` pickBestCandidate()
+- **Commit**: `eaba1f2`
+- **Result**: +7.3pp to 35.3% win rate. All powers improved (England +26pp, France +19pp, Turkey +16pp).
+- **Verdict**: KEEP — Best overall performance. Clear winner across all powers.
+
+---
+
+## Task 089: Previous-State Board Encoding ✓ COMMITTED
+
+- **Change**: Extended board encoding from 36 to 47 features per area (+11 previous-turn features)
+- **Location**: `engine/src/nn/encoding.rs`, `data/scripts/features.py`, model definitions
+- **Commits**: `39d7ac0`, `497d42b`
+- **Verdict**: Complete. Both Rust and Python pipelines updated, all tests passing.
+
+---
+
+## Task 091: Value Network RM+ Integration ✓ COMMITTED
+
+- **Change**: Blend value network into RM+ evaluation (0.6 neural + 0.4 heuristic)
+- **Location**: `engine/src/search/regret_matching.rs`
+- **Commit**: `66b76c2`
+- **Verdict**: Complete. Falls back to pure heuristic when no model loaded. Initial benchmark (small sample): 14% vs easy — needs retrained model (090) for proper evaluation.
+
+---
+
+## Session 6 Completed Tasks
+
+| Task | Description | Commit |
+|------|-------------|--------|
+| 056 | Structured press DUI protocol + trust model | `3d220fa` |
+| 078 | Medium bot 3-ply blended evaluation (Exp F) | `eaba1f2` |
+| 083 | Medium bot buildOrdersFromScored (Exp C) | `df77acb` |
+| 089 | Previous-state board encoding (36→47 features) | `39d7ac0`, `497d42b` |
+| 091 | Value network RM+ integration (0.6/0.4 blend) | `66b76c2` |
+| — | Rust engine build shortfall fix (home SC + waive) | `0e6c999` |
+| — | Rust engine phantom support-move fix | `1e71277` |
+| — | Opening book extension (1901→1901-1907) | `b2e34a2` |
+| — | build.go lint modernization | `97d1ee3` |
+| — | strategy_medium.go lint (max builtin) | `61603d2` |
+| — | Easy vs random benchmark (100% post-perf) | — |
+
+## Session 6 In Progress
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 090 | Larger policy network (6 layers, 512-d, 15.4M params) | Epoch 5/10, val_loss 0.65, ~5hrs remaining. Architecture: `5255e5a` |
+| — | Opening book 700-game benchmark | Running (book-ext agent) |
+| — | Rust engine post-fix benchmark vs medium | Running (support-fix agent) |
+
+---
+
+## Task 092: Autoregressive Order Decoder — Decomposed into Subtasks
+
+Task 092 has been broken into four sequential subtasks to manage complexity:
+
+| Task | Description | Status | Est. Effort |
+|------|-------------|--------|-------------|
+| 092a | Order embedding + Transformer decoder architecture | Pending | M |
+| 092b | Teacher forcing training pipeline | Pending (blocked by 092a) | M |
+| 092c | Beam search / top-K inference | Pending (blocked by 092b) | M |
+| 092d | ONNX export + Rust integration | Pending (blocked by 092c) | L |
+
+**Dependency chain**: 090 (train) → 092a → 092b → 092c → 092d → 055 (RL training)
+
+**Key design decisions**:
+- Unit ordering by province index (deterministic, consistent)
+- Decoder: 2-3 Transformer layers, 256-d, receives 512-d board encoding from 6-layer GAT encoder
+- Training: Teacher forcing with ground-truth previous orders
+- Inference: Beam search with constraint enforcement (no duplicate province targets)
+- ONNX strategy: Separate encoder and decoder-step models (avoid loop complexity)
+
+---
+
+## Benchmark Reports Saved
+
+- `benchmarks/medium-vs-easy-all-powers-pre-support-2026-02-18.md` — Baseline (23%)
+- `benchmarks/medium-experiment-a-cohesion-bonus-2026-02-18.md` — Experiment A (21.4%, DROP)
+- `benchmarks/medium-experiment-b-inject-supports-2026-02-18.md` — Experiment B (26%, DROP)
+- `benchmarks/medium-experiment-c-buildorders-2026-02-18.md` — Experiment C (28%, KEEP)
+- `benchmarks/medium-ply-experiment-d-*.md` — Experiment D (27%, DROP)
+- `benchmarks/medium-ply-experiment-e-*.md` — Experiment E (32.6%)
+- `benchmarks/medium-ply-experiment-f-blend-all-2026-02-18.md` — Experiment F (35.3%, KEEP)
+- `benchmarks/easy-vs-random-all-powers-post-perf-2026-02-18.md` — Easy vs random (100%)
+- `benchmarks/rust-value-net-blend-2026-02-18.md` — Rust value net (14%, small sample)
