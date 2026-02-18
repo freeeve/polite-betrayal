@@ -32,8 +32,8 @@ use crate::search::SearchResult;
 /// Number of candidate order sets to generate per power.
 const NUM_CANDIDATES: usize = 12;
 
-/// Number of RM+ iterations.
-const RM_ITERATIONS: usize = 48;
+/// Minimum number of RM+ iterations (guarantees quality even with short budgets).
+const MIN_RM_ITERATIONS: usize = 48;
 
 /// Multi-ply lookahead depth (in half-turns).
 const LOOKAHEAD_DEPTH: usize = 2;
@@ -602,6 +602,10 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
 }
 
 /// Simulates N phases forward using heuristic play for all powers.
+///
+/// If `cached_greedy` is provided and the first phase is Movement, those orders
+/// are used directly instead of regenerating via movegen, saving ~66us per call.
+/// Subsequent movement phases still use full movegen.
 fn simulate_n_phases(
     state: &BoardState,
     _power: Power,
@@ -609,8 +613,10 @@ fn simulate_n_phases(
     depth: usize,
     start_year: u16,
     _rng: &mut SmallRng,
+    cached_greedy: Option<&[(Order, Power)]>,
 ) -> BoardState {
     let mut current = state.clone();
+    let mut used_cache = false;
 
     for _ in 0..depth {
         if current.year > start_year + 2 {
@@ -619,19 +625,18 @@ fn simulate_n_phases(
 
         match current.phase {
             Phase::Movement => {
-                let mut all_orders: Vec<(Order, Power)> = Vec::new();
+                let all_orders: Vec<(Order, Power)>;
 
-                for &p in ALL_POWERS.iter() {
-                    if !power_has_units(&current, p) {
-                        continue;
+                if !used_cache {
+                    if let Some(cached) = cached_greedy {
+                        // Reuse cached greedy orders for the first movement ply
+                        all_orders = cached.to_vec();
+                        used_cache = true;
+                    } else {
+                        all_orders = generate_greedy_orders(&current);
                     }
-                    // Use top-1 per unit (greedy heuristic) for lookahead simulation
-                    let per_unit = top_k_per_unit(p, &current, 1);
-                    for unit_cands in &per_unit {
-                        if !unit_cands.is_empty() {
-                            all_orders.push((unit_cands[0].order, p));
-                        }
-                    }
+                } else {
+                    all_orders = generate_greedy_orders(&current);
                 }
 
                 let (results, dislodged) = resolver.resolve(&all_orders, &current);
@@ -640,11 +645,9 @@ fn simulate_n_phases(
                 advance_state(&mut current, has_dislodged);
             }
             Phase::Retreat => {
-                // Use heuristic retreats for all powers
                 for &p in ALL_POWERS.iter() {
                     let retreat_orders = heuristic_retreat_orders(p, &current);
                     if !retreat_orders.is_empty() {
-                        // Apply retreats inline: resolve each power's retreats
                         use crate::resolve::{apply_retreats, resolve_retreats};
                         let retreat_with_power: Vec<(Order, Power)> =
                             retreat_orders.into_iter().map(|o| (o, p)).collect();
@@ -665,7 +668,6 @@ fn simulate_n_phases(
                         apply_builds(&mut current, &results);
                     }
                 }
-                // Skip build phase if not needed
                 if current.phase == Phase::Build && !needs_build_phase(&current) {
                     advance_state(&mut current, false);
                 } else {
@@ -676,6 +678,23 @@ fn simulate_n_phases(
     }
 
     current
+}
+
+/// Generates greedy (top-1) heuristic orders for all powers on the board.
+fn generate_greedy_orders(state: &BoardState) -> Vec<(Order, Power)> {
+    let mut all_orders: Vec<(Order, Power)> = Vec::new();
+    for &p in ALL_POWERS.iter() {
+        if !power_has_units(state, p) {
+            continue;
+        }
+        let per_unit = top_k_per_unit(p, state, 1);
+        for unit_cands in &per_unit {
+            if !unit_cands.is_empty() {
+                all_orders.push((unit_cands[0].order, p));
+            }
+        }
+    }
+    all_orders
 }
 
 /// Enhanced position evaluation for RM+ (more features than basic evaluate).
@@ -794,6 +813,10 @@ pub fn regret_matching_search<W: Write>(
     let mut power_candidates: Vec<(Power, Vec<Vec<(Order, Power)>>)> = Vec::new();
     let mut our_power_idx: usize = 0;
 
+    // P0: Cache greedy orders for all powers during candidate generation.
+    // These are reused in simulate_n_phases to skip expensive per-power movegen.
+    let mut cached_greedy: Vec<(Order, Power)> = Vec::new();
+
     for &p in ALL_POWERS.iter() {
         if !power_has_units(state, p) {
             continue;
@@ -814,6 +837,11 @@ pub fn regret_matching_search<W: Write>(
         };
         if cands.is_empty() {
             continue;
+        }
+
+        // Cache the greedy (first) candidate's orders for lookahead
+        for &(order, cp) in &cands[0] {
+            cached_greedy.push((order, cp));
         }
 
         if p == power {
@@ -920,18 +948,22 @@ pub fn regret_matching_search<W: Write>(
         }
     }
 
-    // Main RM+ loop
-    let max_iters = RM_ITERATIONS;
-    for _iter in 0..max_iters {
-        if start.elapsed()
-            >= Duration::from_nanos(
-                (start.elapsed().as_nanos() as u64).max(1) + rm_budget.as_nanos() as u64,
-            )
-        {
-            break;
-        }
-        // Check time budget
-        if start.elapsed() >= cand_budget + rm_budget {
+    // P0: Prepare cached greedy orders for lookahead (from candidate generation).
+    let greedy_for_lookahead: Option<&[(Order, Power)]> = if !cached_greedy.is_empty() {
+        Some(&cached_greedy)
+    } else {
+        None
+    };
+
+    // P1: Adaptive iteration count — keep iterating until time budget is consumed.
+    // Use 80% of the RM budget to leave headroom for best-response extraction.
+    let rm_deadline = start + cand_budget + rm_budget;
+    let mut iteration_count: u64 = 0;
+
+    // Main RM+ loop (time-based with minimum iteration guarantee)
+    loop {
+        // After minimum iterations, check time budget
+        if iteration_count >= MIN_RM_ITERATIONS as u64 && Instant::now() >= rm_deadline {
             break;
         }
 
@@ -974,7 +1006,7 @@ pub fn regret_matching_search<W: Write>(
         let has_dislodged = scratch.dislodged.iter().any(|d| d.is_some());
         advance_state(&mut scratch, has_dislodged);
 
-        // Lookahead
+        // Lookahead (P0: use cached greedy orders for first ply)
         let future = simulate_n_phases(
             &scratch,
             power,
@@ -982,6 +1014,7 @@ pub fn regret_matching_search<W: Write>(
             LOOKAHEAD_DEPTH,
             start_year,
             &mut rng,
+            greedy_for_lookahead,
         );
         let base_value = rm_evaluate(power, &future) - coop_penalties[sampled[our_power_idx]];
         nodes += 1;
@@ -1008,6 +1041,7 @@ pub fn regret_matching_search<W: Write>(
             let alt_has_dislodged = alt_scratch.dislodged.iter().any(|d| d.is_some());
             advance_state(&mut alt_scratch, alt_has_dislodged);
 
+            // Lookahead (P0: use cached greedy orders for first ply)
             let alt_future = simulate_n_phases(
                 &alt_scratch,
                 power,
@@ -1015,6 +1049,7 @@ pub fn regret_matching_search<W: Write>(
                 LOOKAHEAD_DEPTH,
                 start_year,
                 &mut rng,
+                greedy_for_lookahead,
             );
             let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
 
@@ -1030,6 +1065,8 @@ pub fn regret_matching_search<W: Write>(
                 total_weights[pi][j] += w;
             }
         }
+
+        iteration_count += 1;
     }
 
     // Phase 3: Best-response extraction (remaining budget)
@@ -1052,8 +1089,8 @@ pub fn regret_matching_search<W: Write>(
     let elapsed_ms = start.elapsed().as_millis() as u64;
     let _ = writeln!(
         out,
-        "info depth {} nodes {} score {} time {}",
-        LOOKAHEAD_DEPTH, nodes, best_score as i32, elapsed_ms
+        "info depth {} nodes {} score {} time {} iterations {}",
+        LOOKAHEAD_DEPTH, nodes, best_score as i32, elapsed_ms, iteration_count
     );
 
     SearchResult {
