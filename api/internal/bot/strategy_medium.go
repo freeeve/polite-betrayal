@@ -326,7 +326,7 @@ func (s TacticalStrategy) buildFocusedCandidate(gs *diplomacy.GameState, power d
 				if srcProv != nil && srcProv.IsSupplyCenter && gs.SupplyCenters[u.Province] == power {
 					threat1 := ProvinceThreat(u.Province, power, gs, m)
 					if threat1 > 0 {
-						penalty := 16.0 * float64(threat1)
+						penalty := 20.0 * float64(threat1)
 						if ownSCs >= 14 {
 							penalty *= 0.15
 						}
@@ -1458,8 +1458,9 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 				// Undefended: losing an owned SC is a net swing of ~20
 				// points (we lose 10, enemy gains 10). Penalty must
 				// exceed the total value of capturing a neutral SC
-				// plus incidental bonuses (~15 total).
-				penalty := 16.0 * float64(threat)
+				// plus incidental bonuses (~17 total with Spring
+				// positioning and connectivity).
+				penalty := 20.0 * float64(threat)
 				if defense >= threat {
 					// Defenders can cover, but leaving still weakens
 					// the position by one unit of support.

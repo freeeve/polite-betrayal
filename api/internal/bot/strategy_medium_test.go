@@ -84,10 +84,11 @@ func TestTacticalStrategy_BetterThanHeuristic(t *testing.T) {
 	tactical := TacticalStrategy{}
 	heuristic := HeuristicStrategy{}
 
-	// Test one power with a few trials (heuristic has randomness, tactical is deterministic)
+	// Test one power with enough trials to reduce flakiness
+	// (heuristic has randomness, tactical is deterministic)
 	power := diplomacy.France
 	betterCount := 0
-	trials := 5
+	trials := 20
 	tOrders := tactical.GenerateMovementOrders(gs, power, m)
 	tScore := evalOrders(gs, power, m, tOrders)
 

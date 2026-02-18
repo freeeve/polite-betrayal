@@ -168,6 +168,9 @@ func BFSDistance(from, to string, m *diplomacy.DiplomacyMap) int {
 // NearestUnownedSC finds the closest supply center not owned by this power.
 // Uses the pre-computed distance matrix for zero allocations.
 func NearestUnownedSC(province string, power diplomacy.Power, gs *diplomacy.GameState, m *diplomacy.DiplomacyMap) (string, int) {
+	if gs == nil || gs.SupplyCenters == nil {
+		return "", -1
+	}
 	dm := getDistMatrix(m)
 	pi, ok := dm.provIndex[province]
 	if !ok {
@@ -349,6 +352,9 @@ func UnitProvinceConnectivity(province string, m *diplomacy.DiplomacyMap, isFlee
 // using the fleet distance matrix when isFleet is true and the army distance
 // matrix otherwise.
 func NearestUnownedSCByUnit(province string, power diplomacy.Power, gs *diplomacy.GameState, m *diplomacy.DiplomacyMap, isFleet bool) (string, int) {
+	if gs == nil || gs.SupplyCenters == nil {
+		return "", -1
+	}
 	var dm *distMatrix
 	if isFleet {
 		dm = getFleetDistMatrix(m)
