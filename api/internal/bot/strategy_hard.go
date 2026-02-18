@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
@@ -1005,9 +1006,17 @@ func candidateKey(orders []OrderInput) string {
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Location < sorted[j].Location
 	})
-	key := ""
+	var b strings.Builder
+	b.Grow(len(sorted) * 16)
 	for _, o := range sorted {
-		key += o.Location + ":" + o.OrderType + ":" + o.Target + ":" + o.AuxTarget + "|"
+		b.WriteString(o.Location)
+		b.WriteByte(':')
+		b.WriteString(o.OrderType)
+		b.WriteByte(':')
+		b.WriteString(o.Target)
+		b.WriteByte(':')
+		b.WriteString(o.AuxTarget)
+		b.WriteByte('|')
 	}
-	return key
+	return b.String()
 }
