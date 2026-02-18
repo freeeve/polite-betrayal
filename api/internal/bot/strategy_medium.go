@@ -8,7 +8,7 @@ import (
 
 // TacticalStrategy generates orders for the "medium" difficulty bot.
 // Uses the opening book for known positions, then generates multiple
-// candidate order sets and picks the best via blended 1-ply/2-ply lookahead.
+// candidate order sets and picks the best via 1-ply lookahead.
 type TacticalStrategy struct{}
 
 func (TacticalStrategy) Name() string { return "medium" }
@@ -20,9 +20,8 @@ func (TacticalStrategy) ShouldVoteDraw(_ *diplomacy.GameState, _ diplomacy.Power
 
 // GenerateMovementOrders checks the opening book first, then generates 16
 // candidate order sets using the easy bot (which has built-in randomness)
-// and picks the one with the best blended score: 0.7*ply1 + 0.3*ply2.
-// Ply 1 evaluates after our move resolves; ply 2 evaluates after simulated
-// opponent responses, adding defensive awareness without over-penalizing.
+// and picks the one that produces the best evaluated position after
+// 1-ply resolution.
 func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
 	if opening := LookupOpening(gs, power, m); opening != nil {
 		return opening
@@ -31,7 +30,7 @@ func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 	const numCandidates = 16
 	easy := HeuristicStrategy{}
 
-	// Generate opponent orders once for ply 1 (predicted via easy heuristic).
+	// Generate opponent orders once (predicted via easy heuristic).
 	var opponentOrders []diplomacy.Order
 	for _, p := range diplomacy.AllPowers() {
 		if p == power || !gs.PowerIsAlive(p) {
@@ -40,10 +39,9 @@ func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 		opponentOrders = append(opponentOrders, GenerateOpponentOrders(gs, p, m)...)
 	}
 
-	// Generate N candidate order sets and evaluate each via blended lookahead.
+	// Generate N candidate order sets and evaluate each via lookahead.
 	rv := diplomacy.NewResolver(34)
 	clone := gs.Clone()
-	clone2 := gs.Clone()
 	orderBuf := make([]diplomacy.Order, 0, 34)
 
 	bestScore := -1e9
@@ -53,7 +51,6 @@ func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 		candidate := easy.GenerateMovementOrders(gs, power, m)
 		myOrders := OrderInputsToOrders(candidate, power)
 
-		// Ply 1: resolve our candidate orders + predicted opponent orders.
 		orderBuf = orderBuf[:0]
 		orderBuf = append(orderBuf, myOrders...)
 		orderBuf = append(orderBuf, opponentOrders...)
@@ -61,32 +58,8 @@ func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 		rv.Resolve(orderBuf, gs, m)
 		gs.CloneInto(clone)
 		rv.Apply(clone, m)
-		ply1Score := EvaluatePosition(clone, power, m)
+		score := EvaluatePosition(clone, power, m)
 
-		// Ply 2: simulate opponent responses to the post-ply-1 position.
-		orderBuf = orderBuf[:0]
-		for _, p := range diplomacy.AllPowers() {
-			if p == power || !clone.PowerIsAlive(p) {
-				continue
-			}
-			orderBuf = append(orderBuf, GenerateOpponentOrders(clone, p, m)...)
-		}
-		for _, u := range clone.UnitsOf(power) {
-			orderBuf = append(orderBuf, diplomacy.Order{
-				UnitType: u.Type,
-				Power:    power,
-				Location: u.Province,
-				Coast:    u.Coast,
-				Type:     diplomacy.OrderHold,
-			})
-		}
-
-		rv.Resolve(orderBuf, clone, m)
-		clone.CloneInto(clone2)
-		rv.Apply(clone2, m)
-		ply2Score := EvaluatePosition(clone2, power, m)
-
-		score := 0.7*ply1Score + 0.3*ply2Score
 		if score > bestScore {
 			bestScore = score
 			bestOrders = candidate
