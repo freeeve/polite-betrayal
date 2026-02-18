@@ -310,8 +310,8 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
 /// 2. The unit's best non-support order from its candidate list.
 ///
 /// This prevents wasting orders on phantom supports within a single power's
-/// order set. Cross-power supports are left as-is since we can't know what
-/// other powers will do.
+/// order set, and also replaces support-moves for foreign units (whose actual
+/// orders are unknown) with support-holds or better alternatives.
 fn coordinate_candidate_supports(
     candidate: &mut Vec<(Order, Power)>,
     per_unit: &[Vec<ScoredOrder>],
@@ -352,10 +352,30 @@ fn coordinate_candidate_supports(
             } = order
             {
                 let supported_prov = supported.location.province;
-
-                // Only fix supports for our own units (we know their orders).
                 let supported_is_ours = unit_orders.iter().any(|(p, _)| *p == supported_prov);
+
+                let supporter_prov = unit.location.province;
+                let ui = match unit_provinces.iter().position(|&p| p == supporter_prov) {
+                    Some(idx) => idx,
+                    None => continue,
+                };
+
                 if !supported_is_ours {
+                    // Foreign unit: we can't know what it will do, so a
+                    // support-move is almost certainly wasted.  Try to convert
+                    // to a support-hold for the same foreign unit (always
+                    // valid), or fall back to the best friendly support or
+                    // hold/move from the candidate list.
+                    let replacement = find_foreign_support_replacement(
+                        &per_unit[ui],
+                        supported_prov,
+                        &unit_orders,
+                        unit_provinces,
+                    );
+                    if let Some(new_order) = replacement {
+                        candidate[ci] = (new_order, power);
+                        changed = true;
+                    }
                     continue;
                 }
 
@@ -375,12 +395,6 @@ fn coordinate_candidate_supports(
                 }
 
                 // Support doesn't match. Find a replacement from this unit's candidates.
-                let supporter_prov = unit.location.province;
-                let ui = match unit_provinces.iter().position(|&p| p == supporter_prov) {
-                    Some(idx) => idx,
-                    None => continue,
-                };
-
                 let replacement = find_replacement_order(
                     &per_unit[ui],
                     supported_prov,
@@ -472,6 +486,77 @@ fn find_replacement_order(
                     continue;
                 }
                 // Check if the supported unit is stationary (hold, support, or convoy).
+                let matches = unit_orders.iter().any(|(p, o)| {
+                    *p == s_prov
+                        && matches!(
+                            *o,
+                            Order::Hold { .. }
+                                | Order::SupportHold { .. }
+                                | Order::SupportMove { .. }
+                                | Order::Convoy { .. }
+                        )
+                });
+                if matches {
+                    return Some(so.order);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Fallback: best non-support order (hold or move).
+    unit_cands
+        .iter()
+        .find(|so| matches!(so.order, Order::Hold { .. } | Order::Move { .. }))
+        .map(|so| so.order)
+}
+
+/// Finds a replacement for a support-move targeting a foreign unit.
+///
+/// Since we cannot predict what a foreign unit will do, support-move orders
+/// for them are almost always wasted. Tries in order:
+/// 1. A support-hold for the same foreign unit (always valid if it exists).
+/// 2. A support for a friendly unit that matches its actual order.
+/// 3. The best hold or move order.
+fn find_foreign_support_replacement(
+    unit_cands: &[ScoredOrder],
+    foreign_prov: Province,
+    unit_orders: &[(Province, Order)],
+    unit_provinces: &[Province],
+) -> Option<Order> {
+    // Prefer support-hold for the foreign unit (valid regardless of its orders).
+    if let Some(so) = unit_cands.iter().find(|so| {
+        matches!(so.order, Order::SupportHold { supported: s, .. }
+            if s.location.province == foreign_prov)
+    }) {
+        return Some(so.order);
+    }
+
+    // Try a support for any friendly unit that matches what they're doing.
+    for so in unit_cands {
+        match so.order {
+            Order::SupportMove {
+                supported: s,
+                dest: d,
+                ..
+            } => {
+                let s_prov = s.location.province;
+                if !unit_provinces.contains(&s_prov) {
+                    continue; // Still a cross-power support.
+                }
+                let matches = unit_orders.iter().any(|(p, o)| {
+                    *p == s_prov
+                        && matches!(*o, Order::Move { dest: md, .. } if md.province == d.province)
+                });
+                if matches {
+                    return Some(so.order);
+                }
+            }
+            Order::SupportHold { supported: s, .. } => {
+                let s_prov = s.location.province;
+                if !unit_provinces.contains(&s_prov) {
+                    continue;
+                }
                 let matches = unit_orders.iter().any(|(p, o)| {
                     *p == s_prov
                         && matches!(
@@ -2368,6 +2453,51 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn candidates_have_no_cross_power_support_moves() {
+        // Verify that support-move orders for foreign units are eliminated.
+        // A support-move for a unit we don't control is nearly always wasted
+        // because we can't know what that unit will do.
+        let state = initial_state();
+
+        for &p in ALL_POWERS.iter() {
+            let mut rng = SmallRng::seed_from_u64(42);
+            let cands = generate_candidates(p, &state, NUM_CANDIDATES, &mut rng);
+
+            let our_provinces: Vec<Province> = (0..PROVINCE_COUNT)
+                .filter_map(|i| {
+                    if let Some((owner, _)) = state.units[i] {
+                        if owner == p {
+                            return Some(ALL_PROVINCES[i]);
+                        }
+                    }
+                    None
+                })
+                .collect();
+
+            let mut foreign_support_move_count = 0;
+            let mut total_support_move_count = 0;
+
+            for cand in &cands {
+                for (order, _) in cand {
+                    if let Order::SupportMove { supported, .. } = order {
+                        total_support_move_count += 1;
+                        let supported_prov = supported.location.province;
+                        if !our_provinces.contains(&supported_prov) {
+                            foreign_support_move_count += 1;
+                        }
+                    }
+                }
+            }
+
+            assert_eq!(
+                foreign_support_move_count, 0,
+                "Power {:?}: found {} cross-power support-move orders out of {} total across {} candidates",
+                p, foreign_support_move_count, total_support_move_count, cands.len()
+            );
         }
     }
 }
