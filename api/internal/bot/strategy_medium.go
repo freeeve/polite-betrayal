@@ -121,8 +121,8 @@ func (s TacticalStrategy) searchOrders(
 	return OrdersToOrderInputs(bestOrders)
 }
 
-// pickBestCandidate resolves each candidate order set via 1-ply lookahead
-// against predicted opponent moves, and returns the best-scoring one.
+// pickBestCandidate blends all three ply evaluations to pick the best
+// candidate order set. Score = 0.5 * eval(ply1) + 0.2 * eval(ply2) + 0.3 * eval(ply3).
 func (s TacticalStrategy) pickBestCandidate(
 	gs *diplomacy.GameState,
 	power diplomacy.Power,
@@ -141,17 +141,60 @@ func (s TacticalStrategy) pickBestCandidate(
 	bestIdx := 0
 
 	rv := diplomacy.NewResolver(34)
-	clone := gs.Clone()
+	ply1State := gs.Clone()
+	ply2State := gs.Clone()
+	ply3State := gs.Clone()
 	orderBuf := make([]diplomacy.Order, 0, 34)
 	for i, cand := range candidates {
 		myOrders := OrderInputsToOrders(cand, power)
+
+		// Ply 1: resolve our orders + pre-generated opponent orders.
 		orderBuf = orderBuf[:0]
 		orderBuf = append(orderBuf, myOrders...)
 		orderBuf = append(orderBuf, opponentOrders...)
 		rv.Resolve(orderBuf, gs, m)
-		gs.CloneInto(clone)
-		rv.Apply(clone, m)
-		score := EvaluatePosition(clone, power, m)
+		gs.CloneInto(ply1State)
+		rv.Apply(ply1State, m)
+		ply1Score := EvaluatePosition(ply1State, power, m)
+
+		// Ply 2: opponents respond to ply-1 state.
+		orderBuf = orderBuf[:0]
+		for _, p := range diplomacy.AllPowers() {
+			if p == power || !ply1State.PowerIsAlive(p) {
+				continue
+			}
+			orderBuf = append(orderBuf, GenerateOpponentOrders(ply1State, p, m)...)
+		}
+		for _, u := range ply1State.UnitsOf(power) {
+			orderBuf = append(orderBuf, diplomacy.Order{
+				UnitType: u.Type,
+				Power:    power,
+				Location: u.Province,
+				Coast:    u.Coast,
+				Type:     diplomacy.OrderHold,
+			})
+		}
+		rv.Resolve(orderBuf, ply1State, m)
+		ply1State.CloneInto(ply2State)
+		rv.Apply(ply2State, m)
+		ply2Score := EvaluatePosition(ply2State, power, m)
+
+		// Ply 3: we respond to ply-2 state using heuristic orders.
+		orderBuf = orderBuf[:0]
+		ply3MyInputs := HeuristicStrategy{}.GenerateMovementOrders(ply2State, power, m)
+		orderBuf = append(orderBuf, OrderInputsToOrders(ply3MyInputs, power)...)
+		for _, p := range diplomacy.AllPowers() {
+			if p == power || !ply2State.PowerIsAlive(p) {
+				continue
+			}
+			orderBuf = append(orderBuf, GenerateOpponentOrders(ply2State, p, m)...)
+		}
+		rv.Resolve(orderBuf, ply2State, m)
+		ply2State.CloneInto(ply3State)
+		rv.Apply(ply3State, m)
+		ply3Score := EvaluatePosition(ply3State, power, m)
+
+		score := 0.5*ply1Score + 0.2*ply2Score + 0.3*ply3Score
 
 		if score > bestScore {
 			bestScore = score
