@@ -1,95 +1,111 @@
-# Session State — 2026-02-17 (Sessions 2-3)
+# Session State — 2026-02-18 (Session 4)
 
-## Session 3 Commits (continuation)
-
-| # | Hash | Description |
-|---|------|-------------|
-| 23 | `94ffc35` | chore(engine): .gitignore for ONNX model binaries |
-| 24 | `5709cad` | chore: gitignore data/processed and data/checkpoints |
-| 25 | `8087a1c` | feat(data): add neighbor behavior features to opening book |
-
-## Session 2 Commits (22 commits)
+## Session 4 Commits
 
 | # | Hash | Description |
 |---|------|-------------|
-| 1 | `b23db41` | perf: cache adjacency lookups and singleton StandardMap |
-| 2 | `ee3f470` | perf: reduce allocations in hard bot regret matching |
-| 3 | `2e90f21` | chore: mark polygon fix and opening book tasks as done |
-| 4 | `bf7c801` | feat: integrate ONNX neural network evaluation (Rust) |
-| 5 | `ce13945` | chore: mark resolver and ONNX integration as done |
-| 6 | `f9359a1` | fix: revert SC defense penalty scaling |
-| 7 | `9f86f0c` | feat: wire up ArenaConfig.Seed for reproducibility |
-| 8 | `21b8915` | feat: medium bot mid-game improvements (16%→47%) |
-| 9 | `7146a7c` | feat: SC timeline stats + easy vs random benchmark |
-| 10 | `4f9fff7` | docs: medium vs easy benchmark with timeline |
-| 11 | `b6a98d2` | feat: opening book extraction script |
-| 12 | `8f1beef` | feat: theater classification for opening book |
-| 13 | `be3bdb7` | feat: neighbor stance classifier |
-| 14 | `d351aa3` | feat: convert 1901 opening book to JSON |
-| 15 | `c889e5c` | chore: update task file statuses |
-| 16 | `56a6180` | feat: refactor opening book to embedded JSON with scoring engine |
-| 17 | `c5cdf1d` | feat: add new unit and destroyed unit symbols to map legend |
-| 18 | `7aee020` | feat: extend opening book extraction through F1904 |
-| 19 | `1ab2f60` | feat: feature-based opening book extraction through 1907 |
-| 20 | `26f21ee` | docs: medium vs easy with book benchmark |
-| 21 | `a18bbcc` | refactor: remove unused opening book functions |
-| 22 | `fb083bd` | docs: full 7-power medium vs easy benchmark |
+| 1 | `b60eaa6` | feat(engine): port opening book with JSON loading and match scoring |
+| 2 | `045e2fc` | feat(engine): neural-guided candidate generation and search initialization |
+| 3 | `8d4f5ed` | chore(tasks): mark rust retreat/build gen task as done |
+| 4 | `38c7218` | fix(api/internal/bot): guard nil SupplyCenters in NearestUnownedSC |
+| 5 | `25d4d6a` | feat(api/internal/bot): add BENCH_GAMES and BENCH_VERBOSE env vars |
+| 6 | `c988bc3` | chore: add git stash prohibition to CLAUDE.md |
+| 7 | `bec3c64` | chore: add BENCH_VERBOSE prohibition to CLAUDE.md |
+| 8 | `79d6d49` | feat(engine): add performance profiling benchmarks |
+| 9 | `ba151d6` | refactor(api/internal/bot): reset medium bot to clean easy baseline with opening book |
+| 10 | `d7a07fc` | docs(benchmarks): Phase 2 Rust engine vs Go bots arena results |
+| 11 | `7d325e9` | feat(api/internal/bot): add 1-ply lookahead to medium bot |
+| 12 | `900b1e1` | perf(engine): cached lookahead orders and adaptive RM+ iterations |
+| 13 | `3e4a951` | feat(engine): wire opening book into move selection pipeline |
+| 14 | `20047e5` | feat(api/internal/bot): add front-aware build decisions to medium bot |
+| 15 | `5986af4` | revert(api/internal/bot): restore pure 1-ply lookahead (blend was worse) |
+| 16 | `b6462a2` | feat(engine): post-optimization profiling benchmarks |
 
-## Key Benchmark Results
+## Key Results
 
-### Medium vs 6 Easy — All Powers (100 games each, MaxYear 1930)
-| Power | Win Rate | Avg SCs |
-|-------|----------|---------|
-| France | 33% | 9.0 |
-| Turkey | 31% | 9.9 |
-| Germany | 9% | 4.4 |
-| England | 8% | 7.3 |
-| Austria | 3% | 1.4 |
-| Italy | 3% | 2.9 |
-| Russia | 3% | 1.6 |
+### Rust Engine Profiling
+- Bottleneck was movegen in lookahead simulation (67% of node cost)
+- RM+ was capped at 48 iterations, wasting 90%+ of 5s time budget
+- Fix: cached lookahead orders (P0) + adaptive iterations (P1)
+- Result: 10x nodes/sec, 75x total nodes searched
 
-### Easy vs 6 Random — All Powers (20 games each)
-- All 7 powers: 100% win rate
-- Fastest: Austria (1905.7), Slowest: England (1913.2)
+### Rust Engine Post-Optimization Profiling
+- 12x throughput improvement confirmed: ~65,000 nodes/sec (was ~5,500)
+- Adaptive iterations: ~3,000 at 500ms budget (was fixed 48)
+- Budget utilization: 75% (was 10%)
+- New bottleneck: second-ply movegen (98% of per-node cost, ~14us of ~15us per node)
+- Resolver, clone, apply, eval all negligible (<2% combined)
+- Top optimization opportunities:
+  - P0: Lightweight greedy movegen (skip support/convoy in lookahead) → 3-5x gain
+  - P1: LRU cache for second-ply orders (similar states across iterations)
+  - P2: Pre-allocate hot loop Vecs
+  - P3: Rayon parallelism for counterfactual evals
 
-## Artifacts Produced
+### Rust Engine vs Go Bots (Pre-Optimization)
+| Tier | Games | Win Rate | Target |
+|------|-------|----------|--------|
+| Easy | 10 | 30% | >80% |
+| Medium | 10 | 10% | >40% |
+| Hard | 3 | 0% | -- |
 
-### Neural Network
-- `data/checkpoints/best_policy.pt` (15MB) — trained PyTorch checkpoint
-- `engine/models/policy_v1.onnx` (5.3MB) — exported ONNX model, validated
-- No value network checkpoint yet (only policy head trained)
+### Medium Bot Rebuild (Incremental from Easy)
+| Version | Overall Win% | France | Turkey | Germany | England | Italy | Russia | Austria |
+|---------|-------------|--------|--------|---------|---------|-------|--------|---------|
+| Baseline (=easy) | 14% | 25% | 50% | 35% | 0% | 10% | 0% | 5% |
+| +1-ply lookahead | 30% | 65% | 65% | 30% | 15% | 25% | 5% | 5% |
+| +front-aware builds | 33% | 60% | 75% | 30% | 20% | 25% | 20% | 0% |
+| +2-ply (reverted) | 25% | 50% | 40% | 40% | 25% | 15% | 0% | 5% |
+| +blend 0.7/0.3 (reverted) | 27% | 55% | 55% | 20% | 20% | 20% | 15% | 5% |
 
-### Opening Book
-- `data/processed/opening_book.json` (1.4MB, gitignored) — 1,222 variants / 615 clusters
-- Covers S1901 through F1906 with feature-based matching
-- Condition features: positions, owned_scs, neighbor_stance, border_pressure, border_bounces, neighbor_sc_counts, theaters, fleet/army counts
-- Go scoring engine with 4 match modes committed in `api/internal/bot/opening_book.go`
-- Extraction script: `python3 data/scripts/extract_openings.py`
+Current best: 1-ply + front-aware builds = ~33% (20-game estimate, 700-game run in progress)
 
-## Known Bugs
+## Active Work (in progress)
 
-### eval.go:366 — Nil Pointer Dereference (task 077)
-- `NearestUnownedSCByUnit` panics when `gs.SupplyCenters` is nil
-- Called from `predictEnemyTargets` in strategy_medium.go:1002
-- Occurs during hard bot multi-phase simulation
-- Failing tests: TestHardVsMedium, TestTacticalStrategy_BetterThanHeuristic, TestTacticalStrategy_DefendsOwnSCWhenEnemyAdjacent
+| Agent | Task | Status |
+|-------|------|--------|
+| medium-reset | 700-game medium vs easy benchmark | Running |
+| rust-bench-700 | 700-game Rust vs Easy (rebuilding with optimizations) | Running |
+| rust-profiler2 | Post-optimization Rust profiling | Running |
+
+## CRITICAL: Rust Engine Regression
+- Post-optimization Rust engine dropped from 30% to 2.8% win rate vs Easy
+- Commits between pre-opt (30%) and post-opt (2.8%): 900b1e1 (adaptive iterations), 3e4a951 (opening book wiring)
+- One of these introduced a regression — need to bisect
+- Possible causes: adaptive iterations changing search behavior, opening book returning bad moves, cached lookahead orders being stale/wrong
+- **First action next session**: investigate and fix this regression
+
+## Action Items After Compaction
+- **Verify strategy_medium.go state**: medium-bot-dev may have overwritten medium-reset's clean 98-line file. Check `git log` and `wc -l` to confirm it's the right version (should be ~200 lines with 1-ply lookahead + front-aware builds, NOT the old 2000+ line version)
+- Run 700-game medium vs easy benchmark (1-ply + builds baseline)
+- Run 700-game Rust vs Easy benchmark (post-optimization with opening book)
+- Start ply experiment matrix (task 078)
 
 ## Pending Tasks for Next Session
 
 | Task | File | Description |
 |------|------|-------------|
-| 076 | `076_rust-opening-book.md` | Port opening book to Rust engine |
-| 077 | `077_fix-eval-nil-panic.md` | Fix nil pointer dereference in eval.go |
-| 052 | `052_neural-guided-search.md` | Wire policy_v1.onnx into Rust engine search |
-| — | — | Integrate 1,222-variant opening book and benchmark all match modes |
-| — | — | Benchmark extended book vs 1901-only book across all powers |
-| — | — | Medium bot: multi-front defense for central powers (Austria/Russia) |
-| — | — | Train value network (only policy head exists) |
+| 078 | `078_medium-bot-ply-experiments.md` | Test 1-ply, 3-ply, blend(1+3), blend(1+2+3) at 700 games each |
+| 025 | (team task) | Investigate CoreML/Metal GPU acceleration for ONNX inference |
+| 045 | `045_rust-perf-optimization.md` | Further Rust engine optimization (post-profiling) |
+| 053 | `053_phase3-arena-evaluation.md` | Phase 3 neural engine vs Go hard bot |
+| 054 | `054_self-play-pipeline.md` | Self-play game generation for RL training |
+| 056 | `056_structured-press-dui.md` | Structured press intent in DUI protocol |
 
-## Blocked Tasks
+## Artifacts Produced
 
-| Task | Blocked By | Notes |
-|------|-----------|-------|
-| 053 (phase3 arena eval) | 044 + 052 | Needs phase2 bench + neural search |
-| 076 (Rust opening book) | — | Ready to start |
-| 052 (neural-guided search) | — | policy_v1.onnx ready, can start |
+### Rust Engine Improvements
+- Opening book: loaded from JSON, wired into move selection (book hit → skip search)
+- Neural-guided search: policy network scores candidates, RM+ init from policy probs, strength parameter
+- Performance: 10x throughput via cached lookahead + adaptive iterations
+- Profiling benchmarks: criterion benches for movegen, RM+, resolve+eval
+
+### Medium Bot Rebuild
+- Reset to 98-line clean base (easy bot + opening book)
+- 1-ply lookahead: 16 candidates, best-of-eval
+- Front-aware builds: prioritize home SCs near active front, army/fleet preference by front type
+- Old medium logic saved as `strategy_medium_old.go.bak`
+
+### Benchmark Infrastructure
+- BENCH_GAMES env var for configurable game count
+- BENCH_VERBOSE env var (default quiet, opt-in verbose)
+- TestBenchmark_RustVsEasyAllPowers test added
