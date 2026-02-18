@@ -20,11 +20,13 @@ use crate::eval::evaluate;
 use crate::eval::heuristic::{
     count_scs, nearest_unowned_sc_dist, power_has_units, province_defense, province_threat,
 };
+use crate::eval::NeuralEvaluator;
 use crate::movegen::movement::legal_orders;
 use crate::resolve::{advance_state, apply_resolution, needs_build_phase, Resolver};
 use crate::search::cartesian::{
     heuristic_build_orders, heuristic_retreat_orders, predict_opponent_orders,
 };
+use crate::search::neural_candidates::{neural_top_k_per_unit, softmax_weights};
 use crate::search::SearchResult;
 
 /// Number of candidate order sets to generate per power.
@@ -269,6 +271,298 @@ fn generate_candidates(
     candidates
 }
 
+/// Blended candidate order for a single unit, carrying both heuristic and neural scores.
+#[derive(Clone, Copy)]
+struct BlendedOrder {
+    order: Order,
+    score: f32,
+}
+
+/// Generates neural-guided candidates for a power by blending neural and heuristic scores.
+///
+/// The `neural_weight` parameter controls the blend: 0.0 = pure heuristic, 1.0 = pure neural.
+/// Neural candidates are top-K from the policy network. Heuristic candidates provide diversity.
+fn generate_candidates_neural(
+    power: Power,
+    state: &BoardState,
+    evaluator: &NeuralEvaluator,
+    count: usize,
+    neural_weight: f32,
+    rng: &mut SmallRng,
+) -> Vec<Vec<(Order, Power)>> {
+    // Get neural candidates per unit.
+    let neural_per_unit = neural_top_k_per_unit(evaluator, power, state, 8);
+
+    // Get heuristic candidates per unit.
+    let heuristic_per_unit = top_k_per_unit(power, state, 5);
+
+    // If neural failed, fall back to pure heuristic.
+    let neural_per_unit = match neural_per_unit {
+        Some(n) if !n.is_empty() => n,
+        _ => return generate_candidates(power, state, count, rng),
+    };
+
+    if heuristic_per_unit.is_empty() {
+        return Vec::new();
+    }
+
+    // Blend: merge neural and heuristic candidates per unit.
+    // Each unit gets up to 8 candidates with blended scores.
+    let blended_per_unit: Vec<Vec<BlendedOrder>> = heuristic_per_unit
+        .iter()
+        .enumerate()
+        .map(|(ui, heur_cands)| {
+            let neural_cands = if ui < neural_per_unit.len() {
+                &neural_per_unit[ui]
+            } else {
+                &[][..]
+            };
+
+            // Build a merged candidate list. Use order identity to match.
+            let mut merged: Vec<BlendedOrder> = Vec::new();
+
+            // Normalize heuristic scores to [0, 1].
+            let h_max = heur_cands
+                .iter()
+                .map(|c| c.score)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let h_min = heur_cands
+                .iter()
+                .map(|c| c.score)
+                .fold(f32::INFINITY, f32::min);
+            let h_range = (h_max - h_min).max(1.0);
+
+            // Normalize neural scores to [0, 1].
+            let n_max = neural_cands
+                .iter()
+                .map(|c| c.neural_score)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let n_min = neural_cands
+                .iter()
+                .map(|c| c.neural_score)
+                .fold(f32::INFINITY, f32::min);
+            let n_range = (n_max - n_min).max(1.0);
+
+            // Add neural candidates with blended scores.
+            for nc in neural_cands {
+                let n_norm = (nc.neural_score - n_min) / n_range;
+                // Find heuristic score for this order if available.
+                let h_norm = heur_cands
+                    .iter()
+                    .find(|h| h.order == nc.order)
+                    .map(|h| (h.score - h_min) / h_range)
+                    .unwrap_or(0.0);
+
+                let blended = neural_weight * n_norm + (1.0 - neural_weight) * h_norm;
+                merged.push(BlendedOrder {
+                    order: nc.order,
+                    score: blended,
+                });
+            }
+
+            // Add heuristic candidates not already in the list.
+            for hc in heur_cands {
+                if !merged.iter().any(|m| m.order == hc.order) {
+                    let h_norm = (hc.score - h_min) / h_range;
+                    // Neural score is 0 for orders not in the neural top-K.
+                    let blended = (1.0 - neural_weight) * h_norm;
+                    merged.push(BlendedOrder {
+                        order: hc.order,
+                        score: blended,
+                    });
+                }
+            }
+
+            // Sort descending by blended score and keep top-8.
+            merged.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            merged.truncate(8);
+            merged
+        })
+        .collect();
+
+    if blended_per_unit.is_empty() {
+        return Vec::new();
+    }
+
+    // Generate candidate order sets by sampling from blended per-unit candidates.
+    let mut candidates: Vec<Vec<(Order, Power)>> = Vec::with_capacity(count);
+    let mut seen: Vec<Vec<usize>> = Vec::new();
+
+    // First candidate: greedy best from blended scores.
+    let greedy: Vec<usize> = vec![0; blended_per_unit.len()];
+    let greedy_orders: Vec<(Order, Power)> = greedy
+        .iter()
+        .enumerate()
+        .map(|(u, &idx)| (blended_per_unit[u][idx].order, power))
+        .collect();
+    candidates.push(greedy_orders);
+    seen.push(greedy);
+
+    // Remaining candidates: sample with softmax-like noise.
+    for _ in 1..count {
+        let mut combo: Vec<usize> = Vec::with_capacity(blended_per_unit.len());
+        for unit_cands in &blended_per_unit {
+            if unit_cands.len() <= 1 {
+                combo.push(0);
+                continue;
+            }
+            let scores: Vec<f32> = unit_cands.iter().map(|c| c.score).collect();
+            let weights = softmax_weights(&scores);
+            let total: f64 = weights.iter().sum();
+            let r: f64 = rng.gen::<f64>() * total;
+            let mut cum = 0.0;
+            let mut picked = 0;
+            for (j, w) in weights.iter().enumerate() {
+                cum += w;
+                if r < cum {
+                    picked = j;
+                    break;
+                }
+            }
+            combo.push(picked);
+        }
+
+        if seen.contains(&combo) {
+            continue;
+        }
+        let orders: Vec<(Order, Power)> = combo
+            .iter()
+            .enumerate()
+            .map(|(u, &idx)| (blended_per_unit[u][idx].order, power))
+            .collect();
+        seen.push(combo);
+        candidates.push(orders);
+    }
+
+    candidates
+}
+
+/// Computes initial RM+ regret weights from neural policy probabilities.
+///
+/// Uses the policy network to score each candidate order set, then
+/// normalizes the scores to use as initial strategy weights.
+fn policy_guided_init(
+    evaluator: &NeuralEvaluator,
+    power: Power,
+    state: &BoardState,
+    candidates: &[Vec<(Order, Power)>],
+) -> Option<Vec<f64>> {
+    if !evaluator.has_policy() || candidates.is_empty() {
+        return None;
+    }
+
+    // Run policy inference once.
+    let logits = evaluator.policy(state, power)?;
+    let per_unit_logit_size = 169; // ORDER_VOCAB_SIZE
+
+    // Collect unit province indices for this power.
+    let mut unit_prov_indices: Vec<usize> = Vec::new();
+    for i in 0..PROVINCE_COUNT {
+        if let Some((p, _)) = state.units[i] {
+            if p == power {
+                unit_prov_indices.push(i);
+            }
+        }
+    }
+
+    if unit_prov_indices.is_empty() {
+        return None;
+    }
+
+    // Score each candidate set: sum of neural scores for each order in the set.
+    let mut scores: Vec<f64> = Vec::with_capacity(candidates.len());
+
+    for cand_set in candidates {
+        let mut total = 0.0f64;
+        for (order, _) in cand_set {
+            // Find which unit this order belongs to.
+            let unit_prov = match order {
+                Order::Hold { unit }
+                | Order::Move { unit, .. }
+                | Order::SupportHold { unit, .. }
+                | Order::SupportMove { unit, .. }
+                | Order::Convoy { unit, .. } => unit.location.province as usize,
+                _ => continue,
+            };
+
+            if let Some(ui) = unit_prov_indices.iter().position(|&p| p == unit_prov) {
+                let logit_start = ui * per_unit_logit_size;
+                let logit_end = logit_start + per_unit_logit_size;
+                if logit_end <= logits.len() {
+                    let unit_logits = &logits[logit_start..logit_end];
+                    total += score_order_with_logits(order, unit_logits) as f64;
+                }
+            }
+        }
+        scores.push(total);
+    }
+
+    // Convert to non-negative weights via softmax.
+    let weights = softmax_weights(&scores.iter().map(|s| *s as f32).collect::<Vec<f32>>());
+
+    // Scale weights to be suitable as initial regrets (non-negative, sum > 0).
+    let scale = candidates.len() as f64;
+    Some(weights.iter().map(|w| w * scale).collect())
+}
+
+/// Scores an order against raw policy logits (169-dim per unit).
+fn score_order_with_logits(order: &Order, logits: &[f32]) -> f32 {
+    if logits.len() < 169 {
+        return 0.0;
+    }
+
+    let src_offset = 7usize;
+    let dst_offset = 7 + 81;
+
+    let prov_area = |prov: Province, coast: crate::board::province::Coast| -> usize {
+        match (prov, coast) {
+            (Province::Bul, crate::board::province::Coast::East) => 75,
+            (Province::Bul, crate::board::province::Coast::South) => 76,
+            (Province::Spa, crate::board::province::Coast::North) => 77,
+            (Province::Spa, crate::board::province::Coast::South) => 78,
+            (Province::Stp, crate::board::province::Coast::North) => 79,
+            (Province::Stp, crate::board::province::Coast::South) => 80,
+            _ => prov as usize,
+        }
+    };
+
+    let loc_area =
+        |loc: crate::board::order::Location| -> usize { prov_area(loc.province, loc.coast) };
+    let unit_area = |u: &crate::board::order::OrderUnit| -> usize { loc_area(u.location) };
+
+    match *order {
+        Order::Hold { ref unit } => logits[0] + logits[src_offset + unit_area(unit)],
+        Order::Move { ref unit, dest } => {
+            logits[1] + logits[src_offset + unit_area(unit)] + logits[dst_offset + loc_area(dest)]
+        }
+        Order::SupportHold {
+            ref unit,
+            ref supported,
+        } => {
+            logits[2]
+                + logits[src_offset + unit_area(unit)]
+                + logits[dst_offset + unit_area(supported)]
+        }
+        Order::SupportMove { ref unit, dest, .. } => {
+            logits[2] + logits[src_offset + unit_area(unit)] + logits[dst_offset + loc_area(dest)]
+        }
+        Order::Convoy {
+            ref unit,
+            convoyed_to,
+            ..
+        } => {
+            logits[3]
+                + logits[src_offset + unit_area(unit)]
+                + logits[dst_offset + loc_area(convoyed_to)]
+        }
+        _ => 0.0,
+    }
+}
+
 /// Computes the cooperation penalty: penalizes attacking multiple distinct powers.
 fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Power) -> f64 {
     let mut attacked = [false; 7];
@@ -471,15 +765,27 @@ fn weighted_sample(probs: &[f64], rng: &mut SmallRng) -> usize {
 /// Generates candidates for all powers, runs RM+ iterations with
 /// counterfactual regret updates, then extracts the best response
 /// for the engine's power against the opponent equilibrium.
+///
+/// When a `NeuralEvaluator` is provided with a loaded policy model,
+/// candidates are generated using a blend of neural and heuristic scores
+/// controlled by `strength` (1-100). Higher strength increases the neural
+/// component. RM+ cumulative regrets are initialized from policy probabilities.
 pub fn regret_matching_search<W: Write>(
     power: Power,
     state: &BoardState,
     movetime: Duration,
     out: &mut W,
+    neural: Option<&NeuralEvaluator>,
+    strength: u64,
 ) -> SearchResult {
     let start = Instant::now();
     let mut rng = SmallRng::from_entropy();
     let mut resolver = Resolver::new(64);
+
+    // Neural blend weight: maps strength 1-100 to 0.0-1.0.
+    // At strength 50: 50% neural. At 100: 100% neural. At 1: ~1% neural.
+    let neural_weight = (strength as f32 / 100.0).clamp(0.0, 1.0);
+    let has_neural = neural.map_or(false, |n| n.has_policy());
 
     // Phase 1: Candidate generation for all powers (budget: 25%)
     let cand_budget = Duration::from_nanos((movetime.as_nanos() as f64 * BUDGET_CAND_GEN) as u64);
@@ -493,7 +799,19 @@ pub fn regret_matching_search<W: Write>(
             continue;
         }
 
-        let cands = generate_candidates(p, state, NUM_CANDIDATES, &mut rng);
+        let cands = if has_neural && p == power {
+            // Use neural-guided candidates for our power.
+            generate_candidates_neural(
+                p,
+                state,
+                neural.unwrap(),
+                NUM_CANDIDATES,
+                neural_weight,
+                &mut rng,
+            )
+        } else {
+            generate_candidates(p, state, NUM_CANDIDATES, &mut rng)
+        };
         if cands.is_empty() {
             continue;
         }
@@ -542,11 +860,24 @@ pub fn regret_matching_search<W: Write>(
     // Phase 2: RM+ iterations (budget: 50%)
     let rm_budget = Duration::from_nanos((movetime.as_nanos() as f64 * BUDGET_RM_ITER) as u64);
 
-    // Initialize per-power cumulative regret vectors
+    // Initialize per-power cumulative regret vectors.
+    // For our power, use policy-guided initialization when neural is available.
     let mut cum_regrets: Vec<Vec<f64>> = power_candidates
         .iter()
         .map(|(_, cands)| vec![1.0; cands.len()])
         .collect();
+
+    if has_neural {
+        if let Some(evaluator) = neural {
+            if let Some(init_weights) =
+                policy_guided_init(evaluator, power, state, &power_candidates[our_power_idx].1)
+            {
+                if init_weights.len() == cum_regrets[our_power_idx].len() {
+                    cum_regrets[our_power_idx] = init_weights;
+                }
+            }
+        }
+    }
 
     // Accumulated strategy weights for final selection
     let mut total_weights: Vec<Vec<f64>> = power_candidates
@@ -754,6 +1085,8 @@ mod tests {
             &state,
             Duration::from_millis(2000),
             &mut out,
+            None,
+            100,
         );
         assert_eq!(result.orders.len(), 3, "Austria has 3 units");
         assert!(result.nodes > 0, "Should search at least 1 node");
@@ -763,8 +1096,14 @@ mod tests {
     fn rm_search_returns_orders_for_russia() {
         let state = initial_state();
         let mut out = Vec::new();
-        let result =
-            regret_matching_search(Power::Russia, &state, Duration::from_millis(2000), &mut out);
+        let result = regret_matching_search(
+            Power::Russia,
+            &state,
+            Duration::from_millis(2000),
+            &mut out,
+            None,
+            100,
+        );
         assert_eq!(result.orders.len(), 4, "Russia has 4 units");
     }
 
@@ -773,8 +1112,14 @@ mod tests {
         let state = initial_state();
         let mut out = Vec::new();
         let start = Instant::now();
-        let _result =
-            regret_matching_search(Power::Austria, &state, Duration::from_millis(500), &mut out);
+        let _result = regret_matching_search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(500),
+            &mut out,
+            None,
+            100,
+        );
         let elapsed = start.elapsed();
         assert!(
             elapsed < Duration::from_millis(2000),
@@ -792,6 +1137,8 @@ mod tests {
             &state,
             Duration::from_millis(1000),
             &mut out,
+            None,
+            100,
         );
         let output = String::from_utf8(out).unwrap();
         assert!(
@@ -808,8 +1155,14 @@ mod tests {
         state.set_sc_owner(Province::Bud, Some(Power::Austria));
 
         let mut out = Vec::new();
-        let result =
-            regret_matching_search(Power::Austria, &state, Duration::from_millis(500), &mut out);
+        let result = regret_matching_search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(500),
+            &mut out,
+            None,
+            100,
+        );
 
         assert_eq!(result.orders.len(), 1);
         match result.orders[0] {
@@ -927,8 +1280,14 @@ mod tests {
         let state = initial_state();
         let mut out = Vec::new();
         let start = Instant::now();
-        let result =
-            regret_matching_search(Power::France, &state, Duration::from_millis(3000), &mut out);
+        let result = regret_matching_search(
+            Power::France,
+            &state,
+            Duration::from_millis(3000),
+            &mut out,
+            None,
+            100,
+        );
         let elapsed = start.elapsed();
         assert!(
             elapsed < Duration::from_secs(5),
@@ -936,5 +1295,61 @@ mod tests {
             elapsed
         );
         assert!(!result.orders.is_empty(), "Should return orders");
+    }
+
+    #[test]
+    fn rm_search_graceful_fallback_no_model() {
+        // With None neural evaluator and various strength levels, search should still work.
+        let state = initial_state();
+
+        for strength in [1, 50, 80, 100] {
+            let mut out = Vec::new();
+            let result = regret_matching_search(
+                Power::Austria,
+                &state,
+                Duration::from_millis(500),
+                &mut out,
+                None,
+                strength,
+            );
+            assert_eq!(
+                result.orders.len(),
+                3,
+                "Austria should have 3 orders at strength {}",
+                strength
+            );
+        }
+    }
+
+    #[test]
+    fn rm_search_with_missing_model_path() {
+        // NeuralEvaluator with non-existent paths should fallback gracefully.
+        let evaluator = crate::eval::NeuralEvaluator::new(
+            Some("/nonexistent/policy.onnx"),
+            Some("/nonexistent/value.onnx"),
+        );
+        assert!(!evaluator.has_policy());
+        assert!(!evaluator.has_value());
+
+        let state = initial_state();
+        let mut out = Vec::new();
+        let result = regret_matching_search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(500),
+            &mut out,
+            Some(&evaluator),
+            100,
+        );
+        assert_eq!(result.orders.len(), 3, "Should fallback to heuristic");
+    }
+
+    #[test]
+    fn strength_parameter_affects_neural_weight() {
+        // Verify the neural weight calculation: strength 1 -> 0.01, 50 -> 0.5, 100 -> 1.0.
+        let weight_at = |s: u64| (s as f32 / 100.0).clamp(0.0, 1.0);
+        assert!((weight_at(1) - 0.01).abs() < 0.001);
+        assert!((weight_at(50) - 0.50).abs() < 0.001);
+        assert!((weight_at(100) - 1.00).abs() < 0.001);
     }
 }

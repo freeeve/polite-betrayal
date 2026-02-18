@@ -163,13 +163,10 @@ impl Engine {
     /// Handles the `go` command. Uses RM+ search at high strength (>= 80)
     /// and Cartesian search otherwise. Retreat/build phases use heuristics.
     pub fn handle_go<W: Write>(&mut self, out: &mut W) {
-        let state = match &self.position {
-            Some(s) => s,
-            None => {
-                eprintln!("go: no position set");
-                return;
-            }
-        };
+        if self.position.is_none() {
+            eprintln!("go: no position set");
+            return;
+        }
 
         let power = match self.active_power {
             Some(p) => p,
@@ -179,12 +176,23 @@ impl Engine {
             }
         };
 
+        self.ensure_neural();
+
+        let state = self.position.as_ref().unwrap();
+
         let orders = match state.phase {
             Phase::Movement => {
                 let movetime = self.movetime();
                 let strength = self.strength();
                 let result = if strength >= 80 {
-                    regret_matching_search(power, state, movetime, out)
+                    regret_matching_search(
+                        power,
+                        state,
+                        movetime,
+                        out,
+                        self.neural.as_ref(),
+                        strength,
+                    )
                 } else {
                     search(power, state, movetime, out)
                 };
