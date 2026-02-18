@@ -1,9 +1,26 @@
 package diplomacy
 
-import "sort"
+import (
+	"sort"
+	"sync"
+)
 
-// StandardMap returns the standard 75-province Diplomacy map with all provinces and adjacencies.
+var (
+	stdMapOnce sync.Once
+	stdMapInst *DiplomacyMap
+)
+
+// StandardMap returns the standard 75-province Diplomacy map with all
+// provinces and adjacencies. The map is built once and cached; subsequent
+// calls return the same pointer. Callers must not mutate the returned map.
 func StandardMap() *DiplomacyMap {
+	stdMapOnce.Do(func() {
+		stdMapInst = buildStandardMap()
+	})
+	return stdMapInst
+}
+
+func buildStandardMap() *DiplomacyMap {
 	m := &DiplomacyMap{
 		Provinces:   make(map[string]*Province, 75),
 		Adjacencies: make(map[string][]Adjacency, 150),

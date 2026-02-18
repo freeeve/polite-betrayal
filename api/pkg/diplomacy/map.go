@@ -44,12 +44,20 @@ type Adjacency struct {
 	FleetOK   bool // Fleets can traverse this adjacency
 }
 
+// adjCacheKey identifies a unique (province, coast, isFleet) adjacency query.
+type adjCacheKey struct {
+	prov    string
+	coast   Coast
+	isFleet bool
+}
+
 // DiplomacyMap holds the full province and adjacency graph.
 type DiplomacyMap struct {
 	Provinces   map[string]*Province
 	Adjacencies map[string][]Adjacency // keyed by from province ID
 	provIndex   map[string]int
 	provNames   [ProvinceCount]string
+	adjCache    map[adjCacheKey][]string // cached ProvincesAdjacentTo results
 }
 
 // ProvinceIndex returns the dense index (0..ProvinceCount-1) for a province ID.
@@ -108,8 +116,17 @@ func (m *DiplomacyMap) FleetCoastsTo(src string, srcCoast Coast, dst string) []C
 }
 
 // ProvincesAdjacentTo returns all province IDs adjacent to the given province
-// accessible by the given unit type.
+// accessible by the given unit type. Results are cached after the first call
+// for each (province, coast, isFleet) triple, since the map is immutable.
+// The returned slice must not be modified by the caller.
 func (m *DiplomacyMap) ProvincesAdjacentTo(provID string, coast Coast, isFleet bool) []string {
+	key := adjCacheKey{provID, coast, isFleet}
+	if m.adjCache != nil {
+		if cached, ok := m.adjCache[key]; ok {
+			return cached
+		}
+	}
+
 	seen := make(map[string]bool)
 	var result []string
 	for _, adj := range m.Adjacencies[provID] {
@@ -127,6 +144,11 @@ func (m *DiplomacyMap) ProvincesAdjacentTo(provID string, coast Coast, isFleet b
 			result = append(result, adj.To)
 		}
 	}
+
+	if m.adjCache == nil {
+		m.adjCache = make(map[adjCacheKey][]string, 256)
+	}
+	m.adjCache[key] = result
 	return result
 }
 
