@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/efreeman/polite-betrayal/api/internal/model"
@@ -142,6 +143,19 @@ func (m *mockGameRepo) ListFinished(_ context.Context) ([]model.Game, error) {
 	var result []model.Game
 	for _, g := range m.games {
 		if g.Status == "finished" {
+			cp := *g
+			cp.Players = m.players[g.ID]
+			result = append(result, cp)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockGameRepo) SearchFinished(_ context.Context, search string) ([]model.Game, error) {
+	lower := strings.ToLower(search)
+	var result []model.Game
+	for _, g := range m.games {
+		if g.Status == "finished" && strings.Contains(strings.ToLower(g.Name), lower) {
 			cp := *g
 			cp.Players = m.players[g.ID]
 			result = append(result, cp)

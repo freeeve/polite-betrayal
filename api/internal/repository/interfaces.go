@@ -23,6 +23,7 @@ type GameRepository interface {
 	ListOpen(ctx context.Context) ([]model.Game, error)
 	ListByUser(ctx context.Context, userID string) ([]model.Game, error)
 	ListFinished(ctx context.Context) ([]model.Game, error)
+	SearchFinished(ctx context.Context, search string) ([]model.Game, error)
 	JoinGame(ctx context.Context, gameID, userID string) error
 	JoinGameAsBot(ctx context.Context, gameID, userID, difficulty string) error
 	ReplaceBot(ctx context.Context, gameID, newUserID string) error

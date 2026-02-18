@@ -331,11 +331,15 @@ func (s *GameService) StopGame(ctx context.Context, gameID, userID string) (*mod
 }
 
 // ListGames returns open games or games the user is in.
-func (s *GameService) ListGames(ctx context.Context, userID string, filter string) ([]model.Game, error) {
+// When filter is "finished" and search is non-empty, performs a name search.
+func (s *GameService) ListGames(ctx context.Context, userID string, filter string, search string) ([]model.Game, error) {
 	switch filter {
 	case "my":
 		return s.gameRepo.ListByUser(ctx, userID)
 	case "finished":
+		if search != "" {
+			return s.gameRepo.SearchFinished(ctx, search)
+		}
 		return s.gameRepo.ListFinished(ctx)
 	default:
 		return s.gameRepo.ListOpen(ctx)

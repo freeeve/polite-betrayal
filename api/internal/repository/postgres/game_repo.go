@@ -134,6 +134,33 @@ func (r *GameRepo) ListFinished(ctx context.Context) ([]model.Game, error) {
 	return games, rows.Err()
 }
 
+// SearchFinished returns finished games whose name matches the search term (case-insensitive).
+func (r *GameRepo) SearchFinished(ctx context.Context, search string) ([]model.Game, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT g.id, g.name, g.creator_id, g.status, g.winner, g.turn_duration, g.retreat_duration, g.build_duration,
+		        g.power_assignment, g.created_at, g.started_at, g.finished_at
+		 FROM games g
+		 WHERE g.status = 'finished' AND g.name ILIKE '%' || $1 || '%'
+		 ORDER BY g.finished_at DESC LIMIT 100`, search)
+	if err != nil {
+		return nil, fmt.Errorf("search finished games: %w", err)
+	}
+	defer rows.Close()
+
+	var games []model.Game
+	for rows.Next() {
+		var g model.Game
+		var winner sql.NullString
+		if err := rows.Scan(&g.ID, &g.Name, &g.CreatorID, &g.Status, &winner, &g.TurnDuration, &g.RetreatDuration, &g.BuildDuration,
+			&g.PowerAssignment, &g.CreatedAt, &g.StartedAt, &g.FinishedAt); err != nil {
+			return nil, fmt.Errorf("scan game: %w", err)
+		}
+		g.Winner = winner.String
+		games = append(games, g)
+	}
+	return games, rows.Err()
+}
+
 // JoinGame adds a player to a game.
 func (r *GameRepo) JoinGame(ctx context.Context, gameID, userID string) error {
 	_, err := r.db.ExecContext(ctx,

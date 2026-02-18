@@ -57,7 +57,8 @@ func (h *GameHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 func (h *GameHandler) ListGames(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	filter := r.URL.Query().Get("filter")
-	games, err := h.gameSvc.ListGames(r.Context(), userID, filter)
+	search := r.URL.Query().Get("search")
+	games, err := h.gameSvc.ListGames(r.Context(), userID, filter, search)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

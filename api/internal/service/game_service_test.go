@@ -364,7 +364,7 @@ func TestListGamesOpen(t *testing.T) {
 	svc.CreateGame(context.Background(), "Game1", "user-1", "", "", "", "", "", false)
 	svc.CreateGame(context.Background(), "Game2", "user-2", "", "", "", "", "", false)
 
-	games, err := svc.ListGames(context.Background(), "user-1", "")
+	games, err := svc.ListGames(context.Background(), "user-1", "", "")
 	if err != nil {
 		t.Fatalf("ListGames: %v", err)
 	}
@@ -381,7 +381,7 @@ func TestListGamesMy(t *testing.T) {
 	svc.CreateGame(context.Background(), "Game1", "user-1", "", "", "", "", "", false)
 	svc.CreateGame(context.Background(), "Game2", "user-2", "", "", "", "", "", false)
 
-	games, err := svc.ListGames(context.Background(), "user-1", "my")
+	games, err := svc.ListGames(context.Background(), "user-1", "my", "")
 	if err != nil {
 		t.Fatalf("ListGames: %v", err)
 	}
@@ -400,7 +400,7 @@ func TestListGamesBotOnlyVisibleToCreator(t *testing.T) {
 	// Create a normal game for user-2
 	svc.CreateGame(context.Background(), "NormalGame", "user-2", "", "", "", "", "", false)
 
-	games, err := svc.ListGames(context.Background(), "user-1", "my")
+	games, err := svc.ListGames(context.Background(), "user-1", "my", "")
 	if err != nil {
 		t.Fatalf("ListGames: %v", err)
 	}
