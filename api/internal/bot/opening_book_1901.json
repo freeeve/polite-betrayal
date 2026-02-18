@@ -1,0 +1,1224 @@
+{
+  "entries": [
+    {
+      "power": "england",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"lon": "fleet", "edi": "fleet", "lvp": "army"}
+      },
+      "options": [
+        {
+          "name": "Northern",
+          "weight": 37.6,
+          "orders": [
+            {"unit_type": "fleet", "location": "edi", "order_type": "move", "target": "nrg"},
+            {"unit_type": "fleet", "location": "lon", "order_type": "move", "target": "nth"},
+            {"unit_type": "army", "location": "lvp", "order_type": "move", "target": "edi"}
+          ]
+        },
+        {
+          "name": "Welsh",
+          "weight": 20.4,
+          "orders": [
+            {"unit_type": "fleet", "location": "edi", "order_type": "move", "target": "nrg"},
+            {"unit_type": "fleet", "location": "lon", "order_type": "move", "target": "nth"},
+            {"unit_type": "army", "location": "lvp", "order_type": "move", "target": "wal"}
+          ]
+        },
+        {
+          "name": "Channel",
+          "weight": 13.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "edi", "order_type": "move", "target": "nth"},
+            {"unit_type": "fleet", "location": "lon", "order_type": "move", "target": "eng"},
+            {"unit_type": "army", "location": "lvp", "order_type": "move", "target": "wal"}
+          ]
+        },
+        {
+          "name": "Edinburgh",
+          "weight": 11.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "edi", "order_type": "move", "target": "nth"},
+            {"unit_type": "fleet", "location": "lon", "order_type": "move", "target": "eng"},
+            {"unit_type": "army", "location": "lvp", "order_type": "move", "target": "edi"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "france",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bre": "fleet", "par": "army", "mar": "army"}
+      },
+      "options": [
+        {
+          "name": "Maginot",
+          "weight": 23.1,
+          "orders": [
+            {"unit_type": "fleet", "location": "bre", "order_type": "move", "target": "mao"},
+            {"unit_type": "army", "location": "par", "order_type": "move", "target": "bur"},
+            {"unit_type": "army", "location": "mar", "order_type": "support", "aux_loc": "par", "aux_target": "bur", "aux_unit_type": "army"}
+          ]
+        },
+        {
+          "name": "Picardy",
+          "weight": 17.4,
+          "orders": [
+            {"unit_type": "fleet", "location": "bre", "order_type": "move", "target": "mao"},
+            {"unit_type": "army", "location": "par", "order_type": "move", "target": "pic"},
+            {"unit_type": "army", "location": "mar", "order_type": "move", "target": "spa"}
+          ]
+        },
+        {
+          "name": "Burgundy",
+          "weight": 17.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "bre", "order_type": "move", "target": "mao"},
+            {"unit_type": "army", "location": "par", "order_type": "move", "target": "bur"},
+            {"unit_type": "army", "location": "mar", "order_type": "move", "target": "spa"}
+          ]
+        },
+        {
+          "name": "Guernsey",
+          "weight": 7.3,
+          "orders": [
+            {"unit_type": "fleet", "location": "bre", "order_type": "move", "target": "eng"},
+            {"unit_type": "army", "location": "par", "order_type": "move", "target": "pic"},
+            {"unit_type": "army", "location": "mar", "order_type": "move", "target": "spa"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "germany",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"kie": "fleet", "ber": "army", "mun": "army"}
+      },
+      "options": [
+        {
+          "name": "Danish Blitzkrieg",
+          "weight": 32.3,
+          "orders": [
+            {"unit_type": "fleet", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "ber", "order_type": "move", "target": "kie"},
+            {"unit_type": "army", "location": "mun", "order_type": "move", "target": "ruh"}
+          ]
+        },
+        {
+          "name": "Burgundian Attack",
+          "weight": 18.6,
+          "orders": [
+            {"unit_type": "fleet", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "ber", "order_type": "move", "target": "kie"},
+            {"unit_type": "army", "location": "mun", "order_type": "move", "target": "bur"}
+          ]
+        },
+        {
+          "name": "Baltic Opening",
+          "weight": 9.1,
+          "orders": [
+            {"unit_type": "fleet", "location": "kie", "order_type": "move", "target": "bal"},
+            {"unit_type": "army", "location": "ber", "order_type": "move", "target": "kie"},
+            {"unit_type": "army", "location": "mun", "order_type": "move", "target": "ruh"}
+          ]
+        },
+        {
+          "name": "Helgoland Opening",
+          "weight": 4.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "kie", "order_type": "move", "target": "hel"},
+            {"unit_type": "army", "location": "ber", "order_type": "move", "target": "kie"},
+            {"unit_type": "army", "location": "mun", "order_type": "move", "target": "ruh"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "italy",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"nap": "fleet", "rom": "army", "ven": "army"}
+      },
+      "options": [
+        {
+          "name": "Trentino Attack",
+          "weight": 20.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "nap", "order_type": "move", "target": "ion"},
+            {"unit_type": "army", "location": "rom", "order_type": "move", "target": "ven"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "tyr"}
+          ]
+        },
+        {
+          "name": "Lepanto Preparation",
+          "weight": 19.1,
+          "orders": [
+            {"unit_type": "fleet", "location": "nap", "order_type": "move", "target": "ion"},
+            {"unit_type": "army", "location": "rom", "order_type": "move", "target": "ven"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "apu"}
+          ]
+        },
+        {
+          "name": "Alpine Chicken",
+          "weight": 8.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "nap", "order_type": "move", "target": "ion"},
+            {"unit_type": "army", "location": "rom", "order_type": "move", "target": "ven"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "pie"}
+          ]
+        },
+        {
+          "name": "Trieste Strike",
+          "weight": 5.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "nap", "order_type": "move", "target": "ion"},
+            {"unit_type": "army", "location": "rom", "order_type": "move", "target": "ven"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "tri"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "austria",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"tri": "fleet", "vie": "army", "bud": "army"}
+      },
+      "options": [
+        {
+          "name": "Slovenian",
+          "weight": 18.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "tri", "order_type": "move", "target": "alb"},
+            {"unit_type": "army", "location": "bud", "order_type": "move", "target": "ser"},
+            {"unit_type": "army", "location": "vie", "order_type": "move", "target": "tri"}
+          ]
+        },
+        {
+          "name": "Galician",
+          "weight": 16.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "tri", "order_type": "move", "target": "alb"},
+            {"unit_type": "army", "location": "bud", "order_type": "move", "target": "ser"},
+            {"unit_type": "army", "location": "vie", "order_type": "move", "target": "gal"}
+          ]
+        },
+        {
+          "name": "Balkan",
+          "weight": 14.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "tri", "order_type": "move", "target": "alb"},
+            {"unit_type": "army", "location": "bud", "order_type": "move", "target": "ser"},
+            {"unit_type": "army", "location": "vie", "order_type": "move", "target": "bud"}
+          ]
+        },
+        {
+          "name": "Hungarian Houseboat",
+          "weight": 4.8,
+          "orders": [
+            {"unit_type": "fleet", "location": "tri", "order_type": "hold"},
+            {"unit_type": "army", "location": "bud", "order_type": "move", "target": "ser"},
+            {"unit_type": "army", "location": "vie", "order_type": "move", "target": "gal"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "russia",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"stp": "fleet", "sev": "fleet", "mos": "army", "war": "army"}
+      },
+      "options": [
+        {
+          "name": "Southern Defence",
+          "weight": 22.4,
+          "orders": [
+            {"unit_type": "fleet", "location": "stp", "coast": "sc", "order_type": "move", "target": "bot"},
+            {"unit_type": "fleet", "location": "sev", "order_type": "move", "target": "bla"},
+            {"unit_type": "army", "location": "mos", "order_type": "move", "target": "ukr"},
+            {"unit_type": "army", "location": "war", "order_type": "move", "target": "gal"}
+          ]
+        },
+        {
+          "name": "Ukrainian System",
+          "weight": 9.2,
+          "orders": [
+            {"unit_type": "fleet", "location": "stp", "coast": "sc", "order_type": "move", "target": "bot"},
+            {"unit_type": "fleet", "location": "sev", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "mos", "order_type": "move", "target": "ukr"},
+            {"unit_type": "army", "location": "war", "order_type": "move", "target": "gal"}
+          ]
+        },
+        {
+          "name": "The Squid",
+          "weight": 7.8,
+          "orders": [
+            {"unit_type": "fleet", "location": "stp", "coast": "sc", "order_type": "move", "target": "bot"},
+            {"unit_type": "fleet", "location": "sev", "order_type": "move", "target": "bla"},
+            {"unit_type": "army", "location": "mos", "order_type": "move", "target": "stp"},
+            {"unit_type": "army", "location": "war", "order_type": "move", "target": "ukr"}
+          ]
+        },
+        {
+          "name": "The Octopus",
+          "weight": 5.0,
+          "orders": [
+            {"unit_type": "fleet", "location": "stp", "coast": "sc", "order_type": "move", "target": "bot"},
+            {"unit_type": "fleet", "location": "sev", "order_type": "move", "target": "bla"},
+            {"unit_type": "army", "location": "mos", "order_type": "move", "target": "stp"},
+            {"unit_type": "army", "location": "war", "order_type": "move", "target": "gal"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "turkey",
+      "year": 1901,
+      "season": "spring",
+      "phase": "movement",
+      "condition": {
+        "positions": {"ank": "fleet", "con": "army", "smy": "army"}
+      },
+      "options": [
+        {
+          "name": "Byzantine",
+          "weight": 47.5,
+          "orders": [
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "army", "location": "smy", "order_type": "move", "target": "con"},
+            {"unit_type": "fleet", "location": "ank", "order_type": "move", "target": "bla"}
+          ]
+        },
+        {
+          "name": "Armenian Attack",
+          "weight": 13.0,
+          "orders": [
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "army", "location": "smy", "order_type": "move", "target": "arm"},
+            {"unit_type": "fleet", "location": "ank", "order_type": "move", "target": "bla"}
+          ]
+        },
+        {
+          "name": "Anti-Lepanto",
+          "weight": 8.7,
+          "orders": [
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "army", "location": "smy", "order_type": "move", "target": "arm"},
+            {"unit_type": "fleet", "location": "ank", "order_type": "move", "target": "con"}
+          ]
+        },
+        {
+          "name": "Boston Strangler",
+          "weight": 4.7,
+          "orders": [
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "army", "location": "smy", "order_type": "move", "target": "con"},
+            {"unit_type": "fleet", "location": "ank", "order_type": "hold"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "england",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"nrg": "fleet", "nth": "fleet", "edi": "army"}
+      },
+      "options": [
+        {
+          "name": "Northern: convoy edi to nwy",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "nrg", "order_type": "convoy", "aux_loc": "edi", "aux_target": "nwy", "aux_unit_type": "army"},
+            {"unit_type": "army", "location": "edi", "order_type": "move", "target": "nwy"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "bel"}
+          ]
+        },
+        {
+          "name": "Northern: nrg to nwy, nth to bel",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "nrg", "order_type": "move", "target": "nwy"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "edi", "order_type": "move", "target": "yor"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "england",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"nrg": "fleet", "nth": "fleet", "wal": "army"}
+      },
+      "options": [
+        {
+          "name": "Welsh: nwy+hol",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "nrg", "order_type": "move", "target": "nwy"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "hol"},
+            {"unit_type": "army", "location": "wal", "order_type": "move", "target": "lon"}
+          ]
+        },
+        {
+          "name": "Welsh: nwy+bel",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "nrg", "order_type": "move", "target": "nwy"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "wal", "order_type": "move", "target": "lon"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "england",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"nth": "fleet", "eng": "fleet", "wal": "army"}
+      },
+      "options": [
+        {
+          "name": "Channel: eng to bel, nth to nwy",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "eng", "order_type": "move", "target": "bel"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "wal", "order_type": "move", "target": "lon"}
+          ]
+        },
+        {
+          "name": "Channel: eng to bre",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "eng", "order_type": "move", "target": "bre"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "wal", "order_type": "move", "target": "lon"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "england",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"nth": "fleet", "eng": "fleet", "edi": "army"}
+      },
+      "options": [
+        {
+          "name": "Edinburgh: eng to bel, nth to nwy",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "eng", "order_type": "move", "target": "bel"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "edi", "order_type": "move", "target": "yor"}
+          ]
+        },
+        {
+          "name": "Edinburgh: eng to bre",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "eng", "order_type": "move", "target": "bre"},
+            {"unit_type": "fleet", "location": "nth", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "edi", "order_type": "move", "target": "yor"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "france",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"mao": "fleet", "bur": "army", "mar": "army"}
+      },
+      "options": [
+        {
+          "name": "Maginot: por+bel",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "mao", "order_type": "move", "target": "por"},
+            {"unit_type": "army", "location": "bur", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "mar", "order_type": "move", "target": "spa"}
+          ]
+        },
+        {
+          "name": "Maginot: spa+mun",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "mao", "order_type": "move", "target": "spa", "target_coast": "sc"},
+            {"unit_type": "army", "location": "bur", "order_type": "move", "target": "mun"},
+            {"unit_type": "army", "location": "mar", "order_type": "move", "target": "bur"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "france",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"mao": "fleet", "pic": "army", "spa": "army"}
+      },
+      "options": [
+        {
+          "name": "Picardy: pic to bel, spa to mar",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "mao", "order_type": "move", "target": "por"},
+            {"unit_type": "army", "location": "pic", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "spa", "order_type": "move", "target": "mar"}
+          ]
+        },
+        {
+          "name": "Picardy: mao to spa(sc)",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "mao", "order_type": "move", "target": "spa", "target_coast": "sc"},
+            {"unit_type": "army", "location": "pic", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "spa", "order_type": "move", "target": "por"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "france",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"mao": "fleet", "bur": "army", "spa": "army"}
+      },
+      "options": [
+        {
+          "name": "Burgundy: bel+por",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "mao", "order_type": "move", "target": "por"},
+            {"unit_type": "army", "location": "bur", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "spa", "order_type": "move", "target": "mar"}
+          ]
+        },
+        {
+          "name": "Burgundy: mun push",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "mao", "order_type": "move", "target": "por"},
+            {"unit_type": "army", "location": "bur", "order_type": "move", "target": "mun"},
+            {"unit_type": "army", "location": "spa", "order_type": "move", "target": "mar"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "france",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"eng": "fleet", "pic": "army", "spa": "army"}
+      },
+      "options": [
+        {
+          "name": "Guernsey: eng to bel, pic supports",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "eng", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "pic", "order_type": "support", "aux_loc": "eng", "aux_target": "bel", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "spa", "order_type": "move", "target": "por"}
+          ]
+        },
+        {
+          "name": "Guernsey: eng to nth",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "eng", "order_type": "move", "target": "nth"},
+            {"unit_type": "army", "location": "pic", "order_type": "move", "target": "bel"},
+            {"unit_type": "army", "location": "spa", "order_type": "move", "target": "por"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "germany",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"den": "fleet", "kie": "army", "ruh": "army"}
+      },
+      "options": [
+        {
+          "name": "Danish: swe+hol",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "den", "order_type": "move", "target": "swe"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "mun"},
+            {"unit_type": "army", "location": "ruh", "order_type": "move", "target": "hol"}
+          ]
+        },
+        {
+          "name": "Danish: swe+bel",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "den", "order_type": "move", "target": "swe"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "ruh", "order_type": "move", "target": "bel"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "germany",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"den": "fleet", "kie": "army", "bur": "army"}
+      },
+      "options": [
+        {
+          "name": "Burgundian: bur to bel",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "den", "order_type": "move", "target": "swe"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "mun"},
+            {"unit_type": "army", "location": "bur", "order_type": "move", "target": "bel"}
+          ]
+        },
+        {
+          "name": "Burgundian: bur to mar",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "den", "order_type": "move", "target": "swe"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "mun"},
+            {"unit_type": "army", "location": "bur", "order_type": "move", "target": "mar"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "germany",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"den": "fleet", "kie": "army", "mun": "army"}
+      },
+      "options": [
+        {
+          "name": "Burgundian bounce: fallback",
+          "weight": 100,
+          "orders": [
+            {"unit_type": "fleet", "location": "den", "order_type": "move", "target": "swe"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "mun", "order_type": "move", "target": "ruh"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "germany",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bal": "fleet", "kie": "army", "ruh": "army"}
+      },
+      "options": [
+        {
+          "name": "Baltic: swe+hol",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "bal", "order_type": "move", "target": "swe"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "ruh", "order_type": "move", "target": "hol"}
+          ]
+        },
+        {
+          "name": "Baltic: den+bel",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "bal", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "mun"},
+            {"unit_type": "army", "location": "ruh", "order_type": "move", "target": "bel"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "germany",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"hel": "fleet", "kie": "army", "ruh": "army"}
+      },
+      "options": [
+        {
+          "name": "Helgoland: hol+den",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "hel", "order_type": "move", "target": "hol"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "ruh", "order_type": "move", "target": "bel"}
+          ]
+        },
+        {
+          "name": "Helgoland: nth+den",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "hel", "order_type": "move", "target": "nth"},
+            {"unit_type": "army", "location": "kie", "order_type": "move", "target": "den"},
+            {"unit_type": "army", "location": "ruh", "order_type": "move", "target": "bel"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "italy",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"ion": "fleet", "ven": "army", "tyr": "army"}
+      },
+      "options": [
+        {
+          "name": "Trentino: tun+mun",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "hold"},
+            {"unit_type": "army", "location": "tyr", "order_type": "move", "target": "mun"}
+          ]
+        },
+        {
+          "name": "Trentino: tun+vie",
+          "weight": 30,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "hold"},
+            {"unit_type": "army", "location": "tyr", "order_type": "move", "target": "vie"}
+          ]
+        },
+        {
+          "name": "Trentino: tun+tri",
+          "weight": 30,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "tri"},
+            {"unit_type": "army", "location": "tyr", "order_type": "support", "aux_loc": "ven", "aux_target": "tri", "aux_unit_type": "army"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "italy",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"ion": "fleet", "ven": "army", "apu": "army"}
+      },
+      "options": [
+        {
+          "name": "Lepanto: convoy to tun",
+          "weight": 70,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "convoy", "aux_loc": "apu", "aux_target": "tun", "aux_unit_type": "army"},
+            {"unit_type": "army", "location": "apu", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "hold"}
+          ]
+        },
+        {
+          "name": "Lepanto: ion to tun direct",
+          "weight": 30,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "apu", "order_type": "move", "target": "nap"},
+            {"unit_type": "army", "location": "ven", "order_type": "hold"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "italy",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"ion": "fleet", "ven": "army", "pie": "army"}
+      },
+      "options": [
+        {
+          "name": "Alpine: tun+mar",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "hold"},
+            {"unit_type": "army", "location": "pie", "order_type": "move", "target": "mar"}
+          ]
+        },
+        {
+          "name": "Alpine: tun+tyr",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "hold"},
+            {"unit_type": "army", "location": "pie", "order_type": "move", "target": "tyr"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "italy",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"ion": "fleet", "rom": "army", "ven": "army"}
+      },
+      "options": [
+        {
+          "name": "Trieste bounce: tun+tyr",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "rom", "order_type": "move", "target": "apu"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "tyr"}
+          ]
+        },
+        {
+          "name": "Trieste bounce: tun+tri retry",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "rom", "order_type": "move", "target": "ven"},
+            {"unit_type": "army", "location": "ven", "order_type": "move", "target": "tri"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "italy",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"ion": "fleet", "ven": "army", "tri": "army"}
+      },
+      "options": [
+        {
+          "name": "Trieste: tun+ser",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "support", "aux_loc": "tri", "aux_target": "ser", "aux_unit_type": "army"},
+            {"unit_type": "army", "location": "tri", "order_type": "move", "target": "ser"}
+          ]
+        },
+        {
+          "name": "Trieste: tun+alb",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "ion", "order_type": "move", "target": "tun"},
+            {"unit_type": "army", "location": "ven", "order_type": "support", "aux_loc": "tri", "aux_target": "alb", "aux_unit_type": "army"},
+            {"unit_type": "army", "location": "tri", "order_type": "move", "target": "alb"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "austria",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"alb": "fleet", "ser": "army", "tri": "army"}
+      },
+      "options": [
+        {
+          "name": "Slovenian: gre+vie",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "alb", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "ser", "order_type": "support", "aux_loc": "alb", "aux_target": "gre", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "tri", "order_type": "move", "target": "vie"}
+          ]
+        },
+        {
+          "name": "Slovenian: gre+ven",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "alb", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "ser", "order_type": "support", "aux_loc": "alb", "aux_target": "gre", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "tri", "order_type": "move", "target": "ven"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "austria",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"alb": "fleet", "ser": "army", "gal": "army"}
+      },
+      "options": [
+        {
+          "name": "Galician: gre+rum",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "alb", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "ser", "order_type": "support", "aux_loc": "alb", "aux_target": "gre", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "gal", "order_type": "move", "target": "rum"}
+          ]
+        },
+        {
+          "name": "Galician: gre, gal holds",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "alb", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "ser", "order_type": "support", "aux_loc": "alb", "aux_target": "gre", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "gal", "order_type": "hold"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "austria",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"alb": "fleet", "ser": "army", "bud": "army"}
+      },
+      "options": [
+        {
+          "name": "Balkan: gre+rum",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "alb", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "ser", "order_type": "support", "aux_loc": "alb", "aux_target": "gre", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "bud", "order_type": "move", "target": "rum"}
+          ]
+        },
+        {
+          "name": "Balkan: gre+gal",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "alb", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "ser", "order_type": "support", "aux_loc": "alb", "aux_target": "gre", "aux_unit_type": "fleet"},
+            {"unit_type": "army", "location": "bud", "order_type": "move", "target": "gal"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "austria",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"tri": "fleet", "ser": "army", "gal": "army"}
+      },
+      "options": [
+        {
+          "name": "Houseboat: tri to alb, rum",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "tri", "order_type": "move", "target": "alb"},
+            {"unit_type": "army", "location": "ser", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "gal", "order_type": "move", "target": "rum"}
+          ]
+        },
+        {
+          "name": "Houseboat: tri to adr",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "tri", "order_type": "move", "target": "adr"},
+            {"unit_type": "army", "location": "ser", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "gal", "order_type": "move", "target": "rum"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "russia",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bot": "fleet", "bla": "fleet", "ukr": "army", "gal": "army"}
+      },
+      "options": [
+        {
+          "name": "Southern: swe+rum",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "support", "aux_loc": "ukr", "aux_target": "rum", "aux_unit_type": "army"},
+            {"unit_type": "army", "location": "ukr", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "gal", "order_type": "support", "aux_loc": "ukr", "aux_target": "rum", "aux_unit_type": "army"}
+          ]
+        },
+        {
+          "name": "Southern: swe, bla to rum",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "ukr", "order_type": "move", "target": "sev"},
+            {"unit_type": "army", "location": "gal", "order_type": "move", "target": "rum"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "russia",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bot": "fleet", "rum": "fleet", "ukr": "army", "gal": "army"}
+      },
+      "options": [
+        {
+          "name": "Ukrainian: swe, rum to bla",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "rum", "order_type": "move", "target": "bla"},
+            {"unit_type": "army", "location": "ukr", "order_type": "move", "target": "sev"},
+            {"unit_type": "army", "location": "gal", "order_type": "hold"}
+          ]
+        },
+        {
+          "name": "Ukrainian: swe, rum to bul(ec)",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "rum", "order_type": "move", "target": "bul", "target_coast": "ec"},
+            {"unit_type": "army", "location": "ukr", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "gal", "order_type": "hold"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "russia",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bot": "fleet", "bla": "fleet", "stp": "army", "ukr": "army"}
+      },
+      "options": [
+        {
+          "name": "Squid: swe+nwy+rum",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "stp", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "ukr", "order_type": "move", "target": "rum"}
+          ]
+        },
+        {
+          "name": "Squid: swe+nwy, bla supports",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "support", "aux_loc": "ukr", "aux_target": "rum", "aux_unit_type": "army"},
+            {"unit_type": "army", "location": "stp", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "ukr", "order_type": "move", "target": "rum"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "russia",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bot": "fleet", "bla": "fleet", "stp": "army", "gal": "army"}
+      },
+      "options": [
+        {
+          "name": "Octopus: swe+nwy+rum",
+          "weight": 60,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "stp", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "gal", "order_type": "move", "target": "rum"}
+          ]
+        },
+        {
+          "name": "Octopus: swe+nwy, gal holds",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "fleet", "location": "bot", "order_type": "move", "target": "swe"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "stp", "order_type": "move", "target": "nwy"},
+            {"unit_type": "army", "location": "gal", "order_type": "hold"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "turkey",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bul": "army", "con": "army", "bla": "fleet"}
+      },
+      "options": [
+        {
+          "name": "Byzantine: gre+rum",
+          "weight": 40,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "support", "aux_loc": "bul", "aux_target": "rum", "aux_unit_type": "army"}
+          ]
+        },
+        {
+          "name": "Byzantine: ser, bla to rum",
+          "weight": 30,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "ser"},
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "move", "target": "rum"}
+          ]
+        },
+        {
+          "name": "Byzantine: rum direct",
+          "weight": 30,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "support", "aux_loc": "bul", "aux_target": "rum", "aux_unit_type": "army"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "turkey",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bul": "army", "arm": "army", "bla": "fleet"}
+      },
+      "options": [
+        {
+          "name": "Armenian: bul to gre, arm to sev",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "arm", "order_type": "move", "target": "sev"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "support", "aux_loc": "arm", "aux_target": "sev", "aux_unit_type": "army"}
+          ]
+        },
+        {
+          "name": "Armenian: bul to rum, arm holds",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "rum"},
+            {"unit_type": "army", "location": "arm", "order_type": "hold"},
+            {"unit_type": "fleet", "location": "bla", "order_type": "support", "aux_loc": "bul", "aux_target": "rum", "aux_unit_type": "army"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "turkey",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bul": "army", "arm": "army", "con": "fleet"}
+      },
+      "options": [
+        {
+          "name": "Anti-Lepanto: con to aeg, bul to gre",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "arm", "order_type": "move", "target": "smy"},
+            {"unit_type": "fleet", "location": "con", "order_type": "move", "target": "aeg"}
+          ]
+        },
+        {
+          "name": "Anti-Lepanto: con to bla, arm to sev",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "arm", "order_type": "move", "target": "sev"},
+            {"unit_type": "fleet", "location": "con", "order_type": "move", "target": "bla"}
+          ]
+        }
+      ]
+    },
+    {
+      "power": "turkey",
+      "year": 1901,
+      "season": "fall",
+      "phase": "movement",
+      "condition": {
+        "positions": {"bul": "army", "con": "army", "ank": "fleet"}
+      },
+      "options": [
+        {
+          "name": "Strangler: bul to gre, ank to bla",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "gre"},
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "fleet", "location": "ank", "order_type": "move", "target": "bla"}
+          ]
+        },
+        {
+          "name": "Strangler: bul to ser, ank to con",
+          "weight": 50,
+          "orders": [
+            {"unit_type": "army", "location": "bul", "order_type": "move", "target": "ser"},
+            {"unit_type": "army", "location": "con", "order_type": "move", "target": "bul"},
+            {"unit_type": "fleet", "location": "ank", "order_type": "move", "target": "con"}
+          ]
+        }
+      ]
+    }
+  ]
+}
