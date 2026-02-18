@@ -1,6 +1,6 @@
 # Rust Engine Optimization Round 2
 
-## Status: Pending
+## Status: Done
 
 ## Dependencies
 - 045 (original perf optimization task — round 1 done in 900b1e1)

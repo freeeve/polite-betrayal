@@ -49,10 +49,10 @@ const LOOKAHEAD_DEPTH: usize = 2;
 const REGRET_DISCOUNT: f64 = 0.95;
 
 /// Budget fraction for candidate generation.
-const BUDGET_CAND_GEN: f64 = 0.25;
+const BUDGET_CAND_GEN: f64 = 0.15;
 
 /// Budget fraction for RM+ iterations.
-const BUDGET_RM_ITER: f64 = 0.50;
+const BUDGET_RM_ITER: f64 = 0.60;
 
 /// Maximum entries in the second-ply greedy order cache.
 const GREEDY_CACHE_CAPACITY: usize = 1024;
@@ -1235,18 +1235,26 @@ pub fn regret_matching_search<W: Write>(
             .flat_map(|(_, (_, cands))| cands[0].iter().copied())
             .collect();
 
-        for ci in 0..our_k {
-            let mut all_orders: Vec<(Order, Power)> = Vec::with_capacity(
-                power_candidates[our_power_idx].1[ci].len() + opponent_profile.len(),
-            );
-            all_orders.extend_from_slice(&power_candidates[our_power_idx].1[ci]);
-            all_orders.extend_from_slice(&opponent_profile);
+        let warm_results: Vec<(usize, f64)> = (0..our_k)
+            .into_par_iter()
+            .map(|ci| {
+                let mut all_orders: Vec<(Order, Power)> = Vec::with_capacity(
+                    power_candidates[our_power_idx].1[ci].len() + opponent_profile.len(),
+                );
+                all_orders.extend_from_slice(&power_candidates[our_power_idx].1[ci]);
+                all_orders.extend_from_slice(&opponent_profile);
 
-            let (results, dislodged) = resolver.resolve(&all_orders, state);
-            let mut scratch = state.clone();
-            apply_resolution(&mut scratch, &results, &dislodged);
-            let score = rm_evaluate(power, &scratch) - coop_penalties[ci];
-            cum_regrets[our_power_idx][ci] = f64::max(0.0, score);
+                let mut tl_resolver = Resolver::new(64);
+                let (results, dislodged) = tl_resolver.resolve(&all_orders, state);
+                let mut scratch = state.clone();
+                apply_resolution(&mut scratch, &results, &dislodged);
+                let score = rm_evaluate(power, &scratch) - coop_penalties[ci];
+                (ci, f64::max(0.0, score))
+            })
+            .collect();
+
+        for (ci, score) in warm_results {
+            cum_regrets[our_power_idx][ci] = score;
             nodes += 1;
         }
     }
@@ -1327,6 +1335,7 @@ pub fn regret_matching_search<W: Write>(
         nodes += 1;
 
         // Counterfactual regret update for our power's alternatives (parallelized with rayon)
+        let cf_seed_base = iteration_count * 1000;
         let cf_results: Vec<(usize, f64)> = (0..our_k)
             .into_par_iter()
             .filter(|&ci| ci != sampled[our_power_idx])
@@ -1341,7 +1350,7 @@ pub fn regret_matching_search<W: Write>(
                 }
 
                 let mut tl_resolver = Resolver::new(64);
-                let mut tl_rng = SmallRng::from_entropy();
+                let mut tl_rng = SmallRng::seed_from_u64(cf_seed_base + ci as u64);
                 let mut tl_cache = GreedyOrderCache::new(GREEDY_CACHE_CAPACITY);
 
                 let (alt_results, alt_dislodged) = tl_resolver.resolve(&alt_orders, state);
@@ -1354,7 +1363,7 @@ pub fn regret_matching_search<W: Write>(
                     &alt_scratch,
                     power,
                     &mut tl_resolver,
-                    LOOKAHEAD_DEPTH,
+                    1, // Reduced depth for counterfactuals (relative regret only)
                     start_year,
                     &mut tl_rng,
                     &mut tl_cache,
