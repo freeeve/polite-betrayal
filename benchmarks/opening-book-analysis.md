@@ -4,6 +4,7 @@
 **Phases covered:** Spring 1901 through Fall 1907
 **Map:** Standard only
 **Clustering:** exact positions (1901), SC ownership (1902-1903), features (1904+)
+**Neighbor features:** stance classification, border pressure, bounces, SC counts
 
 **Total position clusters:** 615
 **Total order variants:** 1,222
@@ -119,708 +120,739 @@ Percentage of games where at least one book entry matches.
 | Russia | 0.0% | 0.0% |
 | Turkey | 0.0% | 0.0% |
 
+## Neighbor Stance Distribution (Sample)
+
+Distribution of neighbor stances in book entries for selected powers at F1901M.
+
+**France F1901M** (23 clusters):
+
+- vs austria: retreating: 23
+- vs england: neutral: 2, retreating: 21
+- vs germany: neutral: 1, retreating: 22
+- vs italy: neutral: 1, retreating: 22
+- vs russia: retreating: 23
+- vs turkey: retreating: 23
+
+**Germany F1901M** (16 clusters):
+
+- vs austria: neutral: 1, retreating: 15
+- vs england: retreating: 16
+- vs france: neutral: 9, retreating: 7
+- vs italy: neutral: 4, retreating: 12
+- vs russia: retreating: 16
+- vs turkey: retreating: 16
+
+**Austria F1901M** (19 clusters):
+
+- vs england: retreating: 19
+- vs france: retreating: 19
+- vs germany: neutral: 1, retreating: 18
+- vs italy: aggressive: 2, neutral: 16, retreating: 1
+- vs russia: neutral: 8, retreating: 11
+- vs turkey: retreating: 19
+
 ## Top Openings by Power and Phase
 
 ### Austria
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 16.2% | 16.2% | 20,710 | 127,571 | 5.1 | 21.9% | A vie-gal; F tri-alb; A bud-ser |
-| 2 | 15.5% | 15.5% | 19,722 | 127,571 | 4.6 | 16.9% | A bud-ser; F tri-alb; A vie-tri |
-| 3 | 10.9% | 10.9% | 13,884 | 127,571 | 4.7 | 18.7% | A vie-bud; F tri-alb; A bud-ser |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 16.2% | 20,710 | 5.1 | 21.9% | 1 | A vie-gal; F tri-alb; A bud-ser |
+| 2 | 15.5% | 19,722 | 4.6 | 16.9% | 1 | A bud-ser; F tri-alb; A vie-tri |
+| 3 | 10.9% | 13,884 | 4.7 | 18.7% | 1 | A vie-bud; F tri-alb; A bud-ser |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 47.0% | 3.2% | 4,133 | 8,792 | 0.7 | 0.7% | A vie H; F tri H; A bud H |
-| 2 | 29.5% | 4.4% | 5,605 | 19,025 | 5.3 | 20.8% | A vie-tri; F alb-gre; A ser S alb-gre |
-| 3 | 21.8% | 0.2% | 324 | 1,485 | 5.2 | 19.4% | A tyr-tri; F alb-gre; A ser S alb-gre |
-| 4 | 20.5% | 2.8% | 3,583 | 17,444 | 5.8 | 21.9% | A tri H; F alb-gre; A ser S alb-gre |
-| 5 | 19.5% | 2.9% | 3,703 | 19,025 | 5.8 | 24.5% | A vie-gal; F alb-gre; A ser S alb-gre |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 47.0% | 4,133 | 0.7 | 0.7% | 2 | A vie H; F tri H; A bud H |
+| 2 | 29.5% | 5,605 | 5.3 | 20.8% | 1 | A vie-tri; F alb-gre; A ser S alb-gre |
+| 3 | 21.8% | 324 | 5.2 | 19.4% | 2 | A tyr-tri; F alb-gre; A ser S alb-gre |
+| 4 | 20.5% | 3,583 | 5.8 | 21.9% | 2 | A tri H; F alb-gre; A ser S alb-gre |
+| 5 | 19.5% | 3,703 | 5.8 | 24.5% | 1 | A vie-gal; F alb-gre; A ser S alb-gre |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 100.0% | 6.3% | 6,364 | 6,364 | 2.6 | 6.5% | A bud B |
-| 2 | 100.0% | 3.3% | 3,367 | 3,367 | 2.7 | 6.4% | A vie B |
-| 3 | 92.6% | 2.1% | 2,090 | 2,256 | 5.2 | 21.9% | A vie B; A bud B |
-| 4 | 89.6% | 12.3% | 12,403 | 13,848 | 6.1 | 24.1% | A bud B; A vie B |
-| 5 | 72.8% | 0.7% | 745 | 1,023 | 2.5 | 6.3% | A bud B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 100.0% | 6,364 | 2.6 | 6.5% | 3 | A bud B |
+| 2 | 100.0% | 3,367 | 2.7 | 6.4% | 3 | A vie B |
+| 3 | 92.6% | 2,090 | 5.2 | 21.9% | 4 | A vie B; A bud B |
+| 4 | 89.6% | 12,403 | 6.1 | 24.1% | 4 | A bud B; A vie B |
+| 5 | 72.8% | 745 | 2.5 | 6.3% | 3 | A bud B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 32.2% | 0.1% | 154 | 478 | 0.1 | 0.0% | A vie H; A bud H |
-| 2 | 26.0% | 0.1% | 84 | 323 | 0.1 | 0.0% | A bud H; A ser H |
-| 3 | 14.2% | 0.1% | 68 | 478 | 0.4 | 0.0% | A vie-tri; A bud S vie-tri |
-| 4 | 8.7% | 0.3% | 280 | 3,208 | 5.0 | 18.9% | A vie-gal; F alb-gre; A ser S alb-gre; A bud S vie-gal |
-| 5 | 8.7% | 0.3% | 330 | 3,804 | 2.3 | 5.8% | F gre-ion; A bud-tri; A vie S bud-tri; A ser S bud-tri |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 32.2% | 154 | 0.1 | 0.0% | 2 | A vie H; A bud H |
+| 2 | 26.0% | 84 | 0.1 | 0.0% | 3 | A bud H; A ser H |
+| 3 | 14.2% | 68 | 0.4 | 0.0% | 2 | A vie-tri; A bud S vie-tri |
+| 4 | 8.7% | 280 | 5.0 | 18.9% | 3 | A vie-gal; F alb-gre; A ser S alb-gre; A bud S vie-gal |
+| 5 | 8.7% | 330 | 2.3 | 5.8% | 3 | F gre-ion; A bud-tri; A vie S bud-tri; A ser S bud-tri |
 
 #### F1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 16.9% | 0.1% | 61 | 362 | 0.8 | 0.0% | F alb-tri; A vie S alb-tri; A ser S alb-tri; A bud S alb-tri |
-| 2 | 15.5% | 0.1% | 56 | 362 | 1.8 | 3.6% | A bud-tri; A ser S bud-tri; F alb S bud-tri; A vie S bud-tri |
-| 3 | 9.9% | 0.3% | 265 | 2,685 | 1.2 | 0.8% | A ser H; F tri H; A bud H; A vie H |
-| 4 | 8.5% | 0.1% | 61 | 720 | 1.1 | 0.0% | F alb H; A ser H; A tri H; A bud H |
-| 5 | 8.1% | 0.1% | 112 | 1,377 | 1.8 | 4.5% | A bud H; F alb H; A ser H; A vie H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 16.9% | 61 | 0.8 | 0.0% | 6 | F alb-tri; A vie S alb-tri; A ser S alb-tri; A bud S alb-tri |
+| 2 | 15.5% | 56 | 1.8 | 3.6% | 6 | A bud-tri; A ser S bud-tri; F alb S bud-tri; A vie S bud-tri |
+| 3 | 9.9% | 265 | 1.2 | 0.8% | 4 | A ser H; F tri H; A bud H; A vie H |
+| 4 | 8.5% | 61 | 1.1 | 0.0% | 6 | F alb H; A ser H; A tri H; A bud H |
+| 5 | 8.1% | 112 | 1.8 | 4.5% | 5 | A bud H; F alb H; A ser H; A vie H |
 
 #### W1902A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 100.0% | 1.6% | 988 | 988 | 4.9 | 13.5% | A bud B |
-| 2 | 100.0% | 0.6% | 345 | 345 | 8.2 | 33.0% | A vie B |
-| 3 | 100.0% | 1.2% | 755 | 755 | 5.4 | 15.6% | A vie B |
-| 4 | 100.0% | 0.7% | 404 | 404 | 3.6 | 7.4% | A bud B |
-| 5 | 100.0% | 0.6% | 356 | 356 | 7.3 | 32.0% | A vie B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 100.0% | 988 | 4.9 | 13.5% | 6 | A bud B |
+| 2 | 100.0% | 345 | 8.2 | 33.0% | 5 | A vie B |
+| 3 | 100.0% | 755 | 5.4 | 15.6% | 4 | A vie B |
+| 4 | 100.0% | 404 | 3.6 | 7.4% | 9 | A bud B |
+| 5 | 100.0% | 356 | 7.3 | 32.0% | 5 | A vie B |
 
 #### S1903M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 59.4% | 0.2% | 95 | 160 | 0.1 | 0.0% | A tri H |
-| 2 | 56.0% | 0.3% | 178 | 318 | 0.1 | 0.0% | A vie H |
-| 3 | 55.9% | 0.2% | 142 | 254 | 0.0 | 0.0% | A bud H |
-| 4 | 48.3% | 0.1% | 84 | 174 | 0.1 | 0.0% | A ser H |
-| 5 | 26.7% | 0.2% | 119 | 446 | 0.2 | 0.0% | A vie S bud; A bud S vie |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 59.4% | 95 | 0.1 | 0.0% | 4 | A tri H |
+| 2 | 56.0% | 178 | 0.1 | 0.0% | 5 | A vie H |
+| 3 | 55.9% | 142 | 0.0 | 0.0% | 4 | A bud H |
+| 4 | 48.3% | 84 | 0.1 | 0.0% | 5 | A ser H |
+| 5 | 26.7% | 119 | 0.2 | 0.0% | 6 | A vie S bud; A bud S vie |
 
 #### F1903M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 59.8% | 0.1% | 61 | 102 | 0.0 | 0.0% | A bud H |
-| 2 | 52.9% | 0.1% | 90 | 170 | 0.0 | 0.0% | A vie H |
-| 3 | 28.4% | 0.1% | 65 | 229 | 0.2 | 0.0% | A vie S bud; A bud S vie |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 59.8% | 61 | 0.0 | 0.0% | 4 | A bud H |
+| 2 | 52.9% | 90 | 0.0 | 0.0% | 3 | A vie H |
+| 3 | 28.4% | 65 | 0.2 | 0.0% | 5 | A vie S bud; A bud S vie |
 
 #### W1903A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 100.0% | 0.4% | 156 | 156 | 0.0 | 0.0% | A gal D |
-| 2 | 100.0% | 0.5% | 195 | 195 | 0.0 | 0.0% | F adr D |
-| 3 | 100.0% | 0.6% | 231 | 231 | 0.0 | 0.0% | A alb D |
-| 4 | 100.0% | 0.4% | 147 | 147 | 0.0 | 0.0% | F alb D |
-| 5 | 100.0% | 0.6% | 215 | 215 | 0.0 | 0.0% | A tyr D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 100.0% | 156 | 0.0 | 0.0% | 0 | A gal D |
+| 2 | 100.0% | 195 | 0.0 | 0.0% | 0 | F adr D |
+| 3 | 100.0% | 231 | 0.0 | 0.0% | 0 | A alb D |
+| 4 | 100.0% | 147 | 0.0 | 0.0% | 0 | F alb D |
+| 5 | 100.0% | 215 | 0.0 | 0.0% | 0 | A tyr D |
 
 #### S1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 26.3% | 0.2% | 62 | 236 | 0.1 | 0.0% | A ser H |
-| 2 | 18.8% | 0.6% | 200 | 1,062 | 0.1 | 0.0% | A vie H |
-| 3 | 13.0% | 0.4% | 138 | 1,062 | 0.0 | 0.0% | A bud H |
-| 4 | 9.5% | 0.2% | 75 | 787 | 0.3 | 0.0% | A vie S bud; A bud S vie |
-| 5 | 8.9% | 0.3% | 95 | 1,062 | 0.2 | 0.0% | A tri H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 26.3% | 62 | 0.1 | 0.0% | 5 | A ser H |
+| 2 | 18.8% | 200 | 0.1 | 0.0% | 4 | A vie H |
+| 3 | 13.0% | 138 | 0.0 | 0.0% | 4 | A bud H |
+| 4 | 9.5% | 75 | 0.3 | 0.0% | 5 | A vie S bud; A bud S vie |
+| 5 | 8.9% | 95 | 0.2 | 0.0% | 4 | A tri H |
 
 #### F1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 16.9% | 0.4% | 121 | 718 | 0.1 | 0.0% | A vie H |
-| 2 | 8.9% | 0.2% | 64 | 718 | 0.1 | 0.0% | A bud H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 16.9% | 121 | 0.1 | 0.0% | 3 | A vie H |
+| 2 | 8.9% | 64 | 0.1 | 0.0% | 3 | A bud H |
 
 #### W1904A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 97.1% | 0.5% | 102 | 105 | 0.0 | 0.0% | A alb D |
-| 2 | 66.7% | 0.5% | 104 | 156 | 0.0 | 0.0% | F adr D |
-| 3 | 61.5% | 0.8% | 169 | 275 | 0.0 | 0.0% | A gal D |
-| 4 | 58.1% | 0.8% | 168 | 289 | 0.0 | 0.0% | A tyr D |
-| 5 | 49.6% | 0.3% | 58 | 117 | 0.2 | 0.0% | A gal D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 97.1% | 102 | 0.0 | 0.0% | 0 | A alb D |
+| 2 | 66.7% | 104 | 0.0 | 0.0% | 0 | F adr D |
+| 3 | 61.5% | 169 | 0.0 | 0.0% | 0 | A gal D |
+| 4 | 58.1% | 168 | 0.0 | 0.0% | 0 | A tyr D |
+| 5 | 49.6% | 58 | 0.2 | 0.0% | 4 | A gal D |
 
 #### S1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 17.3% | 0.4% | 80 | 462 | 0.1 | 0.0% | A vie H |
-| 2 | 12.8% | 0.3% | 59 | 462 | 0.1 | 0.0% | A bud H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 17.3% | 80 | 0.1 | 0.0% | 3 | A vie H |
+| 2 | 12.8% | 59 | 0.1 | 0.0% | 3 | A bud H |
 
 #### W1905A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 60.2% | 0.6% | 80 | 133 | 0.0 | 0.0% | A gal D |
-| 2 | 57.9% | 0.6% | 81 | 140 | 0.0 | 0.0% | A tyr D |
-| 3 | 41.4% | 0.4% | 58 | 140 | 0.0 | 0.0% | A boh D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 60.2% | 80 | 0.0 | 0.0% | 0 | A gal D |
+| 2 | 57.9% | 81 | 0.0 | 0.0% | 0 | A tyr D |
+| 3 | 41.4% | 58 | 0.0 | 0.0% | 0 | A boh D |
 
 ### England
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 29.9% | 29.9% | 38,157 | 127,544 | 5.8 | 17.3% | F edi-nrg; F lon-nth; A lvp-yor |
-| 2 | 20.0% | 20.0% | 25,541 | 127,544 | 6.2 | 19.1% | A lvp-edi; F edi-nrg; F lon-nth |
-| 3 | 19.5% | 19.5% | 24,868 | 127,544 | 5.4 | 16.2% | F edi-nth; A lvp-yor; F lon-eng |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 29.9% | 38,157 | 5.8 | 17.3% | 0 | F edi-nrg; F lon-nth; A lvp-yor |
+| 2 | 20.0% | 25,541 | 6.2 | 19.1% | 0 | A lvp-edi; F edi-nrg; F lon-nth |
+| 3 | 19.5% | 24,868 | 5.4 | 16.2% | 0 | F edi-nth; A lvp-yor; F lon-eng |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 45.4% | 3.1% | 3,999 | 8,813 | 2.4 | 2.5% | F edi H; A lvp H; F lon H |
-| 2 | 41.5% | 2.2% | 2,819 | 6,785 | 5.1 | 14.3% | F lon-eng; A yor-nwy; F nth C yor-nwy |
-| 3 | 30.8% | 2.2% | 2,868 | 9,299 | 7.0 | 25.9% | A wal-bel; F nth-nwy; F eng C wal-bel |
-| 4 | 29.5% | 0.4% | 491 | 1,664 | 6.5 | 23.4% | F eng-bel; A edi-nwy; F nth C edi-nwy |
-| 5 | 24.9% | 3.8% | 4,814 | 19,345 | 6.4 | 22.8% | A yor-nwy; F eng-bel; F nth C yor-nwy |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 45.4% | 3,999 | 2.4 | 2.5% | 0 | F edi H; A lvp H; F lon H |
+| 2 | 41.5% | 2,819 | 5.1 | 14.3% | 0 | F lon-eng; A yor-nwy; F nth C yor-nwy |
+| 3 | 30.8% | 2,868 | 7.0 | 25.9% | 0 | A wal-bel; F nth-nwy; F eng C wal-bel |
+| 4 | 29.5% | 491 | 6.5 | 23.4% | 0 | F eng-bel; A edi-nwy; F nth C edi-nwy |
+| 5 | 24.9% | 4,814 | 6.4 | 22.8% | 0 | A yor-nwy; F eng-bel; F nth C yor-nwy |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 88.6% | 2.5% | 2,405 | 2,714 | 5.6 | 14.4% | F lon B |
-| 2 | 72.2% | 1.2% | 1,170 | 1,621 | 6.6 | 21.8% | F lon B |
-| 3 | 67.3% | 8.1% | 7,863 | 11,690 | 5.3 | 13.7% | F lon B |
-| 4 | 64.1% | 0.7% | 722 | 1,126 | 4.5 | 10.4% | F lon B |
-| 5 | 63.8% | 1.8% | 1,807 | 2,832 | 4.8 | 12.4% | F lon B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 88.6% | 2,405 | 5.6 | 14.4% | 0 | F lon B |
+| 2 | 72.2% | 1,170 | 6.6 | 21.8% | 0 | F lon B |
+| 3 | 67.3% | 7,863 | 5.3 | 13.7% | 2 | F lon B |
+| 4 | 64.1% | 722 | 4.5 | 10.4% | 1 | F lon B |
+| 5 | 63.8% | 1,807 | 4.8 | 12.4% | 1 | F lon B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 31.3% | 0.2% | 225 | 718 | 6.1 | 16.9% | A edi-nwy; A nwy-stp; F bar S nwy-stp; F nth C edi-nwy |
-| 2 | 28.6% | 0.3% | 298 | 1,042 | 6.1 | 19.5% | A nwy-stp; A lon-nwy; F bar S nwy-stp; F nth C lon-nwy |
-| 3 | 27.8% | 0.1% | 106 | 381 | 9.6 | 37.7% | A edi-nwy; F lon-nth; A nwy-swe; F den S nwy-swe; F nrg C edi-nwy |
-| 4 | 16.5% | 0.2% | 193 | 1,168 | 8.7 | 32.6% | F lon-nth; F ska-swe; F nrg-bar; A nwy S ska-swe |
-| 5 | 15.6% | 0.1% | 101 | 646 | 5.8 | 17.8% | F lvp-iri; F lon-eng; A nwy H; F nth S lon-eng |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 31.3% | 225 | 6.1 | 16.9% | 0 | A edi-nwy; A nwy-stp; F bar S nwy-stp; F nth C edi-nwy |
+| 2 | 28.6% | 298 | 6.1 | 19.5% | 0 | A nwy-stp; A lon-nwy; F bar S nwy-stp; F nth C lon-nwy |
+| 3 | 27.8% | 106 | 9.6 | 37.7% | 3 | A edi-nwy; F lon-nth; A nwy-swe; F den S nwy-swe; F nrg C... |
+| 4 | 16.5% | 193 | 8.7 | 32.6% | 0 | F lon-nth; F ska-swe; F nrg-bar; A nwy S ska-swe |
+| 5 | 15.6% | 101 | 5.8 | 17.8% | 2 | F lvp-iri; F lon-eng; A nwy H; F nth S lon-eng |
 
 #### F1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 22.1% | 0.1% | 68 | 307 | 6.4 | 13.2% | A lon-nwy; A nwy-stp; F bar S nwy-stp; F nth C lon-nwy |
-| 2 | 13.1% | 0.1% | 80 | 613 | 5.5 | 8.8% | F nrg-nwy; A nwy-stp; F nth S nrg-nwy; F bar S nwy-stp |
-| 3 | 8.9% | 0.1% | 63 | 710 | 6.3 | 17.5% | F lon-nth; F nth-nwy; A nwy-stp; F bar S nwy-stp |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 22.1% | 68 | 6.4 | 13.2% | 2 | A lon-nwy; A nwy-stp; F bar S nwy-stp; F nth C lon-nwy |
+| 2 | 13.1% | 80 | 5.5 | 8.8% | 2 | F nrg-nwy; A nwy-stp; F nth S nrg-nwy; F bar S nwy-stp |
+| 3 | 8.9% | 63 | 6.3 | 17.5% | 1 | F lon-nth; F nth-nwy; A nwy-stp; F bar S nwy-stp |
 
 #### W1902A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 38.2% | 0.2% | 145 | 380 | 7.4 | 17.9% | F lon B |
-| 2 | 32.4% | 0.2% | 142 | 438 | 7.3 | 22.5% | F lvp B |
-| 3 | 25.8% | 0.2% | 113 | 438 | 7.6 | 25.7% | F lon B |
-| 4 | 23.3% | 0.2% | 102 | 438 | 7.5 | 22.6% | A lon B |
-| 5 | 21.1% | 0.1% | 80 | 380 | 6.8 | 18.8% | A lon B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 38.2% | 145 | 7.4 | 17.9% | 2 | F lon B |
+| 2 | 32.4% | 142 | 7.3 | 22.5% | 4 | F lvp B |
+| 3 | 25.8% | 113 | 7.6 | 25.7% | 4 | F lon B |
+| 4 | 23.3% | 102 | 7.5 | 22.6% | 4 | A lon B |
+| 5 | 21.1% | 80 | 6.8 | 18.8% | 2 | A lon B |
 
 #### S1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 14.4% | 0.1% | 58 | 404 | 0.0 | 0.0% | F edi H |
-| 2 | 13.1% | 0.1% | 53 | 404 | 0.1 | 0.0% | F lon H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 14.4% | 58 | 0.0 | 0.0% | 2 | F edi H |
+| 2 | 13.1% | 53 | 0.1 | 0.0% | 2 | F lon H |
 
 #### F1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 15.0% | 0.1% | 56 | 372 | 0.2 | 0.0% | F edi H |
-| 2 | 13.4% | 0.1% | 50 | 372 | 0.1 | 0.0% | F lon H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 15.0% | 56 | 0.2 | 0.0% | 2 | F edi H |
+| 2 | 13.4% | 50 | 0.1 | 0.0% | 2 | F lon H |
 
 #### W1904A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 36.5% | 0.3% | 73 | 200 | 0.0 | 0.0% | F nrg D |
-| 2 | 27.9% | 0.2% | 60 | 215 | 0.0 | 0.0% | F yor D |
-| 3 | 26.0% | 0.2% | 52 | 200 | 0.0 | 0.0% | F ska D |
-| 4 | 25.5% | 0.2% | 51 | 200 | 0.0 | 0.0% | F nth D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 36.5% | 73 | 0.0 | 0.0% | 0 | F nrg D |
+| 2 | 27.9% | 60 | 0.0 | 0.0% | 0 | F yor D |
+| 3 | 26.0% | 52 | 0.0 | 0.0% | 0 | F ska D |
+| 4 | 25.5% | 51 | 0.0 | 0.0% | 0 | F nth D |
 
 #### S1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 16.9% | 0.3% | 80 | 473 | 0.1 | 0.0% | F lon H |
-| 2 | 13.7% | 0.3% | 65 | 473 | 0.1 | 0.0% | F edi H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 16.9% | 80 | 0.1 | 0.0% | 2 | F lon H |
+| 2 | 13.7% | 65 | 0.1 | 0.0% | 2 | F edi H |
 
 #### F1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 17.1% | 0.3% | 74 | 434 | 0.2 | 0.0% | F lon H |
-| 2 | 14.8% | 0.3% | 64 | 434 | 0.1 | 0.0% | F edi H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 17.1% | 74 | 0.2 | 0.0% | 2 | F lon H |
+| 2 | 14.8% | 64 | 0.1 | 0.0% | 2 | F edi H |
 
 ### France
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 19.1% | 19.1% | 24,424 | 127,563 | 6.0 | 20.3% | F bre-mao; A mar-spa; A par-bur |
-| 2 | 14.9% | 14.9% | 19,041 | 127,563 | 5.7 | 18.5% | F bre-mao; A par-pic; A mar-spa |
-| 3 | 11.8% | 11.8% | 15,011 | 127,563 | 6.9 | 25.5% | A par-bur; F bre-mao; A mar S par-bur |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 19.1% | 24,424 | 6.0 | 20.3% | 0 | F bre-mao; A mar-spa; A par-bur |
+| 2 | 14.9% | 19,041 | 5.7 | 18.5% | 0 | F bre-mao; A par-pic; A mar-spa |
+| 3 | 11.8% | 15,011 | 6.9 | 25.5% | 0 | A par-bur; F bre-mao; A mar S par-bur |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 52.8% | 2.6% | 3,374 | 6,395 | 2.2 | 2.9% | F bre H; A par H; A mar H |
-| 2 | 51.1% | 0.4% | 567 | 1,110 | 6.8 | 25.0% | A spa-por; A gas-spa; F pic-bel |
-| 3 | 45.7% | 2.4% | 3,045 | 6,657 | 7.0 | 27.2% | A pic-bel; A mar-spa; F mao-por |
-| 4 | 43.5% | 5.9% | 7,580 | 17,433 | 7.6 | 29.9% | A mar-spa; A bur-bel; F mao-por |
-| 5 | 41.4% | 0.6% | 773 | 1,866 | 7.5 | 28.6% | A mar-spa; A bur-bel; F eng S bur-bel |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 52.8% | 3,374 | 2.2 | 2.9% | 1 | F bre H; A par H; A mar H |
+| 2 | 51.1% | 567 | 6.8 | 25.0% | 1 | A spa-por; A gas-spa; F pic-bel |
+| 3 | 45.7% | 3,045 | 7.0 | 27.2% | 0 | A pic-bel; A mar-spa; F mao-por |
+| 4 | 43.5% | 7,580 | 7.6 | 29.9% | 0 | A mar-spa; A bur-bel; F mao-por |
+| 5 | 41.4% | 773 | 7.5 | 28.6% | 0 | A mar-spa; A bur-bel; F eng S bur-bel |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 71.2% | 1.2% | 1,391 | 1,953 | 6.0 | 17.0% | A par B; F bre B |
-| 2 | 61.0% | 1.1% | 1,225 | 2,007 | 4.7 | 9.9% | A par B |
-| 3 | 55.4% | 0.8% | 938 | 1,692 | 7.5 | 24.6% | A par B; F bre B |
-| 4 | 55.4% | 1.2% | 1,312 | 2,368 | 5.4 | 14.0% | A par B; F mar B |
-| 5 | 53.0% | 0.6% | 671 | 1,267 | 6.3 | 19.5% | A par B; F mar B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 71.2% | 1,391 | 6.0 | 17.0% | 0 | A par B; F bre B |
+| 2 | 61.0% | 1,225 | 4.7 | 9.9% | 1 | A par B |
+| 3 | 55.4% | 938 | 7.5 | 24.6% | 1 | A par B; F bre B |
+| 4 | 55.4% | 1,312 | 5.4 | 14.0% | 0 | A par B; F mar B |
+| 5 | 53.0% | 671 | 6.3 | 19.5% | 2 | A par B; F mar B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 28.0% | 0.1% | 99 | 354 | 6.6 | 26.3% | F spa-wes; A por-spa; F mar-gol; A par-bur; A pic S par-bur |
-| 2 | 25.5% | 0.1% | 86 | 337 | 4.7 | 10.5% | A spa-gas; A pic-bre; F por-mao; A par S pic-bre |
-| 3 | 22.6% | 0.1% | 76 | 337 | 5.1 | 10.5% | F por-mao; A spa-gas; A pic S par-bre; A par-bre |
-| 4 | 20.1% | 0.1% | 90 | 448 | 7.1 | 18.9% | F spa-wes; A bur-mar; A por-spa; F bre-mao; F mar-gol |
-| 5 | 17.8% | 0.1% | 103 | 580 | 3.9 | 8.7% | A par-bur; A bre-pic; F por-spa; A mar S par-bur |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 28.0% | 99 | 6.6 | 26.3% | 0 | F spa-wes; A por-spa; F mar-gol; A par-bur; A pic S par-bur |
+| 2 | 25.5% | 86 | 4.7 | 10.5% | 1 | A spa-gas; A pic-bre; F por-mao; A par S pic-bre |
+| 3 | 22.6% | 76 | 5.1 | 10.5% | 1 | F por-mao; A spa-gas; A pic S par-bre; A par-bre |
+| 4 | 20.1% | 90 | 7.1 | 18.9% | 0 | F spa-wes; A bur-mar; A por-spa; F bre-mao; F mar-gol |
+| 5 | 17.8% | 103 | 3.9 | 8.7% | 0 | A par-bur; A bre-pic; F por-spa; A mar S par-bur |
 
 #### F1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 17.8% | 0.1% | 71 | 400 | 4.3 | 11.3% | A por H; A pic-bel; F bre-eng; A bur S pic-bel |
-| 2 | 16.7% | 0.2% | 192 | 1,150 | 8.1 | 27.6% | F bre-eng; A mar-bur; A bur-bel; A pic S bur-bel; F mao S bre-eng |
-| 3 | 15.5% | 0.1% | 148 | 953 | 8.6 | 30.4% | A pic S bur-bel; F bre-eng; A bur-bel; A gas-bur; F mao S bre-eng |
-| 4 | 8.5% | 0.1% | 52 | 610 | 9.7 | 42.3% | A pic S bur-bel; A bur-bel; A gas-bur; F eng S bur-bel; F mao-iri |
-| 5 | 8.4% | 0.1% | 68 | 812 | 9.2 | 38.2% | A mar-bur; A bur-bel; F mao-iri; A pic S bur-bel; F eng S bur-bel |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 17.8% | 71 | 4.3 | 11.3% | 2 | A por H; A pic-bel; F bre-eng; A bur S pic-bel |
+| 2 | 16.7% | 192 | 8.1 | 27.6% | 0 | F bre-eng; A mar-bur; A bur-bel; A pic S bur-bel; F mao S... |
+| 3 | 15.5% | 148 | 8.6 | 30.4% | 1 | A pic S bur-bel; F bre-eng; A bur-bel; A gas-bur; F mao S... |
+| 4 | 8.5% | 52 | 9.7 | 42.3% | 0 | A pic S bur-bel; A bur-bel; A gas-bur; F eng S bur-bel; F... |
+| 5 | 8.4% | 68 | 9.2 | 38.2% | 0 | A mar-bur; A bur-bel; F mao-iri; A pic S bur-bel; F eng S... |
 
 #### S1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 21.9% | 0.2% | 60 | 274 | 0.2 | 0.0% | A par H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 21.9% | 60 | 0.2 | 0.0% | 1 | A par H |
 
 #### W1904A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 54.3% | 0.3% | 63 | 116 | 0.0 | 0.0% | A gas D |
-| 2 | 46.5% | 0.3% | 60 | 129 | 10.4 | 36.7% | F bre B |
-| 3 | 45.2% | 0.3% | 66 | 146 | 0.1 | 0.0% | A gas D |
-| 4 | 40.8% | 0.3% | 64 | 157 | 10.6 | 34.4% | F bre B |
-| 5 | 34.0% | 0.3% | 64 | 188 | 7.2 | 18.8% | F bre B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 54.3% | 63 | 0.0 | 0.0% | 0 | A gas D |
+| 2 | 46.5% | 60 | 10.4 | 36.7% | 2 | F bre B |
+| 3 | 45.2% | 66 | 0.1 | 0.0% | 1 | A gas D |
+| 4 | 40.8% | 64 | 10.6 | 34.4% | 5 | F bre B |
+| 5 | 34.0% | 64 | 7.2 | 18.8% | 2 | F bre B |
 
 #### S1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 23.3% | 0.4% | 74 | 317 | 0.1 | 0.0% | A par H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 23.3% | 74 | 0.1 | 0.0% | 2 | A par H |
 
 #### F1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 24.0% | 0.3% | 61 | 254 | 0.2 | 0.0% | A par H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 24.0% | 61 | 0.2 | 0.0% | 2 | A par H |
 
 ### Germany
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 29.9% | 29.9% | 38,107 | 127,562 | 5.4 | 20.4% | A ber-kie; A mun-ruh; F kie-den |
-| 2 | 15.6% | 15.6% | 19,856 | 127,562 | 4.8 | 17.4% | A ber-kie; A mun-ruh; F kie-hol |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 29.9% | 38,107 | 5.4 | 20.4% | 0 | A ber-kie; A mun-ruh; F kie-den |
+| 2 | 15.6% | 19,856 | 4.8 | 17.4% | 0 | A ber-kie; A mun-ruh; F kie-hol |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 63.8% | 4.0% | 5,153 | 8,070 | 1.1 | 1.1% | F kie H; A ber H; A mun H |
-| 2 | 48.5% | 7.5% | 9,629 | 19,856 | 5.5 | 21.8% | A kie-den; A ruh-bel; F hol S ruh-bel |
-| 3 | 34.5% | 0.7% | 895 | 2,595 | 6.3 | 26.3% | A bur-bel; A kie-den; F hol S bur-bel |
-| 4 | 29.5% | 0.2% | 307 | 1,040 | 4.8 | 20.2% | F den-swe; A sil-war; A pru S sil-war |
-| 5 | 26.6% | 0.2% | 290 | 1,091 | 6.1 | 24.5% | A sil-war; A kie-hol; F den-swe |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 63.8% | 5,153 | 1.1 | 1.1% | 0 | F kie H; A ber H; A mun H |
+| 2 | 48.5% | 9,629 | 5.5 | 21.8% | 1 | A kie-den; A ruh-bel; F hol S ruh-bel |
+| 3 | 34.5% | 895 | 6.3 | 26.3% | 0 | A bur-bel; A kie-den; F hol S bur-bel |
+| 4 | 29.5% | 307 | 4.8 | 20.2% | 2 | F den-swe; A sil-war; A pru S sil-war |
+| 5 | 26.6% | 290 | 6.1 | 24.5% | 0 | A sil-war; A kie-hol; F den-swe |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 76.5% | 1.4% | 1,544 | 2,018 | 2.6 | 5.8% | A ber B |
-| 2 | 67.2% | 1.3% | 1,425 | 2,120 | 3.2 | 8.7% | A mun B |
-| 3 | 63.8% | 1.2% | 1,377 | 2,158 | 2.5 | 4.7% | A ber B |
-| 4 | 62.4% | 0.8% | 881 | 1,413 | 2.8 | 6.0% | A mun B |
-| 5 | 55.1% | 1.5% | 1,611 | 2,926 | 4.9 | 17.9% | A mun B; F ber B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 76.5% | 1,544 | 2.6 | 5.8% | 3 | A ber B |
+| 2 | 67.2% | 1,425 | 3.2 | 8.7% | 2 | A mun B |
+| 3 | 63.8% | 1,377 | 2.5 | 4.7% | 2 | A ber B |
+| 4 | 62.4% | 881 | 2.8 | 6.0% | 3 | A mun B |
+| 5 | 55.1% | 1,611 | 4.9 | 17.9% | 2 | A mun B; F ber B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 15.3% | 0.2% | 178 | 1,164 | 2.6 | 2.2% | A mun-bur; A kie-den; A ruh-bel; F hol S ruh-bel |
-| 2 | 8.7% | 0.1% | 96 | 1,099 | 3.3 | 7.3% | F den-kie; A hol-kie; A ruh-mun; A ber S ruh-mun |
-| 3 | 8.6% | 0.1% | 94 | 1,099 | 3.9 | 11.7% | F den-kie; A hol-kie; A ber-mun; A ruh S ber-mun |
-| 4 | 8.4% | 0.1% | 92 | 1,099 | 2.7 | 8.7% | A ber-mun; A hol-bel; F den-kie; A ruh S ber-mun |
-| 5 | 8.3% | 0.2% | 174 | 2,086 | 1.8 | 1.7% | F hol H; A kie H; A mun H; A ber H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 15.3% | 178 | 2.6 | 2.2% | 2 | A mun-bur; A kie-den; A ruh-bel; F hol S ruh-bel |
+| 2 | 8.7% | 96 | 3.3 | 7.3% | 2 | F den-kie; A hol-kie; A ruh-mun; A ber S ruh-mun |
+| 3 | 8.6% | 94 | 3.9 | 11.7% | 2 | F den-kie; A hol-kie; A ber-mun; A ruh S ber-mun |
+| 4 | 8.4% | 92 | 2.7 | 8.7% | 2 | A ber-mun; A hol-bel; F den-kie; A ruh S ber-mun |
+| 5 | 8.3% | 174 | 1.8 | 1.7% | 4 | F hol H; A kie H; A mun H; A ber H |
 
 #### F1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 20.9% | 0.1% | 104 | 497 | 1.4 | 1.0% | F hol H; A kie H; A mun H; A ber H |
-| 2 | 18.0% | 0.1% | 98 | 545 | 1.2 | 1.0% | F den H; A kie H; A mun H; A ber H |
-| 3 | 17.9% | 0.2% | 277 | 1,546 | 6.5 | 23.1% | F bal-swe; A ruh-bel; A mun-bur; A hol S ruh-bel; F den S bal-swe |
-| 4 | 16.2% | 0.1% | 119 | 737 | 7.4 | 26.9% | F bal-swe; A mun-bur; A hol S bel; A bel S mun-bur; F den S ba... |
-| 5 | 13.9% | 0.1% | 55 | 396 | 6.6 | 20.0% | A bur-bel; F bal-swe; A ruh S bur-bel; A hol S bur-bel; F den ... |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 20.9% | 104 | 1.4 | 1.0% | 4 | F hol H; A kie H; A mun H; A ber H |
+| 2 | 18.0% | 98 | 1.2 | 1.0% | 5 | F den H; A kie H; A mun H; A ber H |
+| 3 | 17.9% | 277 | 6.5 | 23.1% | 4 | F bal-swe; A ruh-bel; A mun-bur; A hol S ruh-bel; F den S... |
+| 4 | 16.2% | 119 | 7.4 | 26.9% | 1 | F bal-swe; A mun-bur; A hol S bel; A bel S mun-bur; F den... |
+| 5 | 13.9% | 55 | 6.6 | 20.0% | 4 | A bur-bel; F bal-swe; A ruh S bur-bel; A hol S bur-bel; F... |
 
 #### W1902A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 68.0% | 0.3% | 232 | 341 | 4.1 | 8.6% | A kie B |
-| 2 | 66.7% | 0.3% | 222 | 333 | 2.6 | 1.8% | A ber B |
-| 3 | 54.4% | 0.3% | 209 | 384 | 6.6 | 21.5% | F kie B |
-| 4 | 53.4% | 0.4% | 262 | 491 | 5.6 | 17.9% | F kie B |
-| 5 | 48.1% | 0.3% | 236 | 491 | 3.9 | 6.8% | F kie B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 68.0% | 232 | 4.1 | 8.6% | 5 | A kie B |
+| 2 | 66.7% | 222 | 2.6 | 1.8% | 4 | A ber B |
+| 3 | 54.4% | 209 | 6.6 | 21.5% | 7 | F kie B |
+| 4 | 53.4% | 262 | 5.6 | 17.9% | 3 | F kie B |
+| 5 | 48.1% | 236 | 3.9 | 6.8% | 6 | F kie B |
 
 #### W1903A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 100.0% | 0.3% | 131 | 131 | 0.0 | 0.0% | A sil D |
-| 2 | 100.0% | 0.3% | 119 | 119 | 0.0 | 0.0% | A ruh D |
-| 3 | 57.8% | 0.1% | 59 | 102 | 8.2 | 27.1% | F kie B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 100.0% | 131 | 0.0 | 0.0% | 0 | A sil D |
+| 2 | 100.0% | 119 | 0.0 | 0.0% | 0 | A ruh D |
+| 3 | 57.8% | 59 | 8.2 | 27.1% | 5 | F kie B |
 
 #### S1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 15.8% | 0.4% | 149 | 940 | 0.1 | 0.0% | A ber H |
-| 2 | 15.2% | 0.4% | 143 | 940 | 0.1 | 0.0% | A mun H |
-| 3 | 6.6% | 0.2% | 62 | 940 | 0.1 | 0.0% | A kie H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 15.8% | 149 | 0.1 | 0.0% | 3 | A ber H |
+| 2 | 15.2% | 143 | 0.1 | 0.0% | 3 | A mun H |
+| 3 | 6.6% | 62 | 0.1 | 0.0% | 3 | A kie H |
 
 #### F1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 24.5% | 0.1% | 52 | 212 | 0.1 | 0.0% | A ber H |
-| 2 | 16.1% | 0.3% | 106 | 660 | 0.1 | 0.0% | A mun H |
-| 3 | 14.7% | 0.3% | 97 | 660 | 0.1 | 0.0% | A ber H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 24.5% | 52 | 0.1 | 0.0% | 7 | A ber H |
+| 2 | 16.1% | 106 | 0.1 | 0.0% | 5 | A mun H |
+| 3 | 14.7% | 97 | 0.1 | 0.0% | 5 | A ber H |
 
 #### W1904A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 55.8% | 0.4% | 87 | 156 | 0.0 | 0.0% | F hel D |
-| 2 | 51.0% | 0.3% | 78 | 153 | 0.1 | 0.0% | A ruh D |
-| 3 | 50.3% | 0.7% | 158 | 314 | 0.0 | 0.0% | A sil D |
-| 4 | 48.4% | 0.7% | 162 | 335 | 0.0 | 0.0% | A ruh D |
-| 5 | 44.2% | 0.3% | 69 | 156 | 0.0 | 0.0% | F bal D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 55.8% | 87 | 0.0 | 0.0% | 0 | F hel D |
+| 2 | 51.0% | 78 | 0.1 | 0.0% | 4 | A ruh D |
+| 3 | 50.3% | 158 | 0.0 | 0.0% | 0 | A sil D |
+| 4 | 48.4% | 162 | 0.0 | 0.0% | 0 | A ruh D |
+| 5 | 44.2% | 69 | 0.0 | 0.0% | 0 | F bal D |
 
 #### S1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 18.8% | 0.5% | 101 | 537 | 0.1 | 0.0% | A ber H |
-| 2 | 13.6% | 0.3% | 73 | 537 | 0.1 | 0.0% | A mun H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 18.8% | 101 | 0.1 | 0.0% | 1 | A ber H |
+| 2 | 13.6% | 73 | 0.1 | 0.0% | 1 | A mun H |
 
 #### W1905A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 66.0% | 0.4% | 64 | 97 | 0.4 | 0.0% | A ruh D |
-| 2 | 53.0% | 0.5% | 70 | 132 | 0.0 | 0.0% | A ruh D |
-| 3 | 50.9% | 0.4% | 57 | 112 | 0.0 | 0.0% | F hel D |
-| 4 | 49.1% | 0.4% | 55 | 112 | 0.0 | 0.0% | F bal D |
-| 5 | 44.0% | 0.5% | 73 | 166 | 0.0 | 0.0% | A sil D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 66.0% | 64 | 0.4 | 0.0% | 2 | A ruh D |
+| 2 | 53.0% | 70 | 0.0 | 0.0% | 0 | A ruh D |
+| 3 | 50.9% | 57 | 0.0 | 0.0% | 0 | F hel D |
+| 4 | 49.1% | 55 | 0.0 | 0.0% | 0 | F bal D |
+| 5 | 44.0% | 73 | 0.0 | 0.0% | 0 | A sil D |
 
 #### W1906A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 66.3% | 0.7% | 61 | 92 | 0.0 | 0.0% | A ruh D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 66.3% | 61 | 0.0 | 0.0% | 0 | A ruh D |
 
 ### Italy
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 16.7% | 16.7% | 21,279 | 127,553 | 4.9 | 15.8% | A ven-tyr; A rom-ven; F nap-ion |
-| 2 | 13.6% | 13.6% | 17,382 | 127,553 | 4.5 | 11.1% | F nap-ion; A rom-apu; A ven H |
-| 3 | 12.6% | 12.6% | 16,037 | 127,553 | 1.6 | 0.9% | F nap H; A ven H; A rom H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 16.7% | 21,279 | 4.9 | 15.8% | 1 | A ven-tyr; A rom-ven; F nap-ion |
+| 2 | 13.6% | 17,382 | 4.5 | 11.1% | 1 | F nap-ion; A rom-apu; A ven H |
+| 3 | 12.6% | 16,037 | 1.6 | 0.9% | 1 | F nap H; A ven H; A rom H |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 78.0% | 11.1% | 14,141 | 18,137 | 1.5 | 0.5% | A ven H; A rom H; F nap H |
-| 2 | 31.8% | 5.9% | 7,585 | 23,891 | 4.7 | 11.0% | A ven H; A apu-tun; F ion C apu-tun |
-| 3 | 29.8% | 0.4% | 455 | 1,525 | 4.3 | 10.5% | A rom-tun; A pie-mar; F tys C rom-tun |
-| 4 | 29.7% | 2.2% | 2,856 | 9,617 | 3.7 | 7.7% | A ven H; A nap-tun; F ion C nap-tun |
-| 5 | 29.1% | 0.2% | 304 | 1,043 | 3.6 | 7.2% | F ion-tun; A rom-ven; A pie-mar |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 78.0% | 14,141 | 1.5 | 0.5% | 1 | A ven H; A rom H; F nap H |
+| 2 | 31.8% | 7,585 | 4.7 | 11.0% | 1 | A ven H; A apu-tun; F ion C apu-tun |
+| 3 | 29.8% | 455 | 4.3 | 10.5% | 1 | A rom-tun; A pie-mar; F tys C rom-tun |
+| 4 | 29.7% | 2,856 | 3.7 | 7.7% | 1 | A ven H; A nap-tun; F ion C nap-tun |
+| 5 | 29.1% | 304 | 3.6 | 7.2% | 1 | F ion-tun; A rom-ven; A pie-mar |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 89.4% | 2.4% | 2,192 | 2,452 | 3.2 | 5.1% | F nap B |
-| 2 | 87.5% | 14.3% | 13,101 | 14,968 | 4.5 | 10.2% | F nap B |
-| 3 | 84.7% | 1.1% | 977 | 1,154 | 5.6 | 19.2% | A ven B |
-| 4 | 82.8% | 1.1% | 961 | 1,160 | 6.2 | 21.6% | A rom B; F nap B |
-| 5 | 81.7% | 3.3% | 3,006 | 3,680 | 3.9 | 8.0% | F nap B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 89.4% | 2,192 | 3.2 | 5.1% | 2 | F nap B |
+| 2 | 87.5% | 13,101 | 4.5 | 10.2% | 1 | F nap B |
+| 3 | 84.7% | 977 | 5.6 | 19.2% | 1 | A ven B |
+| 4 | 82.8% | 961 | 6.2 | 21.6% | 1 | A rom B; F nap B |
+| 5 | 81.7% | 3,006 | 3.9 | 8.0% | 0 | F nap B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 42.7% | 0.1% | 132 | 309 | 4.4 | 12.9% | F ven-adr; F tun-ion; A rom-ven; A tyr S rom-ven |
-| 2 | 32.6% | 0.4% | 316 | 968 | 6.9 | 26.3% | A boh-vie; F tun-ion; A ven-tri; A tyr S boh-vie |
-| 3 | 30.6% | 0.2% | 184 | 602 | 4.2 | 6.5% | A pie-mar; A tus-pie; F rom-tys; F tun-wes |
-| 4 | 28.9% | 0.3% | 314 | 1,085 | 5.7 | 16.6% | A ven-tyr; A rom-ven; A tun-alb; F ion C tun-alb |
-| 5 | 25.3% | 0.6% | 539 | 2,132 | 5.1 | 15.2% | A tyr-boh; A rom-ven; F tun-ion; A ven-tyr |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 42.7% | 132 | 4.4 | 12.9% | 1 | F ven-adr; F tun-ion; A rom-ven; A tyr S rom-ven |
+| 2 | 32.6% | 316 | 6.9 | 26.3% | 1 | A boh-vie; F tun-ion; A ven-tri; A tyr S boh-vie |
+| 3 | 30.6% | 184 | 4.2 | 6.5% | 1 | A pie-mar; A tus-pie; F rom-tys; F tun-wes |
+| 4 | 28.9% | 314 | 5.7 | 16.6% | 1 | A ven-tyr; A rom-ven; A tun-alb; F ion C tun-alb |
+| 5 | 25.3% | 539 | 5.1 | 15.2% | 1 | A tyr-boh; A rom-ven; F tun-ion; A ven-tyr |
 
 #### F1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 32.2% | 1.4% | 1,264 | 3,928 | 5.3 | 12.2% | A ven H; A tun-syr; F eas C tun-syr; F ion C tun-syr |
-| 2 | 29.5% | 0.1% | 127 | 430 | 5.5 | 7.9% | A tun H; A pie-mar; F tys-wes; F gol S pie-mar |
-| 3 | 27.3% | 0.2% | 179 | 657 | 4.0 | 5.6% | A naf H; F tun-wes; A pie-mar; F tys-gol |
-| 4 | 21.5% | 0.2% | 169 | 786 | 5.4 | 11.8% | A pie-mar; A tun-syr; F eas C tun-syr; F ion C tun-syr |
-| 5 | 18.9% | 0.1% | 129 | 682 | 4.6 | 10.1% | A tun-alb; A ven-tri; F adr S ven-tri; F ion C tun-alb |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 32.2% | 1,264 | 5.3 | 12.2% | 1 | A ven H; A tun-syr; F eas C tun-syr; F ion C tun-syr |
+| 2 | 29.5% | 127 | 5.5 | 7.9% | 0 | A tun H; A pie-mar; F tys-wes; F gol S pie-mar |
+| 3 | 27.3% | 179 | 4.0 | 5.6% | 1 | A naf H; F tun-wes; A pie-mar; F tys-gol |
+| 4 | 21.5% | 169 | 5.4 | 11.8% | 1 | A pie-mar; A tun-syr; F eas C tun-syr; F ion C tun-syr |
+| 5 | 18.9% | 129 | 4.6 | 10.1% | 0 | A tun-alb; A ven-tri; F adr S ven-tri; F ion C tun-alb |
 
 #### W1902A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 74.7% | 0.6% | 239 | 320 | 6.8 | 21.3% | A ven B |
-| 2 | 38.6% | 0.4% | 182 | 472 | 5.3 | 9.9% | F nap B |
-| 3 | 38.1% | 0.4% | 180 | 472 | 5.0 | 10.6% | A rom B |
-| 4 | 16.6% | 0.1% | 53 | 320 | 5.5 | 18.9% | F nap B |
-| 5 | 13.8% | 0.2% | 65 | 472 | 8.0 | 32.3% | A nap B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 74.7% | 239 | 6.8 | 21.3% | 3 | A ven B |
+| 2 | 38.6% | 182 | 5.3 | 9.9% | 3 | F nap B |
+| 3 | 38.1% | 180 | 5.0 | 10.6% | 3 | A rom B |
+| 4 | 16.6% | 53 | 5.5 | 18.9% | 3 | F nap B |
+| 5 | 13.8% | 65 | 8.0 | 32.3% | 3 | A nap B |
 
 #### W1905A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 43.8% | 0.5% | 53 | 121 | 0.0 | 0.0% | A tus D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 43.8% | 53 | 0.0 | 0.0% | 0 | A tus D |
 
 ### Russia
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 25.2% | 25.2% | 32,114 | 127,562 | 5.0 | 21.4% | F sev-bla; A mos-ukr; F stp-bot; A war-gal |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 25.2% | 32,114 | 5.0 | 21.4% | 0 | F sev-bla; A mos-ukr; F stp-bot; A war-gal |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 51.3% | 2.8% | 3,571 | 6,954 | 1.5 | 2.8% | F sev H; A war H; F stp H; A mos H |
-| 2 | 30.3% | 0.3% | 388 | 1,281 | 4.5 | 16.8% | A war-gal; F fin-swe; A ukr-rum; F sev S ukr-rum |
-| 3 | 28.4% | 0.9% | 1,086 | 3,822 | 5.8 | 26.6% | A war-gal; F bot-swe; A ukr-rum; F bla S ukr-rum |
-| 4 | 27.0% | 4.5% | 5,723 | 21,169 | 4.4 | 17.0% | A ukr-rum; F bot-swe; A war-gal; F sev S ukr-rum |
-| 5 | 25.7% | 0.4% | 442 | 1,721 | 7.3 | 36.9% | A ukr-rum; F bot-swe; A stp-nwy; F bla S ukr-rum |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 51.3% | 3,571 | 1.5 | 2.8% | 2 | F sev H; A war H; F stp H; A mos H |
+| 2 | 30.3% | 388 | 4.5 | 16.8% | 1 | A war-gal; F fin-swe; A ukr-rum; F sev S ukr-rum |
+| 3 | 28.4% | 1,086 | 5.8 | 26.6% | 1 | A war-gal; F bot-swe; A ukr-rum; F bla S ukr-rum |
+| 4 | 27.0% | 5,723 | 4.4 | 17.0% | 0 | A ukr-rum; F bot-swe; A war-gal; F sev S ukr-rum |
+| 5 | 25.7% | 442 | 7.3 | 36.9% | 0 | A ukr-rum; F bot-swe; A stp-nwy; F bla S ukr-rum |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 57.2% | 1.7% | 1,697 | 2,966 | 3.4 | 8.8% | A mos B |
-| 2 | 51.1% | 1.5% | 1,486 | 2,906 | 5.5 | 22.5% | A stp B; A mos B |
-| 3 | 48.0% | 1.4% | 1,396 | 2,906 | 5.5 | 24.9% | A mos B; F stp B |
-| 4 | 46.2% | 0.7% | 640 | 1,385 | 3.4 | 11.9% | A mos B |
-| 5 | 40.9% | 0.6% | 567 | 1,385 | 3.0 | 9.3% | A stp B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 57.2% | 1,697 | 3.4 | 8.8% | 4 | A mos B |
+| 2 | 51.1% | 1,486 | 5.5 | 22.5% | 5 | A stp B; A mos B |
+| 3 | 48.0% | 1,396 | 5.5 | 24.9% | 5 | A mos B; F stp B |
+| 4 | 46.2% | 640 | 3.4 | 11.9% | 4 | A mos B |
+| 5 | 40.9% | 567 | 3.0 | 9.3% | 4 | A stp B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 11.4% | 0.1% | 54 | 475 | 6.3 | 31.5% | F stp-nwy; F rum-bla; A ukr-rum; F sev S rum-bla; A gal S ukr-... |
-| 2 | 9.0% | 0.1% | 109 | 1,204 | 6.6 | 27.5% | F stp-nwy; A mos-ukr; A war-gal; F sev S rum; F swe S stp-nwy;... |
-| 3 | 8.1% | 0.1% | 147 | 1,821 | 7.1 | 34.7% | A war-gal; F stp-nwy; A gal-bud; F sev S rum; F swe S stp-nwy;... |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 11.4% | 54 | 6.3 | 31.5% | 6 | F stp-nwy; F rum-bla; A ukr-rum; F sev S rum-bla; A gal S... |
+| 2 | 9.0% | 109 | 6.6 | 27.5% | 6 | F stp-nwy; A mos-ukr; A war-gal; F sev S rum; F swe S stp... |
+| 3 | 8.1% | 147 | 7.1 | 34.7% | 4 | A war-gal; F stp-nwy; A gal-bud; F sev S rum; F swe S stp... |
 
 #### W1903A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 100.0% | 0.3% | 110 | 110 | 0.0 | 0.0% | A ukr D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 100.0% | 110 | 0.0 | 0.0% | 0 | A ukr D |
 
 #### S1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 45.0% | 0.2% | 77 | 171 | 0.2 | 0.0% | A stp H |
-| 2 | 23.7% | 0.6% | 230 | 971 | 0.1 | 0.0% | A mos H |
-| 3 | 9.9% | 0.2% | 96 | 971 | 0.1 | 0.0% | A war H |
-| 4 | 8.1% | 0.2% | 79 | 971 | 0.0 | 0.0% | A ukr H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 45.0% | 77 | 0.2 | 0.0% | 4 | A stp H |
+| 2 | 23.7% | 230 | 0.1 | 0.0% | 4 | A mos H |
+| 3 | 9.9% | 96 | 0.1 | 0.0% | 4 | A war H |
+| 4 | 8.1% | 79 | 0.0 | 0.0% | 4 | A ukr H |
 
 #### F1904M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 37.0% | 0.1% | 57 | 154 | 0.2 | 0.0% | A stp H |
-| 2 | 17.8% | 0.4% | 138 | 777 | 0.1 | 0.0% | A mos H |
-| 3 | 8.9% | 0.2% | 69 | 777 | 0.1 | 0.0% | A war H |
-| 4 | 8.3% | 0.2% | 72 | 871 | 0.4 | 0.0% | A mos S war; A war S mos |
-| 5 | 8.2% | 0.2% | 64 | 777 | 0.0 | 0.0% | A ukr H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 37.0% | 57 | 0.2 | 0.0% | 5 | A stp H |
+| 2 | 17.8% | 138 | 0.1 | 0.0% | 3 | A mos H |
+| 3 | 8.9% | 69 | 0.1 | 0.0% | 3 | A war H |
+| 4 | 8.3% | 72 | 0.4 | 0.0% | 4 | A mos S war; A war S mos |
+| 5 | 8.2% | 64 | 0.0 | 0.0% | 3 | A ukr H |
 
 #### W1904A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 36.0% | 0.7% | 183 | 508 | 0.0 | 0.0% | A ukr D |
-| 2 | 34.9% | 0.5% | 134 | 384 | 0.2 | 0.0% | A ukr D |
-| 3 | 28.0% | 0.2% | 64 | 229 | 0.3 | 0.0% | A ukr D |
-| 4 | 24.6% | 0.5% | 125 | 508 | 0.0 | 0.0% | A lvn D |
-| 5 | 22.7% | 0.3% | 87 | 384 | 0.1 | 0.0% | A lvn D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 36.0% | 183 | 0.0 | 0.0% | 0 | A ukr D |
+| 2 | 34.9% | 134 | 0.2 | 0.0% | 1 | A ukr D |
+| 3 | 28.0% | 64 | 0.3 | 0.0% | 3 | A ukr D |
+| 4 | 24.6% | 125 | 0.0 | 0.0% | 0 | A lvn D |
+| 5 | 22.7% | 87 | 0.1 | 0.0% | 1 | A lvn D |
 
 #### S1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 43.2% | 0.3% | 76 | 176 | 0.2 | 0.0% | A stp H |
-| 2 | 21.5% | 0.8% | 180 | 837 | 0.1 | 0.0% | A mos H |
-| 3 | 11.0% | 0.4% | 92 | 837 | 0.1 | 0.0% | A war H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 43.2% | 76 | 0.2 | 0.0% | 2 | A stp H |
+| 2 | 21.5% | 180 | 0.1 | 0.0% | 3 | A mos H |
+| 3 | 11.0% | 92 | 0.1 | 0.0% | 3 | A war H |
 
 #### F1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 40.6% | 0.3% | 67 | 165 | 0.2 | 0.0% | A stp H |
-| 2 | 15.8% | 0.5% | 107 | 676 | 0.2 | 0.0% | A mos H |
-| 3 | 11.5% | 0.3% | 78 | 676 | 0.1 | 0.0% | A war H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 40.6% | 67 | 0.2 | 0.0% | 2 | A stp H |
+| 2 | 15.8% | 107 | 0.2 | 0.0% | 3 | A mos H |
+| 3 | 11.5% | 78 | 0.1 | 0.0% | 3 | A war H |
 
 #### W1905A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 81.8% | 0.4% | 54 | 66 | 0.0 | 0.0% | F bla D |
-| 2 | 41.4% | 0.6% | 87 | 210 | 0.2 | 0.0% | A ukr D |
-| 3 | 31.9% | 0.8% | 122 | 382 | 0.0 | 0.0% | A ukr D |
-| 4 | 25.7% | 0.6% | 98 | 382 | 0.0 | 0.0% | A lvn D |
-| 5 | 23.8% | 0.3% | 50 | 210 | 0.1 | 0.0% | A lvn D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 81.8% | 54 | 0.0 | 0.0% | 0 | F bla D |
+| 2 | 41.4% | 87 | 0.2 | 0.0% | 3 | A ukr D |
+| 3 | 31.9% | 122 | 0.0 | 0.0% | 0 | A ukr D |
+| 4 | 25.7% | 98 | 0.0 | 0.0% | 0 | A lvn D |
+| 5 | 23.8% | 50 | 0.1 | 0.0% | 3 | A lvn D |
 
 #### S1906M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 19.9% | 0.6% | 87 | 437 | 0.2 | 0.0% | A mos H |
-| 2 | 14.4% | 0.4% | 63 | 437 | 0.1 | 0.0% | A war H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 19.9% | 87 | 0.2 | 0.0% | 3 | A mos H |
+| 2 | 14.4% | 63 | 0.1 | 0.0% | 3 | A war H |
 
 #### F1906M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 16.7% | 0.4% | 58 | 347 | 0.3 | 0.0% | A mos H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 16.7% | 58 | 0.3 | 0.0% | 4 | A mos H |
 
 #### W1906A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 37.1% | 0.7% | 63 | 170 | 0.0 | 0.0% | A ukr D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 37.1% | 63 | 0.0 | 0.0% | 0 | A ukr D |
 
 ### Turkey
 
 #### S1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 48.2% | 48.2% | 61,520 | 127,550 | 6.7 | 24.6% | A con-bul; F ank-bla; A smy-con |
-| 2 | 20.4% | 20.4% | 26,047 | 127,550 | 6.8 | 25.4% | A con-bul; A smy-arm; F ank-bla |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 48.2% | 61,520 | 6.7 | 24.6% | 0 | A con-bul; F ank-bla; A smy-con |
+| 2 | 20.4% | 26,047 | 6.8 | 25.4% | 0 | A con-bul; A smy-arm; F ank-bla |
 
 #### F1901M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 50.7% | 2.7% | 3,388 | 6,677 | 2.4 | 4.0% | A smy H; F ank H; A con H |
-| 2 | 32.2% | 10.7% | 13,652 | 42,370 | 7.3 | 27.3% | A con-bul; F ank-bla; A bul-gre |
-| 3 | 27.7% | 3.4% | 4,272 | 15,443 | 6.4 | 22.2% | A arm-sev; F ank-bla; A bul-rum |
-| 4 | 23.1% | 1.9% | 2,451 | 10,618 | 7.6 | 31.6% | A arm-sev; A bul-rum; F bla S arm-sev |
-| 5 | 20.0% | 3.8% | 4,904 | 24,573 | 7.4 | 30.3% | A bul-rum; A con-bul; F bla S bul-rum |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 50.7% | 3,388 | 2.4 | 4.0% | 0 | A smy H; F ank H; A con H |
+| 2 | 32.2% | 13,652 | 7.3 | 27.3% | 0 | A con-bul; F ank-bla; A bul-gre |
+| 3 | 27.7% | 4,272 | 6.4 | 22.2% | 0 | A arm-sev; F ank-bla; A bul-rum |
+| 4 | 23.1% | 2,451 | 7.6 | 31.6% | 0 | A arm-sev; A bul-rum; F bla S arm-sev |
+| 5 | 20.0% | 4,904 | 7.4 | 30.3% | 0 | A bul-rum; A con-bul; F bla S bul-rum |
 
 #### W1901A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 82.7% | 9.0% | 10,286 | 12,436 | 5.2 | 14.6% | F smy B |
-| 2 | 81.3% | 2.2% | 2,490 | 3,063 | 5.2 | 14.5% | F smy B |
-| 3 | 76.2% | 3.5% | 3,970 | 5,207 | 6.8 | 20.6% | F smy B |
-| 4 | 69.2% | 1.5% | 1,741 | 2,516 | 8.9 | 33.7% | A ank B; F smy B |
-| 5 | 68.7% | 0.7% | 833 | 1,213 | 8.6 | 31.6% | A ank B; F smy B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 82.7% | 10,286 | 5.2 | 14.6% | 2 | F smy B |
+| 2 | 81.3% | 2,490 | 5.2 | 14.5% | 3 | F smy B |
+| 3 | 76.2% | 3,970 | 6.8 | 20.6% | 3 | F smy B |
+| 4 | 69.2% | 1,741 | 8.9 | 33.7% | 2 | A ank B; F smy B |
+| 5 | 68.7% | 833 | 8.6 | 31.6% | 3 | A ank B; F smy B |
 
 #### S1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 34.8% | 0.1% | 121 | 348 | 8.8 | 42.1% | A arm-sev; A con-bul; F bla S arm-sev; A gre S con-bul |
-| 2 | 32.0% | 0.2% | 235 | 735 | 7.8 | 36.6% | A arm-sev; A con-bul; F bla S arm-sev; A rum S arm-sev |
-| 3 | 31.2% | 0.1% | 120 | 384 | 7.8 | 30.8% | F smy-aeg; A con-bul; A gre S con-bul; F bla S con-bul |
-| 4 | 31.1% | 0.3% | 344 | 1,105 | 8.9 | 38.4% | F smy-aeg; A con-bul; F ank-bla; A bul-ser; A gre S bul-ser |
-| 5 | 30.6% | 0.1% | 98 | 320 | 7.2 | 23.5% | F ank-bla; A con-bul; F smy-aeg; A gre S con-bul |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 34.8% | 121 | 8.8 | 42.1% | 2 | A arm-sev; A con-bul; F bla S arm-sev; A gre S con-bul |
+| 2 | 32.0% | 235 | 7.8 | 36.6% | 4 | A arm-sev; A con-bul; F bla S arm-sev; A rum S arm-sev |
+| 3 | 31.2% | 120 | 7.8 | 30.8% | 1 | F smy-aeg; A con-bul; A gre S con-bul; F bla S con-bul |
+| 4 | 31.1% | 344 | 8.9 | 38.4% | 2 | F smy-aeg; A con-bul; F ank-bla; A bul-ser; A gre S bul-ser |
+| 5 | 30.6% | 98 | 7.2 | 23.5% | 1 | F ank-bla; A con-bul; F smy-aeg; A gre S con-bul |
 
 #### F1902M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 33.3% | 0.2% | 219 | 658 | 3.7 | 9.1% | A con-bul; F bla S con-bul; F aeg S con-bul |
-| 2 | 33.1% | 0.2% | 188 | 568 | 9.7 | 33.0% | A bul-ser; F eas-ion; A con-bul; F aeg S eas-ion; A gre S bul-ser |
-| 3 | 28.6% | 0.2% | 264 | 922 | 10.1 | 40.5% | F eas-ion; A bul-ser; A gre S bul-ser; F aeg S eas-ion |
-| 4 | 27.9% | 0.1% | 92 | 330 | 1.4 | 2.2% | F smy H; A con H; F ank H |
-| 5 | 25.0% | 0.3% | 311 | 1,242 | 8.7 | 33.1% | A arm-sev; A bul S rum; F bla S arm-sev; A rum S arm-sev |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 33.3% | 219 | 3.7 | 9.1% | 3 | A con-bul; F bla S con-bul; F aeg S con-bul |
+| 2 | 33.1% | 188 | 9.7 | 33.0% | 3 | A bul-ser; F eas-ion; A con-bul; F aeg S eas-ion; A gre S... |
+| 3 | 28.6% | 264 | 10.1 | 40.5% | 2 | F eas-ion; A bul-ser; A gre S bul-ser; F aeg S eas-ion |
+| 4 | 27.9% | 92 | 1.4 | 2.2% | 3 | F smy H; A con H; F ank H |
+| 5 | 25.0% | 311 | 8.7 | 33.1% | 3 | A arm-sev; A bul S rum; F bla S arm-sev; A rum S arm-sev |
 
 #### W1902A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 64.5% | 0.6% | 417 | 646 | 7.1 | 23.3% | F smy B |
-| 2 | 60.5% | 0.3% | 213 | 352 | 7.6 | 20.7% | F smy B |
-| 3 | 55.0% | 0.3% | 181 | 329 | 7.6 | 21.0% | F smy B |
-| 4 | 51.7% | 0.3% | 197 | 381 | 6.2 | 15.7% | F smy B |
-| 5 | 50.7% | 0.3% | 202 | 398 | 9.6 | 34.6% | F smy B; A con B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 64.5% | 417 | 7.1 | 23.3% | 3 | F smy B |
+| 2 | 60.5% | 213 | 7.6 | 20.7% | 2 | F smy B |
+| 3 | 55.0% | 181 | 7.6 | 21.0% | 4 | F smy B |
+| 4 | 51.7% | 197 | 6.2 | 15.7% | 4 | F smy B |
+| 5 | 50.7% | 202 | 9.6 | 34.6% | 4 | F smy B; A con B |
 
 #### S1903M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 39.4% | 0.2% | 112 | 284 | 3.7 | 6.2% | A con-bul; F bla S con-bul; F aeg S con-bul |
-| 2 | 27.4% | 0.1% | 84 | 307 | 9.8 | 39.3% | A con-bul; F eas-ion; A bul-ser; A gre S bul-ser; F aeg S eas-ion |
-| 3 | 21.2% | 0.1% | 86 | 405 | 8.4 | 20.9% | F con-aeg; A gre-ser; F aeg-gre; F smy-eas; A bul S gre-ser |
-| 4 | 18.2% | 0.1% | 85 | 467 | 8.0 | 30.6% | A bul-rum; F smy-aeg; A con-bul; A sev S bul-rum; F bla S bul-rum |
-| 5 | 13.3% | 0.1% | 52 | 392 | 8.8 | 30.8% | A con-bul; A bul-rum; F aeg S con-bul; F bla S bul-rum; A sev ... |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 39.4% | 112 | 3.7 | 6.2% | 1 | A con-bul; F bla S con-bul; F aeg S con-bul |
+| 2 | 27.4% | 84 | 9.8 | 39.3% | 3 | A con-bul; F eas-ion; A bul-ser; A gre S bul-ser; F aeg S... |
+| 3 | 21.2% | 86 | 8.4 | 20.9% | 3 | F con-aeg; A gre-ser; F aeg-gre; F smy-eas; A bul S gre-ser |
+| 4 | 18.2% | 85 | 8.0 | 30.6% | 3 | A bul-rum; F smy-aeg; A con-bul; A sev S bul-rum; F bla S... |
+| 5 | 13.3% | 52 | 8.8 | 30.8% | 4 | A con-bul; A bul-rum; F aeg S con-bul; F bla S bul-rum; A... |
 
 #### W1903A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 68.5% | 0.2% | 76 | 111 | 7.3 | 15.8% | A con B |
-| 2 | 65.4% | 0.2% | 89 | 136 | 12.6 | 56.2% | A con B; F smy B |
-| 3 | 56.3% | 0.2% | 76 | 135 | 9.5 | 42.1% | A con B |
-| 4 | 53.3% | 0.1% | 64 | 120 | 12.1 | 59.4% | A con B; F smy B |
-| 5 | 51.6% | 0.1% | 66 | 128 | 10.9 | 45.5% | A con B; F smy B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 68.5% | 76 | 7.3 | 15.8% | 4 | A con B |
+| 2 | 65.4% | 89 | 12.6 | 56.2% | 4 | A con B; F smy B |
+| 3 | 56.3% | 76 | 9.5 | 42.1% | 5 | A con B |
+| 4 | 53.3% | 64 | 12.1 | 59.4% | 3 | A con B; F smy B |
+| 5 | 51.6% | 66 | 10.9 | 45.5% | 5 | A con B; F smy B |
 
 #### W1904A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 76.7% | 0.4% | 102 | 133 | 0.0 | 0.0% | F bla D |
-| 2 | 68.3% | 0.2% | 69 | 101 | 0.0 | 0.0% | F aeg D |
-| 3 | 68.1% | 0.3% | 81 | 119 | 0.0 | 0.0% | A arm D |
-| 4 | 58.7% | 0.2% | 64 | 109 | 12.3 | 64.1% | A con B |
-| 5 | 58.6% | 0.3% | 82 | 140 | 11.7 | 50.0% | A con B |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 76.7% | 102 | 0.0 | 0.0% | 0 | F bla D |
+| 2 | 68.3% | 69 | 0.0 | 0.0% | 0 | F aeg D |
+| 3 | 68.1% | 81 | 0.0 | 0.0% | 0 | A arm D |
+| 4 | 58.7% | 64 | 12.3 | 64.1% | 4 | A con B |
+| 5 | 58.6% | 82 | 11.7 | 50.0% | 6 | A con B |
 
 #### S1905M
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 28.9% | 0.2% | 57 | 197 | 0.2 | 0.0% | A ank H |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 28.9% | 57 | 0.2 | 0.0% | 2 | A ank H |
 
 #### W1905A
 
-| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |
-|---|-------|---------|-------|-----|---------|------|--------|
-| 1 | 81.4% | 0.4% | 70 | 86 | 0.0 | 0.0% | F bla D |
+| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |
+|---|-------|-------|---------|------|----------|--------|
+| 1 | 81.4% | 70 | 0.0 | 0.0% | 0 | F bla D |
 
 *Generated by `data/scripts/extract_openings.py`*

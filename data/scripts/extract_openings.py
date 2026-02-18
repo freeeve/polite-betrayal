@@ -7,8 +7,17 @@ Reads data/processed/games.jsonl (streaming) and produces:
 
 Matching strategy varies by era:
   - 1901: exact unit positions (everyone starts the same)
-  - 1902-1903: SC ownership set + key province control
+  - 1902-1903: SC ownership set + exact unit positions
   - 1904-1907: SC count range + theater presence + fleet/army ratio
+
+Every entry includes ALL condition features so the Go side can experiment with
+different matching strategies:
+  - positions (exact unit locations)
+  - owned_scs, sc_count_min/max
+  - theaters, fleet_count, army_count
+  - neighbor_stance (aggressive/neutral/retreating per neighbor)
+  - border_pressure (enemy units adjacent to our SCs)
+  - neighbor_sc_counts (each neighbor's SC count)
 
 Output JSON matches the Go struct at api/internal/bot/opening_book.go:
   {"entries": [BookEntry, ...]}
@@ -19,7 +28,7 @@ import logging
 import re
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 logging.basicConfig(
@@ -37,17 +46,16 @@ POWERS = ["austria", "england", "france", "germany", "italy", "russia", "turkey"
 
 # Phases to extract: Spring 1901 through Fall 1907
 TARGET_PHASES = []
-for yr in range(1901, 1908):
-    TARGET_PHASES.append(f"S{yr}M")
-    TARGET_PHASES.append(f"F{yr}M")
-    if yr < 1907:
-        TARGET_PHASES.append(f"W{yr}A")
+for _yr in range(1901, 1908):
+    TARGET_PHASES.append(f"S{_yr}M")
+    TARGET_PHASES.append(f"F{_yr}M")
+    if _yr < 1907:
+        TARGET_PHASES.append(f"W{_yr}A")
 
-# Graduated frequency thresholds for conditional frequency within a position.
-# >5% for 1901, >3% for 1902, >2% for 1903-1904, >1% for 1905-1907.
 MIN_ABS_COUNT = 50
 
 def get_cond_threshold(year):
+    """Conditional frequency threshold within a position cluster."""
     if year <= 1901:
         return 0.10
     elif year <= 1902:
@@ -57,8 +65,8 @@ def get_cond_threshold(year):
     else:
         return 0.05
 
-# Minimum games for a position cluster to qualify
 def get_min_pos_games(year):
+    """Minimum games for a position cluster to qualify."""
     if year <= 1901:
         return 1000
     elif year <= 1902:
@@ -68,9 +76,11 @@ def get_min_pos_games(year):
     else:
         return 50
 
-# Province-to-theater mapping (matches api/internal/bot/theater.go exactly)
+# ---------------------------------------------------------------------------
+# Province / theater / adjacency data
+# ---------------------------------------------------------------------------
+
 PROVINCE_THEATER = {
-    # West: France, Iberia, Low Countries, British Isles
     "bre": "west", "par": "west", "mar": "west",
     "gas": "west", "bur": "west", "pic": "west",
     "spa": "west", "por": "west", "bel": "west",
@@ -78,34 +88,123 @@ PROVINCE_THEATER = {
     "naf": "west", "nao": "west",
     "lon": "west", "lvp": "west", "wal": "west",
     "yor": "west", "edi": "west", "cly": "west",
-    # Scan: Scandinavia, North Sea area
     "nwy": "scan", "swe": "scan", "den": "scan",
     "ska": "scan", "nth": "scan", "nrg": "scan",
     "bar": "scan", "fin": "scan", "stp": "scan",
-    # Med: Mediterranean, Italy
     "tun": "med", "tys": "med", "wes": "med",
     "gol": "med", "ion": "med", "aeg": "med",
     "eas": "med", "rom": "med", "nap": "med",
     "apu": "med", "tus": "med", "pie": "med",
     "ven": "med",
-    # Balkans: Balkans, Turkey, Black Sea
     "gre": "balkans", "ser": "balkans", "bul": "balkans",
     "rum": "balkans", "alb": "balkans", "con": "balkans",
     "smy": "balkans", "ank": "balkans", "arm": "balkans",
     "syr": "balkans", "bla": "balkans", "adr": "balkans",
-    # East: Russia, Eastern Europe
     "mos": "east", "war": "east", "ukr": "east",
     "sev": "east", "lvn": "east", "pru": "east",
     "sil": "east", "gal": "east", "bot": "east",
-    # Center: Central Europe (Germany, Austria core)
     "mun": "center", "ber": "center", "kie": "center",
     "ruh": "center", "hol": "center", "tyr": "center",
     "boh": "center", "vie": "center", "tri": "center",
     "bud": "center", "hel": "center", "bal": "center",
 }
-
 ALL_THEATERS = ["west", "scan", "med", "balkans", "east", "center"]
 
+# Build adjacency graph from features.py ADJACENCY_PAIRS (imported inline).
+# This is the same data used for the neural network features.
+_ADJACENCY_PAIRS = [
+    ("adr","ion"),("aeg","eas"),("aeg","ion"),("bal","bot"),
+    ("eng","iri"),("eng","mao"),("eng","nth"),("gol","tys"),
+    ("gol","wes"),("hel","nth"),("ion","eas"),("ion","tys"),
+    ("iri","mao"),("iri","nao"),("mao","nao"),("mao","wes"),
+    ("nao","nrg"),("nth","nrg"),("nth","ska"),("nrg","bar"),
+    ("tys","wes"),
+    ("adr","alb"),("adr","apu"),("adr","tri"),("adr","ven"),
+    ("aeg","con"),("aeg","gre"),("aeg","smy"),
+    ("bal","ber"),("bal","den"),("bal","kie"),("bal","lvn"),
+    ("bal","pru"),("bal","swe"),
+    ("bar","nwy"),
+    ("bla","ank"),("bla","arm"),("bla","con"),("bla","rum"),("bla","sev"),
+    ("bot","fin"),("bot","lvn"),("bot","swe"),
+    ("eas","smy"),("eas","syr"),
+    ("eng","bel"),("eng","bre"),("eng","lon"),("eng","pic"),("eng","wal"),
+    ("gol","mar"),("gol","pie"),("gol","tus"),
+    ("hel","den"),("hel","hol"),("hel","kie"),
+    ("ion","alb"),("ion","apu"),("ion","gre"),("ion","nap"),("ion","tun"),
+    ("iri","lvp"),("iri","wal"),
+    ("mao","bre"),("mao","gas"),("mao","naf"),("mao","por"),
+    ("nao","cly"),("nao","lvp"),
+    ("nth","bel"),("nth","den"),("nth","edi"),("nth","hol"),
+    ("nth","lon"),("nth","nwy"),("nth","yor"),
+    ("nrg","cly"),("nrg","edi"),("nrg","nwy"),
+    ("ska","den"),("ska","nwy"),("ska","swe"),
+    ("tys","nap"),("tys","rom"),("tys","tun"),("tys","tus"),
+    ("wes","naf"),("wes","tun"),
+    ("boh","gal"),("boh","mun"),("boh","sil"),("boh","tyr"),("boh","vie"),
+    ("bud","gal"),("bud","vie"),
+    ("bur","mun"),("bur","par"),("bur","ruh"),
+    ("gal","sil"),("gal","ukr"),("gal","vie"),("gal","war"),
+    ("mos","ukr"),("mos","war"),
+    ("mun","ruh"),("mun","sil"),("mun","tyr"),
+    ("sil","war"),
+    ("tyr","vie"),
+    ("ukr","war"),
+    ("bud","rum"),("bud","ser"),("bud","tri"),
+    ("bur","bel"),("bur","gas"),("bur","mar"),("bur","pic"),
+    ("gal","rum"),
+    ("gas","mar"),
+    ("mos","lvn"),("mos","sev"),("mos","stp"),
+    ("mun","ber"),("mun","kie"),
+    ("par","bre"),("par","gas"),("par","pic"),
+    ("ruh","bel"),("ruh","hol"),("ruh","kie"),
+    ("ser","alb"),("ser","bul"),("ser","gre"),("ser","rum"),("ser","tri"),
+    ("sil","ber"),("sil","pru"),
+    ("tyr","pie"),("tyr","tri"),("tyr","ven"),
+    ("ukr","rum"),("ukr","sev"),
+    ("vie","tri"),
+    ("war","lvn"),("war","pru"),
+    ("alb","gre"),("alb","tri"),
+    ("ank","arm"),("ank","con"),
+    ("apu","nap"),("apu","ven"),
+    ("bel","hol"),("bel","pic"),
+    ("ber","kie"),("ber","pru"),
+    ("bre","gas"),("bre","pic"),
+    ("cly","edi"),("cly","lvp"),
+    ("con","smy"),
+    ("den","kie"),("den","swe"),
+    ("hol","kie"),
+    ("edi","lvp"),("edi","yor"),
+    ("fin","nwy"),("fin","swe"),
+    ("lon","wal"),("lon","yor"),
+    ("lvp","wal"),("lvp","yor"),
+    ("mar","pie"),
+    ("naf","tun"),
+    ("nwy","swe"),
+    ("pie","tus"),("pie","ven"),
+    ("pru","lvn"),
+    ("apu","rom"),("rom","nap"),("rom","tus"),("rom","ven"),
+    ("sev","arm"),("sev","rum"),
+    ("ank","smy"),("smy","arm"),("smy","syr"),
+    ("tri","ven"),
+    ("wal","yor"),
+    ("con","bul"),("gre","bul"),("rum","bul"),
+    ("gas","spa"),("mar","spa"),("por","spa"),
+    ("fin","stp"),("lvn","stp"),("nwy","stp"),
+    ("aeg","bul"),("bla","bul"),
+    ("mao","spa"),("gol","spa"),("wes","spa"),
+    ("bar","stp"),("bot","stp"),
+]
+
+# Build bidirectional adjacency graph: province -> set of adjacent provinces
+ADJ_GRAPH = defaultdict(set)
+for a, b in _ADJACENCY_PAIRS:
+    ADJ_GRAPH[a].add(b)
+    ADJ_GRAPH[b].add(a)
+
+
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
 
 def parse_unit(unit_str):
     """Parse 'A par' or 'F stp/sc' into (type, province_with_coast)."""
@@ -160,10 +259,7 @@ def sc_fingerprint(centers_list):
 
 
 def feature_fingerprint(units_list, centers_list):
-    """Feature-based fingerprint for 1904+: (sc_count, theater_tuple, fleets, armies).
-
-    Groups by SC count, theater distribution, and fleet/army ratio.
-    """
+    """Feature-based fingerprint for 1904+: (sc_count, theater_tuple, fleets, armies)."""
     sc_count = len(centers_list)
     theaters = compute_theater_presence(units_list)
     fleets, armies = compute_fleet_army(units_list)
@@ -178,12 +274,7 @@ def get_phase_year(phase_name):
 
 
 def get_cluster_key(phase_name, units_list, centers_list):
-    """Get the appropriate clustering key based on the phase year.
-
-    - 1901: exact unit positions
-    - 1902-1903: SC ownership set (exact SC match)
-    - 1904+: feature fingerprint (sc_count, theaters, fleet/army)
-    """
+    """Get the appropriate clustering key based on the phase year."""
     year = get_phase_year(phase_name)
     if year <= 1901:
         return ("exact", unit_fingerprint(units_list))
@@ -193,14 +284,183 @@ def get_cluster_key(phase_name, units_list, centers_list):
         return ("feature", feature_fingerprint(units_list, centers_list))
 
 
-def build_condition(cluster_key, units_list, centers_list):
-    """Build a BookCondition dict from a cluster key and representative data.
+def orders_fingerprint(orders_list):
+    """Hashable fingerprint from a list of order strings."""
+    return tuple(sorted(orders_list))
 
-    Always includes all fields for richer matching on the Go side.
+
+# ---------------------------------------------------------------------------
+# Neighbor behavior analysis
+# ---------------------------------------------------------------------------
+
+def build_unit_map(phase_data):
+    """Build a map of province -> (power, unit_type) from a phase's units dict.
+
+    phase_data["units"] is {power: ["A par", "F bre", ...], ...}
     """
+    unit_map = {}
+    for power, units in phase_data.get("units", {}).items():
+        for u in units:
+            utype, loc = parse_unit(u)
+            if utype and loc:
+                unit_map[base_province(loc)] = (power, utype)
+    return unit_map
+
+
+def compute_border_zone(our_scs, adj_graph):
+    """Compute the set of provinces adjacent to our SCs (excluding our own SCs).
+
+    Matches the Go neighbor_stance.go logic.
+    """
+    border = set()
+    for sc in our_scs:
+        for adj_prov in adj_graph.get(sc, set()):
+            if adj_prov not in our_scs:
+                border.add(adj_prov)
+    return border
+
+
+def classify_neighbor_stances(phase_data, power, centers_data):
+    """Classify each neighbor power's stance toward us based on unit positions.
+
+    Replicates Go ClassifyNeighborStances: count neighbor units in our border
+    zone, classify ratio >= 0.5 as aggressive, 0 as retreating, else neutral.
+    """
+    our_scs = set(centers_data.get(power, []))
+    if not our_scs:
+        return {}
+
+    border_zone = compute_border_zone(our_scs, ADJ_GRAPH)
+    unit_map = build_unit_map(phase_data)
+
+    # Count each neighbor's units in our border zone vs total
+    neighbor_stats = defaultdict(lambda: {"adjacent": 0, "total": 0})
+    for prov, (unit_power, _) in unit_map.items():
+        if unit_power == power:
+            continue
+        neighbor_stats[unit_power]["total"] += 1
+        if prov in border_zone:
+            neighbor_stats[unit_power]["adjacent"] += 1
+
+    stances = {}
+    for p, stats in neighbor_stats.items():
+        if stats["total"] == 0:
+            continue
+        ratio = stats["adjacent"] / stats["total"]
+        if ratio >= 0.5:
+            stances[p] = "aggressive"
+        elif ratio == 0:
+            stances[p] = "retreating"
+        else:
+            stances[p] = "neutral"
+    return stances
+
+
+def compute_border_pressure(phase_data, power, centers_data):
+    """Count enemy units adjacent to this power's SCs.
+
+    Matches Go borderPressure function.
+    """
+    our_scs = set(centers_data.get(power, []))
+    if not our_scs:
+        return 0
+
+    border_zone = compute_border_zone(our_scs, ADJ_GRAPH)
+    unit_map = build_unit_map(phase_data)
+
+    count = 0
+    for prov in border_zone:
+        if prov in unit_map:
+            unit_power, _ = unit_map[prov]
+            if unit_power != power:
+                count += 1
+    return count
+
+
+def count_border_bounces(phase_data, results_data, power, centers_data):
+    """Count bounces where a neighbor tried to enter our territory.
+
+    A border bounce occurs when an enemy order targets one of our provinces
+    and the result includes 'bounce'.
+    """
+    our_provinces = set()
+    for u in phase_data.get("units", {}).get(power, []):
+        _, loc = parse_unit(u)
+        if loc:
+            our_provinces.add(base_province(loc))
+    our_provinces.update(centers_data.get(power, []))
+
+    bounces = 0
+    for unit_key, result_list in results_data.items():
+        if "bounce" not in result_list:
+            continue
+        # Find the order for this unit — check all powers' orders
+        utype, uloc = parse_unit(unit_key)
+        if not uloc:
+            continue
+        unit_power = None
+        for p, units in phase_data.get("units", {}).items():
+            for u in units:
+                _, loc = parse_unit(u)
+                if loc and base_province(loc) == base_province(uloc):
+                    unit_power = p
+                    break
+            if unit_power:
+                break
+        if unit_power == power:
+            continue  # We bounced, not a neighbor
+
+        # Check if this unit's order targeted one of our provinces
+        for p, orders in phase_data.get("orders", {}).items():
+            if p != unit_power:
+                continue
+            for order_str in orders:
+                tokens = order_str.strip().split()
+                if len(tokens) >= 4 and tokens[2] == "-":
+                    order_loc = base_province(tokens[1])
+                    target = base_province(tokens[3])
+                    if order_loc == base_province(uloc) and target in our_provinces:
+                        bounces += 1
+    return bounces
+
+
+def get_neighbor_sc_counts(centers_data, power):
+    """Get SC count for each other power."""
+    counts = {}
+    for p in POWERS:
+        if p != power:
+            counts[p] = len(centers_data.get(p, []))
+    return counts
+
+
+def compute_neighbor_features(phase_data, power, centers_data, results_data):
+    """Compute all neighbor behavior features for a power at a phase.
+
+    Returns dict with neighbor_stance, border_pressure, border_bounces,
+    neighbor_sc_counts.
+    """
+    stances = classify_neighbor_stances(phase_data, power, centers_data)
+    pressure = compute_border_pressure(phase_data, power, centers_data)
+    bounces = count_border_bounces(phase_data, results_data, power, centers_data)
+    sc_counts = get_neighbor_sc_counts(centers_data, power)
+
+    return {
+        "neighbor_stance": stances,
+        "border_pressure": pressure,
+        "border_bounces": bounces,
+        "neighbor_sc_counts": sc_counts,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Condition building
+# ---------------------------------------------------------------------------
+
+def build_condition(units_list, centers_list, neighbor_features):
+    """Build a complete BookCondition dict with all feature tiers."""
     condition = {}
 
-    # Always include exact positions
+    # Tier 1: exact positions
     positions = {}
     for u in units_list:
         utype, loc = parse_unit(u)
@@ -208,18 +468,21 @@ def build_condition(cluster_key, units_list, centers_list):
             positions[loc] = "army" if utype == "A" else "fleet"
     condition["positions"] = positions
 
-    # SC ownership
+    # Tier 2: SC ownership
     condition["owned_scs"] = sorted(centers_list)
     sc_count = len(centers_list)
     condition["sc_count_min"] = sc_count
     condition["sc_count_max"] = sc_count
 
-    # Theater presence
-    theaters = compute_theater_presence(units_list)
-    # Only include non-zero theaters
-    condition["theaters"] = {t: c for t, c in theaters.items() if c > 0}
+    # Tier 3: neighbor behavior
+    condition["neighbor_stance"] = neighbor_features.get("neighbor_stance", {})
+    condition["border_pressure"] = neighbor_features.get("border_pressure", 0)
+    condition["border_bounces"] = neighbor_features.get("border_bounces", 0)
+    condition["neighbor_sc_counts"] = neighbor_features.get("neighbor_sc_counts", {})
 
-    # Fleet/army counts
+    # Tier 4: theater/composition
+    theaters = compute_theater_presence(units_list)
+    condition["theaters"] = {t: c for t, c in theaters.items() if c > 0}
     fleets, armies = compute_fleet_army(units_list)
     condition["fleet_count"] = fleets
     condition["army_count"] = armies
@@ -227,18 +490,12 @@ def build_condition(cluster_key, units_list, centers_list):
     return condition
 
 
-def orders_fingerprint(orders_list):
-    """Hashable fingerprint from a list of order strings."""
-    return tuple(sorted(orders_list))
-
+# ---------------------------------------------------------------------------
+# Order parsing
+# ---------------------------------------------------------------------------
 
 def parse_order_to_input(order_str):
-    """Parse a textual order string into a Go-compatible OrderInput dict.
-
-    Handles: 'A par - bur', 'A par H', 'A par S A bur - mun',
-             'F nth C A yor - nwy', 'A tri B', 'F tri B', 'A tri D',
-             'A ven R pie', 'A ven D'
-    """
+    """Parse a textual order string into a Go-compatible OrderInput dict."""
     tokens = order_str.strip().split()
     if len(tokens) < 2:
         return None
@@ -247,7 +504,6 @@ def parse_order_to_input(order_str):
     unit_loc = tokens[1]
     unit_type = "army" if unit_type_char == "A" else "fleet"
 
-    # Split location and coast
     loc_parts = unit_loc.split("/")
     location = loc_parts[0]
     coast = loc_parts[1] if len(loc_parts) > 1 else ""
@@ -276,30 +532,25 @@ def parse_order_to_input(order_str):
         return result
 
     if action == "S":
-        # Support: 'A par S A bur - mun' or 'A par S A bur' (support hold)
         if len(tokens) < 5:
             aux_loc = tokens[3] if len(tokens) > 3 else location
             result["order_type"] = "support"
             result["aux_loc"] = aux_loc
-            result["aux_target"] = aux_loc  # support hold
+            result["aux_target"] = aux_loc
             result["aux_unit_type"] = "army"
             return result
 
         aux_unit_type = "army" if tokens[3] == "A" else "fleet"
         aux_loc_raw = tokens[4]
-        aux_loc_parts = aux_loc_raw.split("/")
-        aux_loc = aux_loc_parts[0]
+        aux_loc = aux_loc_raw.split("/")[0]
 
         if len(tokens) > 5 and tokens[5] == "-":
-            # Support move: S A bur - mun
             aux_target_raw = tokens[6] if len(tokens) > 6 else aux_loc
-            aux_target_parts = aux_target_raw.split("/")
             result["order_type"] = "support"
             result["aux_loc"] = aux_loc
-            result["aux_target"] = aux_target_parts[0]
+            result["aux_target"] = aux_target_raw.split("/")[0]
             result["aux_unit_type"] = aux_unit_type
         else:
-            # Support hold: S A bur (H)
             result["order_type"] = "support"
             result["aux_loc"] = aux_loc
             result["aux_target"] = aux_loc
@@ -307,7 +558,6 @@ def parse_order_to_input(order_str):
         return result
 
     if action == "C":
-        # Convoy: 'F nth C A yor - nwy'
         if len(tokens) >= 7 and tokens[5] == "-":
             result["order_type"] = "convoy"
             result["aux_loc"] = tokens[4]
@@ -350,19 +600,25 @@ def parse_phase_to_fields(phase_name):
     return int(m.group(2)), season_map[m.group(1)], type_map[m.group(3)]
 
 
+# ---------------------------------------------------------------------------
+# Main processing
+# ---------------------------------------------------------------------------
+
 def process_games():
     """Stream through games.jsonl and aggregate opening data.
 
-    Clusters are keyed by (power, phase, cluster_key, orders_fingerprint).
-    Also stores representative units/centers/orders for each cluster.
+    For each power at each phase, stores:
+      - Order clusters keyed by (position_cluster_key, orders_fingerprint)
+      - Representative data: units, centers, orders, neighbor features
     """
     log.info("Reading games from %s", GAMES_PATH)
 
-    # Structure: power -> phase -> cluster_key -> orders_key ->
-    #   {count, total_centers, wins, orders, units, centers}
+    # power -> phase -> cluster_key -> orders_key ->
+    #   {count, total_centers, wins, orders, units, centers, neighbor_features}
     clusters = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(
         lambda: {"count": 0, "total_centers": 0, "wins": 0,
-                 "orders": None, "units": None, "centers": None}
+                 "orders": None, "units": None, "centers": None,
+                 "neighbor_features": None}
     ))))
 
     phase_totals = defaultdict(lambda: defaultdict(int))
@@ -386,8 +642,8 @@ def process_games():
                 skipped += 1
                 continue
 
-            phase_names = {p["name"] for p in game.get("phases", [])}
-            if "S1901M" not in phase_names or "F1901M" not in phase_names:
+            phase_names_set = {p["name"] for p in game.get("phases", [])}
+            if "S1901M" not in phase_names_set or "F1901M" not in phase_names_set:
                 skipped += 1
                 continue
 
@@ -407,7 +663,9 @@ def process_games():
 
                     orders = phase.get("orders", {}).get(power, [])
                     units = phase.get("units", {}).get(power, [])
-                    centers = phase.get("centers", {}).get(power, [])
+                    centers_data = phase.get("centers", {})
+                    centers = centers_data.get(power, [])
+                    results = phase.get("results", {})
 
                     if not orders:
                         break
@@ -424,6 +682,10 @@ def process_games():
                         entry["orders"] = orders
                         entry["units"] = units
                         entry["centers"] = centers
+                        # Compute neighbor features from the full phase data
+                        entry["neighbor_features"] = compute_neighbor_features(
+                            phase, power, centers_data, results
+                        )
 
                     phase_totals[power][phase_name] += 1
 
@@ -474,10 +736,9 @@ def build_opening_book(clusters, phase_totals, total_games):
                             parsed_orders.append(parsed)
 
                     options.append({
-                        "name": f"{power}_{phase_name}_{len(options)+1}",
+                        "name": "",
                         "weight": round(cond_freq, 4),
                         "orders": parsed_orders,
-                        # Extra stats (not consumed by Go but useful for analysis)
                         "_games": data["count"],
                         "_pos_games": pos_total,
                         "_global_freq": round(data["count"] / total_for_phase, 4),
@@ -489,17 +750,17 @@ def build_opening_book(clusters, phase_totals, total_games):
                     continue
 
                 options.sort(key=lambda e: -e["weight"])
-                # Renumber names after sorting
                 for i, opt in enumerate(options):
                     opt["name"] = f"{power}_{phase_name}_{i+1}"
 
-                # Use representative data from the first (most common) variant
-                rep = next(iter(order_variants.values()))
-                rep_units = rep["units"] or []
-                rep_centers = rep["centers"] or []
+                # Use representative data from the highest-count variant
+                best = max(order_variants.values(), key=lambda d: d["count"])
+                rep_units = best["units"] or []
+                rep_centers = best["centers"] or []
+                rep_nf = best["neighbor_features"] or {}
 
                 yr, season, phase_type = parse_phase_to_fields(phase_name)
-                condition = build_condition(ckey, rep_units, rep_centers)
+                condition = build_condition(rep_units, rep_centers, rep_nf)
 
                 book_entries.append({
                     "power": power,
@@ -513,6 +774,10 @@ def build_opening_book(clusters, phase_totals, total_games):
     return {"entries": book_entries}
 
 
+# ---------------------------------------------------------------------------
+# Analysis report
+# ---------------------------------------------------------------------------
+
 def generate_analysis(book_data, phase_totals, total_games):
     """Generate the markdown analysis report."""
     entries = book_data["entries"]
@@ -523,6 +788,7 @@ def generate_analysis(book_data, phase_totals, total_games):
         f"**Phases covered:** Spring 1901 through Fall 1907",
         f"**Map:** Standard only",
         f"**Clustering:** exact positions (1901), SC ownership (1902-1903), features (1904+)",
+        f"**Neighbor features:** stance classification, border pressure, bounces, SC counts",
         "",
     ]
 
@@ -531,7 +797,7 @@ def generate_analysis(book_data, phase_totals, total_games):
     lines.append(f"**Total order variants:** {total_options:,}")
     lines.append("")
 
-    # Phase distribution summary
+    # Phase distribution
     lines.append("## Phase Distribution")
     lines.append("")
     lines.append("| Phase | Clusters | Variants |")
@@ -543,13 +809,12 @@ def generate_analysis(book_data, phase_totals, total_games):
             lines.append(f"| {phase} | {len(phase_entries)} | {n_variants} |")
     lines.append("")
 
-    # Per-power coverage — split by year
+    # Coverage by year
     lines.append("## Coverage Statistics")
     lines.append("")
     lines.append("Percentage of games where at least one book entry matches.")
 
-    years_in_range = sorted(set(get_phase_year(p) for p in TARGET_PHASES))
-    for yr in years_in_range:
+    for yr in sorted(set(get_phase_year(p) for p in TARGET_PHASES)):
         year_phases = [p for p in TARGET_PHASES if get_phase_year(p) == yr]
         if not year_phases:
             continue
@@ -571,17 +836,44 @@ def generate_analysis(book_data, phase_totals, total_games):
                 if total == 0:
                     row += " N/A |"
                     continue
-                covered = 0
-                for e in entries:
-                    if e["power"] == power and _phase_code(e) == phase:
-                        for opt in e["options"]:
-                            covered += opt["_games"]
+                covered = sum(
+                    opt["_games"]
+                    for e in entries
+                    if e["power"] == power and _phase_code(e) == phase
+                    for opt in e["options"]
+                )
                 pct = min(100.0, 100.0 * covered / total)
                 row += f" {pct:.1f}% |"
             lines.append(row)
     lines.append("")
 
-    # Top openings per power per phase (only show phases with entries)
+    # Neighbor stance distribution sample
+    lines.append("## Neighbor Stance Distribution (Sample)")
+    lines.append("")
+    lines.append("Distribution of neighbor stances in book entries for selected powers at F1901M.")
+    lines.append("")
+
+    for power in ["france", "germany", "austria"]:
+        f1901_entries = [
+            e for e in entries
+            if e["power"] == power and _phase_code(e) == "F1901M"
+        ]
+        if not f1901_entries:
+            continue
+        lines.append(f"**{power.capitalize()} F1901M** ({len(f1901_entries)} clusters):")
+        lines.append("")
+        # Aggregate stances across clusters
+        stance_counts = defaultdict(lambda: defaultdict(int))
+        for e in f1901_entries:
+            for neighbor, stance in e["condition"].get("neighbor_stance", {}).items():
+                stance_counts[neighbor][stance] += 1
+        for neighbor in sorted(stance_counts.keys()):
+            stances = stance_counts[neighbor]
+            parts = [f"{s}: {c}" for s, c in sorted(stances.items())]
+            lines.append(f"- vs {neighbor}: {', '.join(parts)}")
+        lines.append("")
+
+    # Top openings per power per phase
     lines.append("## Top Openings by Power and Phase")
     lines.append("")
 
@@ -601,25 +893,25 @@ def generate_analysis(book_data, phase_totals, total_games):
             lines.append(f"#### {phase}")
             lines.append("")
 
-            # Flatten all options, sort by conditional weight
             all_opts = []
             for pe in phase_entries:
                 for opt in pe["options"]:
-                    all_opts.append(opt)
+                    all_opts.append((pe, opt))
+            all_opts.sort(key=lambda x: -x[1]["weight"])
 
-            all_opts.sort(key=lambda x: -x["weight"])
+            lines.append("| # | Cond% | Games | Avg SCs | Win% | Pressure | Orders |")
+            lines.append("|---|-------|-------|---------|------|----------|--------|")
 
-            lines.append("| # | Cond% | Global% | Games | Pos | Avg SCs | Win% | Orders |")
-            lines.append("|---|-------|---------|-------|-----|---------|------|--------|")
-
-            for i, v in enumerate(all_opts[:5]):
+            for i, (pe, v) in enumerate(all_opts[:5]):
                 orders_str = "; ".join(format_order_brief(o) for o in v["orders"])
-                if len(orders_str) > 65:
-                    orders_str = orders_str[:62] + "..."
+                if len(orders_str) > 60:
+                    orders_str = orders_str[:57] + "..."
+                pressure = pe["condition"].get("border_pressure", 0)
                 lines.append(
-                    f"| {i+1} | {v['weight']:.1%} | {v['_global_freq']:.1%} "
-                    f"| {v['_games']:,} | {v['_pos_games']:,} "
-                    f"| {v['_avg_centers']:.1f} | {v['_win_rate']:.1%} | {orders_str} |"
+                    f"| {i+1} | {v['weight']:.1%} "
+                    f"| {v['_games']:,} "
+                    f"| {v['_avg_centers']:.1f} | {v['_win_rate']:.1%} "
+                    f"| {pressure} | {orders_str} |"
                 )
 
             lines.append("")
@@ -667,6 +959,10 @@ def format_order_brief(order):
     return f"{ut} {loc} {ot}"
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
 def main():
     if not GAMES_PATH.exists():
         log.error("games.jsonl not found at %s", GAMES_PATH)
@@ -683,14 +979,12 @@ def main():
     total_options = sum(len(e["options"]) for e in book_data["entries"])
     log.info("Generated %d order variants across %d position clusters", total_options, total_entries)
 
-    # Write JSON
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_PATH, "w") as f:
         json.dump(book_data, f, indent=2)
     size_kb = OUTPUT_PATH.stat().st_size / 1024
     log.info("Wrote opening book to %s (%.1f KB)", OUTPUT_PATH, size_kb)
 
-    # Write analysis
     analysis = generate_analysis(book_data, phase_totals, total_games)
     ANALYSIS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(ANALYSIS_PATH, "w") as f:
