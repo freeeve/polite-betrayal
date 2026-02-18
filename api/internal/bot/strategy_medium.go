@@ -91,10 +91,7 @@ func (s TacticalStrategy) searchOrders(
 	deadline time.Time,
 ) []OrderInput {
 	maxCombos := 50000
-	k := adaptiveK(len(units), maxCombos)
-	if k < 3 {
-		k = 3
-	}
+	k := max(adaptiveK(len(units), maxCombos), 3)
 
 	var unitOrders [][]diplomacy.Order
 	for _, u := range units {
