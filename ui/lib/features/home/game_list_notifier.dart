@@ -104,9 +104,10 @@ final activeGamesProvider = Provider<AsyncValue<List<Game>>>((ref) {
   );
 });
 
-/// Fetches all finished games (including botmatch games).
+/// Fetches all finished games (including botmatch games), with optional search.
 class FinishedGamesNotifier extends StateNotifier<AsyncValue<List<Game>>> {
   final ApiClient _api;
+  String _search = '';
 
   FinishedGamesNotifier(this._api) : super(const AsyncValue.loading()) {
     refresh();
@@ -115,7 +116,11 @@ class FinishedGamesNotifier extends StateNotifier<AsyncValue<List<Game>>> {
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     try {
-      final resp = await _api.get('/games?filter=finished');
+      var path = '/games?filter=finished';
+      if (_search.isNotEmpty) {
+        path += '&search=${Uri.encodeComponent(_search)}';
+      }
+      final resp = await _api.get(path);
       if (resp.statusCode == 200) {
         final list = (jsonDecode(resp.body) as List<dynamic>)
             .map((e) => Game.fromJson(e as Map<String, dynamic>))
@@ -127,6 +132,12 @@ class FinishedGamesNotifier extends StateNotifier<AsyncValue<List<Game>>> {
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
+  }
+
+  /// Updates the search term and re-fetches from the server.
+  Future<void> search(String query) async {
+    _search = query.trim();
+    await refresh();
   }
 }
 

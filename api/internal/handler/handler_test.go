@@ -214,6 +214,17 @@ func (m *mockGameRepo) ListFinished(_ context.Context) ([]model.Game, error) {
 	return result, nil
 }
 
+func (m *mockGameRepo) SearchFinished(_ context.Context, search string) ([]model.Game, error) {
+	lower := strings.ToLower(search)
+	var result []model.Game
+	for _, g := range m.games {
+		if g.Status == "finished" && strings.Contains(strings.ToLower(g.Name), lower) {
+			result = append(result, *g)
+		}
+	}
+	return result, nil
+}
+
 func (m *mockGameRepo) SetFinished(_ context.Context, gameID, winner string) error {
 	if g, ok := m.games[gameID]; ok {
 		g.Status = "finished"

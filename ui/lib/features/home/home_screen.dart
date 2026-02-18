@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -235,85 +237,89 @@ class _PastGamesTab extends ConsumerStatefulWidget {
 
 class _PastGamesTabState extends ConsumerState<_PastGamesTab> {
   final _searchController = TextEditingController();
-  String _query = '';
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      ref.read(finishedGamesProvider.notifier).search(value);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final games = ref.watch(pastGamesProvider);
+    final query = _searchController.text;
 
-    return games.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Error: $err'),
-            const SizedBox(height: 8),
-            FilledButton(onPressed: widget.onRefresh, child: const Text('Retry')),
-          ],
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search games...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: query.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        ref.read(finishedGamesProvider.notifier).search('');
+                      },
+                    )
+                  : null,
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: _onSearchChanged,
+          ),
         ),
-      ),
-      data: (list) {
-        final filtered = _query.isEmpty
-            ? list
-            : list.where((g) => g.name.toLowerCase().contains(_query)).toList();
-
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search games...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _query = '');
-                          },
-                        )
-                      : null,
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onChanged: (value) {
-                  setState(() => _query = value.toLowerCase());
-                },
+        Expanded(
+          child: games.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, _) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Error: $err'),
+                  const SizedBox(height: 8),
+                  FilledButton(onPressed: widget.onRefresh, child: const Text('Retry')),
+                ],
               ),
             ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        _query.isEmpty
-                            ? 'No completed games yet.'
-                            : 'No games matching "$_query".',
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: widget.onRefresh,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, i) => GameCard(
-                          game: filtered[i],
-                          onTap: () => widget.onTap(filtered[i]),
-                        ),
-                      ),
-                    ),
-            ),
-          ],
-        );
-      },
+            data: (list) {
+              if (list.isEmpty) {
+                return Center(
+                  child: Text(
+                    query.isEmpty
+                        ? 'No completed games yet.'
+                        : 'No games matching "$query".',
+                  ),
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: widget.onRefresh,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: list.length,
+                  itemBuilder: (context, i) => GameCard(
+                    game: list[i],
+                    onTap: () => widget.onTap(list[i]),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
