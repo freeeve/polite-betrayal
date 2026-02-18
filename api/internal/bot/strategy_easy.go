@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"math/rand"
 	"sort"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
@@ -542,7 +541,7 @@ func (h HeuristicStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.P
 			}
 
 			// Randomness for unpredictability
-			score += rand.Float64() * 1.5
+			score += botFloat64() * 1.5
 
 			// Determine target coast for fleet moves to split-coast provinces
 			targetCoast := ""
@@ -553,7 +552,7 @@ func (h HeuristicStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.P
 				}
 				targetCoast = string(coasts[0])
 				if len(coasts) > 1 {
-					targetCoast = string(coasts[rand.Intn(len(coasts))])
+					targetCoast = string(coasts[botIntn(len(coasts))])
 				}
 			}
 
@@ -626,7 +625,7 @@ func (HeuristicStrategy) GenerateRetreatOrders(gs *diplomacy.GameState, power di
 			// Penalize threatened destinations
 			score -= 2 * float64(ProvinceThreat(target, power, gs, m))
 			// Small random factor
-			score += rand.Float64()
+			score += botFloat64()
 
 			targetCoast := ""
 			if isFleet && m.HasCoasts(target) {
@@ -810,14 +809,14 @@ func generateBuilds(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy
 				// Also build fleets if there are stranded armies.
 				if fleetRatio < 0.5 {
 					unitType = diplomacy.Fleet
-				} else if rand.Float64() < 0.4 {
+				} else if botFloat64() < 0.4 {
 					unitType = diplomacy.Fleet
 				}
 			} else {
 				// Continental powers: build fleet if ratio below 25%, else 20% chance
 				if fleetRatio < 0.25 {
 					unitType = diplomacy.Fleet
-				} else if rand.Float64() < 0.2 {
+				} else if botFloat64() < 0.2 {
 					unitType = diplomacy.Fleet
 				}
 			}
@@ -830,7 +829,7 @@ func generateBuilds(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy
 		}
 
 		if unitType == diplomacy.Fleet && len(prov.Coasts) > 0 {
-			oi.Coast = string(prov.Coasts[rand.Intn(len(prov.Coasts))])
+			oi.Coast = string(prov.Coasts[botIntn(len(prov.Coasts))])
 		}
 
 		bo := diplomacy.BuildOrder{

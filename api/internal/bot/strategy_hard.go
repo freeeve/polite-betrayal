@@ -256,7 +256,7 @@ func hardScoreMoves(gs *diplomacy.GameState, power diplomacy.Power, units []dipl
 			}
 
 			// Random noise for diversity
-			score += rand.Float64() * 0.5
+			score += botFloat64() * 0.5
 
 			// Validate
 			targetCoast := ""
@@ -267,7 +267,7 @@ func hardScoreMoves(gs *diplomacy.GameState, power diplomacy.Power, units []dipl
 				}
 				targetCoast = string(coasts[0])
 				if len(coasts) > 1 {
-					targetCoast = string(coasts[rand.Intn(len(coasts))])
+					targetCoast = string(coasts[botIntn(len(coasts))])
 				}
 			}
 			o := diplomacy.Order{
@@ -458,10 +458,10 @@ func (s HardStrategy) expansionistCandidate(gs *diplomacy.GameState, power diplo
 // different bias modes and using wider noise to create structural diversity.
 func (s HardStrategy) stochasticCandidate(gs *diplomacy.GameState, power diplomacy.Power, units []diplomacy.Unit, m *diplomacy.DiplomacyMap) []OrderInput {
 	biases := []string{"", "aggressive", "defensive", "expansionist"}
-	bias := biases[rand.Intn(len(biases))]
+	bias := biases[botIntn(len(biases))]
 	scored := hardScoreMoves(gs, power, units, m, bias)
 	for i := range scored {
-		scored[i].score += rand.Float64()*8.0 - 4.0
+		scored[i].score += botFloat64()*8.0 - 4.0
 	}
 	return buildOrdersFromScored(gs, power, units, m, scored)
 }
@@ -475,8 +475,8 @@ func (s HardStrategy) perturbedCandidate(gs *diplomacy.GameState, power diplomac
 	result := make([]OrderInput, len(base))
 	copy(result, base)
 
-	swapCount := 1 + rand.Intn(min(2, len(result)))
-	for _, idx := range rand.Perm(len(result)) {
+	swapCount := 1 + botIntn(min(2, len(result)))
+	for _, idx := range botPerm(len(result)) {
 		if swapCount <= 0 {
 			break
 		}
@@ -494,7 +494,7 @@ func (s HardStrategy) perturbedCandidate(gs *diplomacy.GameState, power diplomac
 		isFleet := u.Type == diplomacy.Fleet
 		adj := m.ProvincesAdjacentTo(u.Province, u.Coast, isFleet)
 		replaced := false
-		for _, pi := range rand.Perm(len(adj)) {
+		for _, pi := range botPerm(len(adj)) {
 			target := adj[pi]
 			prov := m.Provinces[target]
 			if prov == nil || (isFleet && prov.Type == diplomacy.Land) || (!isFleet && prov.Type == diplomacy.Sea) {
@@ -506,7 +506,7 @@ func (s HardStrategy) perturbedCandidate(gs *diplomacy.GameState, power diplomac
 				if len(coasts) == 0 {
 					continue
 				}
-				tc = string(coasts[rand.Intn(len(coasts))])
+				tc = string(coasts[botIntn(len(coasts))])
 			}
 			o := diplomacy.Order{
 				UnitType: u.Type, Power: power, Location: u.Province, Coast: u.Coast,
@@ -670,7 +670,7 @@ func (s HardStrategy) regretMatchSelect(
 		return 0
 	}
 
-	rng := rand.New(rand.NewSource(rand.Int63()))
+	rng := rand.New(rand.NewSource(botInt63()))
 	cumRegret := make([]float64, k)
 	strategy := make([]float64, k)
 	totalWeight := make([]float64, k) // weighted average for final selection

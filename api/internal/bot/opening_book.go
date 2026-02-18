@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"math/rand"
 	"sort"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
@@ -51,7 +50,7 @@ func weightedSelect(entries []openingEntry) *openingEntry {
 	for i := range entries {
 		total += entries[i].weight
 	}
-	r := rand.Float64() * total
+	r := botFloat64() * total
 	cum := 0.0
 	for i := range entries {
 		cum += entries[i].weight

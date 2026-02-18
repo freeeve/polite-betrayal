@@ -46,6 +46,12 @@ func RunGame(
 		cfg.MaxYear = 1930
 	}
 
+	// Seed the package-level RNG for reproducible bot behavior.
+	if cfg.Seed != 0 {
+		SeedBotRng(cfg.Seed)
+		defer ResetBotRng()
+	}
+
 	// Build strategies per power
 	strategies := make(map[diplomacy.Power]Strategy)
 	for _, p := range diplomacy.AllPowers() {

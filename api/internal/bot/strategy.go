@@ -2,7 +2,6 @@ package bot
 
 import (
 	"log"
-	"math/rand"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
@@ -119,7 +118,7 @@ func (RandomStrategy) Name() string { return "random" }
 func (RandomStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
 	var orders []OrderInput
 	for _, u := range gs.UnitsOf(power) {
-		if rand.Float64() < 0.3 {
+		if botFloat64() < 0.3 {
 			orders = append(orders, OrderInput{
 				UnitType:  u.Type.String(),
 				Location:  u.Province,
@@ -143,7 +142,7 @@ func (RandomStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power dipl
 
 		moved := false
 		// Shuffle adjacencies and try each until one validates
-		perm := rand.Perm(len(adj))
+		perm := botPerm(len(adj))
 		for _, idx := range perm {
 			target := adj[idx]
 			prov := m.Provinces[target]
@@ -172,7 +171,7 @@ func (RandomStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power dipl
 				if len(coasts) == 1 {
 					oi.TargetCoast = string(coasts[0])
 				} else if len(coasts) > 1 {
-					oi.TargetCoast = string(coasts[rand.Intn(len(coasts))])
+					oi.TargetCoast = string(coasts[botIntn(len(coasts))])
 				} else {
 					continue
 				}
@@ -219,7 +218,7 @@ func (RandomStrategy) GenerateRetreatOrders(gs *diplomacy.GameState, power diplo
 		adj := m.ProvincesAdjacentTo(d.DislodgedFrom, d.Unit.Coast, isFleet)
 
 		retreated := false
-		perm := rand.Perm(len(adj))
+		perm := botPerm(len(adj))
 		for _, idx := range perm {
 			target := adj[idx]
 			// Cannot retreat to attacker's origin
@@ -253,7 +252,7 @@ func (RandomStrategy) GenerateRetreatOrders(gs *diplomacy.GameState, power diplo
 				if len(coasts) == 1 {
 					oi.TargetCoast = string(coasts[0])
 				} else if len(coasts) > 1 {
-					oi.TargetCoast = string(coasts[rand.Intn(len(coasts))])
+					oi.TargetCoast = string(coasts[botIntn(len(coasts))])
 				} else {
 					continue
 				}
@@ -304,7 +303,7 @@ func (RandomStrategy) GenerateBuildOrders(gs *diplomacy.GameState, power diploma
 				available = append(available, h)
 			}
 		}
-		rand.Shuffle(len(available), func(i, j int) { available[i], available[j] = available[j], available[i] })
+		botShuffle(len(available), func(i, j int) { available[i], available[j] = available[j], available[i] })
 
 		built := 0
 		for _, loc := range available {
@@ -320,7 +319,7 @@ func (RandomStrategy) GenerateBuildOrders(gs *diplomacy.GameState, power diploma
 			unitType := diplomacy.Army
 			if prov.Type == diplomacy.Sea {
 				unitType = diplomacy.Fleet
-			} else if prov.Type == diplomacy.Coastal && rand.Float64() < 0.3 {
+			} else if prov.Type == diplomacy.Coastal && botFloat64() < 0.3 {
 				unitType = diplomacy.Fleet
 			}
 
@@ -332,7 +331,7 @@ func (RandomStrategy) GenerateBuildOrders(gs *diplomacy.GameState, power diploma
 
 			// Fleet on split-coast needs coast
 			if unitType == diplomacy.Fleet && len(prov.Coasts) > 0 {
-				oi.Coast = string(prov.Coasts[rand.Intn(len(prov.Coasts))])
+				oi.Coast = string(prov.Coasts[botIntn(len(prov.Coasts))])
 			}
 
 			bo := diplomacy.BuildOrder{
@@ -351,7 +350,7 @@ func (RandomStrategy) GenerateBuildOrders(gs *diplomacy.GameState, power diploma
 		// Need disbands
 		needed := -diff
 		units := gs.UnitsOf(power)
-		rand.Shuffle(len(units), func(i, j int) { units[i], units[j] = units[j], units[i] })
+		botShuffle(len(units), func(i, j int) { units[i], units[j] = units[j], units[i] })
 		for i := 0; i < needed && i < len(units); i++ {
 			orders = append(orders, OrderInput{
 				UnitType:  units[i].Type.String(),
