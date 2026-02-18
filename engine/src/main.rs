@@ -3,18 +3,10 @@
 //! This binary reads commands from stdin and writes responses to stdout,
 //! following the DUI (Diplomacy Universal Interface) convention.
 
-mod board;
-mod engine;
-mod eval;
-mod movegen;
-mod protocol;
-mod resolve;
-mod search;
-
 use std::io::{self, BufRead};
 
-use engine::Engine;
-use protocol::parser::{parse_command, Command};
+use realpolitik::engine::Engine;
+use realpolitik::protocol::parser::{parse_command, Command};
 
 /// Runs the main DUI protocol loop, reading commands from stdin
 /// and writing responses to stdout.
