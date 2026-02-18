@@ -604,19 +604,6 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 	score -= float64(totalEnemy)
 	score -= 0.5 * float64(maxEnemy)
 
-	// Territorial cohesion: reward units that can support each other.
-	// Each own unit gets a bonus for each neighbor (up to 3) that can reach it.
-	ownUnits := gs.UnitsOf(power)
-	for i, u := range ownUnits {
-		neighbors := 0
-		for j, other := range ownUnits {
-			if i != j && unitCanReach(other, u.Province, m) {
-				neighbors++
-			}
-		}
-		score += 0.5 * float64(min(neighbors, 3))
-	}
-
 	// Bonus for having fewer alive enemies (rewards elimination)
 	eliminatedBonus := float64(6-aliveEnemies) * 8.0
 	score += eliminatedBonus
