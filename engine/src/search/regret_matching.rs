@@ -15,7 +15,11 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 
-use crate::board::province::{Power, Province, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT};
+use crate::board::adjacency::adj_from;
+use crate::board::order::{Location, OrderUnit};
+use crate::board::province::{
+    Coast, Power, Province, ProvinceType, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT,
+};
 use crate::board::state::{BoardState, Phase, Season};
 use crate::board::unit::UnitType;
 use crate::board::Order;
@@ -24,7 +28,7 @@ use crate::eval::heuristic::{
     count_scs, nearest_unowned_sc_dist, power_has_units, province_defense, province_threat,
 };
 use crate::eval::NeuralEvaluator;
-use crate::movegen::movement::{legal_orders, move_orders_only};
+use crate::movegen::movement::legal_orders;
 use crate::resolve::{advance_state, apply_resolution, needs_build_phase, Resolver};
 use crate::search::cartesian::{
     heuristic_build_orders, heuristic_retreat_orders, predict_opponent_orders,
@@ -33,7 +37,7 @@ use crate::search::neural_candidates::{neural_top_k_per_unit, softmax_weights};
 use crate::search::SearchResult;
 
 /// Number of candidate order sets to generate per power.
-const NUM_CANDIDATES: usize = 12;
+const NUM_CANDIDATES: usize = 16;
 
 /// Minimum number of RM+ iterations (guarantees quality even with short budgets).
 const MIN_RM_ITERATIONS: usize = 48;
@@ -259,8 +263,9 @@ fn top_k_per_unit(power: Power, state: &BoardState, k: usize) -> Vec<Vec<ScoredO
 
 /// Generates diverse candidate order sets for a power by sampling from top-K per unit.
 ///
-/// Generates one greedy candidate (best per unit) and remaining candidates by
-/// stochastic sampling with noise to create structural diversity.
+/// Generates one greedy candidate (best per unit), stochastically sampled candidates
+/// for diversity, and coordinated candidates that pair support orders with matching
+/// moves to ensure support+move combinations appear in the candidate pool.
 fn generate_candidates(
     power: Power,
     state: &BoardState,
@@ -272,28 +277,42 @@ fn generate_candidates(
         return Vec::new();
     }
 
+    // Build unit province index for cross-referencing supports.
+    let unit_provinces: Vec<Province> = per_unit
+        .iter()
+        .filter_map(|cands| {
+            cands.first().map(|so| match so.order {
+                Order::Hold { unit }
+                | Order::Move { unit, .. }
+                | Order::SupportHold { unit, .. }
+                | Order::SupportMove { unit, .. }
+                | Order::Convoy { unit, .. } => unit.location.province,
+                _ => Province::Adr, // fallback
+            })
+        })
+        .collect();
+
+    // Reserve space for greedy + sampled + coordinated
+    let sampled_count = count.saturating_sub(5);
     let mut candidates: Vec<Vec<(Order, Power)>> = Vec::with_capacity(count);
-    let mut seen: Vec<Vec<usize>> = Vec::new();
+    let mut seen_orders: Vec<Vec<Order>> = Vec::new();
 
     // First candidate: greedy best
-    let greedy: Vec<usize> = vec![0; per_unit.len()];
-    let greedy_orders: Vec<(Order, Power)> = greedy
+    let greedy_orders: Vec<(Order, Power)> = per_unit
         .iter()
-        .enumerate()
-        .map(|(u, &idx)| (per_unit[u][idx].order, power))
+        .map(|cands| (cands[0].order, power))
         .collect();
+    seen_orders.push(greedy_orders.iter().map(|(o, _)| *o).collect());
     candidates.push(greedy_orders);
-    seen.push(greedy);
 
-    // Remaining candidates: sample with noise
-    for _ in 1..count {
-        let mut combo: Vec<usize> = Vec::with_capacity(per_unit.len());
+    // Sampled candidates: softmax noise for diversity
+    for _ in 0..sampled_count {
+        let mut orders: Vec<(Order, Power)> = Vec::with_capacity(per_unit.len());
         for unit_cands in &per_unit {
             if unit_cands.len() == 1 {
-                combo.push(0);
+                orders.push((unit_cands[0].order, power));
                 continue;
             }
-            // Softmax-like sampling: higher scored orders have higher probability
             let max_score = unit_cands[0].score;
             let weights: Vec<f64> = unit_cands
                 .iter()
@@ -310,23 +329,137 @@ fn generate_candidates(
                     break;
                 }
             }
-            combo.push(picked);
+            orders.push((unit_cands[picked].order, power));
         }
 
-        // Deduplicate
-        if seen.contains(&combo) {
-            continue;
+        let order_key: Vec<Order> = orders.iter().map(|(o, _)| *o).collect();
+        if !seen_orders.contains(&order_key) {
+            seen_orders.push(order_key);
+            candidates.push(orders);
         }
-        let orders: Vec<(Order, Power)> = combo
-            .iter()
-            .enumerate()
-            .map(|(u, &idx)| (per_unit[u][idx].order, power))
-            .collect();
-        seen.push(combo);
-        candidates.push(orders);
     }
 
+    // Coordinated candidates: pair support orders with matching moves/holds.
+    inject_coordinated_candidates(
+        power,
+        state,
+        &per_unit,
+        &unit_provinces,
+        &mut candidates,
+        &mut seen_orders,
+        4,
+    );
+
     candidates
+}
+
+/// Injects coordinated candidates that pair support orders with their matching moves/holds.
+///
+/// For each support-move order in any unit's top-K, finds the supported unit and
+/// creates a candidate where the supporter plays the support and the mover plays
+/// the matching move, with other units keeping greedy orders. Also creates
+/// support-hold candidates for threatened owned supply centers.
+fn inject_coordinated_candidates(
+    power: Power,
+    state: &BoardState,
+    per_unit: &[Vec<ScoredOrder>],
+    unit_provinces: &[Province],
+    candidates: &mut Vec<Vec<(Order, Power)>>,
+    seen_orders: &mut Vec<Vec<Order>>,
+    max_coordinated: usize,
+) {
+    let mut added = 0usize;
+
+    // Collect support opportunities with scores for prioritization.
+    let mut support_opportunities: Vec<(usize, Order, f32)> = Vec::new();
+
+    for (ui, cands) in per_unit.iter().enumerate() {
+        for so in cands {
+            match so.order {
+                Order::SupportMove {
+                    supported, dest, ..
+                } => {
+                    let supported_prov = supported.location.province;
+                    if let Some(target_ui) =
+                        unit_provinces.iter().position(|&p| p == supported_prov)
+                    {
+                        let has_matching_move = per_unit[target_ui].iter().any(|to| {
+                            matches!(to.order, Order::Move { dest: d, .. } if d.province == dest.province)
+                        });
+                        if has_matching_move {
+                            support_opportunities.push((ui, so.order, so.score));
+                        }
+                    }
+                }
+                Order::SupportHold { supported, .. } => {
+                    let supported_prov = supported.location.province;
+                    if supported_prov.is_supply_center()
+                        && state.sc_owner[supported_prov as usize] == Some(power)
+                        && province_threat(supported_prov, power, state) > 0
+                    {
+                        if unit_provinces.iter().any(|&p| p == supported_prov) {
+                            support_opportunities.push((ui, so.order, so.score + 2.0));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Sort by score descending to inject the most valuable supports first.
+    support_opportunities
+        .sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+
+    for (supporter_ui, support_order, _score) in &support_opportunities {
+        if added >= max_coordinated {
+            break;
+        }
+
+        // Start with greedy orders for all units.
+        let mut coord_orders: Vec<(Order, Power)> = per_unit
+            .iter()
+            .map(|cands| (cands[0].order, power))
+            .collect();
+
+        // Set the supporter to play the support order.
+        coord_orders[*supporter_ui] = (*support_order, power);
+
+        // For support-move, set the supported unit to play the matching move.
+        if let Order::SupportMove {
+            supported, dest, ..
+        } = support_order
+        {
+            let supported_prov = supported.location.province;
+            if let Some(target_ui) = unit_provinces.iter().position(|&p| p == supported_prov) {
+                if let Some(matching_move) = per_unit[target_ui].iter().find(|so| {
+                    matches!(so.order, Order::Move { dest: d, .. } if d.province == dest.province)
+                }) {
+                    coord_orders[target_ui] = (matching_move.order, power);
+                }
+            }
+        }
+
+        // For support-hold, ensure the supported unit holds (override if greedy picked a move).
+        if let Order::SupportHold { supported, .. } = support_order {
+            let supported_prov = supported.location.province;
+            if let Some(target_ui) = unit_provinces.iter().position(|&p| p == supported_prov) {
+                if let Some(hold_order) = per_unit[target_ui]
+                    .iter()
+                    .find(|so| matches!(so.order, Order::Hold { .. }))
+                {
+                    coord_orders[target_ui] = (hold_order.order, power);
+                }
+            }
+        }
+
+        let order_key: Vec<Order> = coord_orders.iter().map(|(o, _)| *o).collect();
+        if !seen_orders.contains(&order_key) {
+            seen_orders.push(order_key);
+            candidates.push(coord_orders);
+            added += 1;
+        }
+    }
 }
 
 /// Blended candidate order for a single unit, carrying both heuristic and neural scores.
@@ -496,6 +629,49 @@ fn generate_candidates_neural(
         candidates.push(orders);
     }
 
+    // Add coordinated candidates using the blended per-unit data.
+    let blended_as_scored: Vec<Vec<ScoredOrder>> = blended_per_unit
+        .iter()
+        .map(|cands| {
+            cands
+                .iter()
+                .map(|b| ScoredOrder {
+                    order: b.order,
+                    score: b.score,
+                })
+                .collect()
+        })
+        .collect();
+
+    let unit_provinces: Vec<Province> = blended_as_scored
+        .iter()
+        .filter_map(|cands| {
+            cands.first().map(|so| match so.order {
+                Order::Hold { unit }
+                | Order::Move { unit, .. }
+                | Order::SupportHold { unit, .. }
+                | Order::SupportMove { unit, .. }
+                | Order::Convoy { unit, .. } => unit.location.province,
+                _ => Province::Adr,
+            })
+        })
+        .collect();
+
+    let mut seen_orders: Vec<Vec<Order>> = candidates
+        .iter()
+        .map(|c| c.iter().map(|(o, _)| *o).collect())
+        .collect();
+
+    inject_coordinated_candidates(
+        power,
+        state,
+        &blended_as_scored,
+        &unit_provinces,
+        &mut candidates,
+        &mut seen_orders,
+        4,
+    );
+
     candidates
 }
 
@@ -655,7 +831,10 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
     if count <= 1 {
         0.0
     } else {
-        2.0 * (count - 1) as f64
+        // Reduced from 2.0: concentrated force against one power is often
+        // correct (especially with support coordination), so only lightly
+        // penalize spreading attacks across many different powers.
+        1.0 * (count - 1) as f64
     }
 }
 
@@ -735,39 +914,225 @@ fn simulate_n_phases(
     current
 }
 
-/// Lightweight greedy orders using only hold + move (no support/convoy).
+/// Lightweight scoring for lookahead move selection (O(1) per order).
 ///
-/// Skips support generation (which scans all 75 provinces per unit) and
-/// convoy generation. Support orders rarely win as greedy top-1 picks.
-fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
-    let mut all_orders: Vec<(Order, Power)> = Vec::new();
-    for &p in ALL_POWERS.iter() {
-        if !power_has_units(state, p) {
-            continue;
-        }
-        for i in 0..PROVINCE_COUNT {
-            if let Some((owner, _)) = state.units[i] {
-                if owner != p {
-                    continue;
-                }
-                let prov = ALL_PROVINCES[i];
-                let orders = move_orders_only(prov, state);
-                if orders.is_empty() {
-                    continue;
-                }
-                // Pick the top-1 by heuristic score.
-                let best = orders
-                    .into_iter()
-                    .max_by(|a, b| {
-                        score_order(a, p, state)
-                            .partial_cmp(&score_order(b, p, state))
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    })
-                    .unwrap();
-                all_orders.push((best, p));
-            }
+/// Uses only direct array lookups (sc_owner, units) — no province scanning.
+/// This is ~10x cheaper than `score_order` which calls `province_threat`,
+/// `province_defense`, and `nearest_unowned_sc_dist`.
+#[inline]
+fn score_move_fast(dest: Province, power: Power, state: &BoardState) -> f32 {
+    let dst = dest as usize;
+    let mut score: f32 = 0.0;
+
+    if dest.is_supply_center() {
+        match state.sc_owner[dst] {
+            None => score += 10.0,
+            Some(o) if o != power => score += 7.0,
+            _ => score += 1.0,
         }
     }
+
+    // Penalize moving into own units
+    if let Some((p, _)) = state.units[dst] {
+        if p == power {
+            score -= 15.0;
+        }
+    }
+
+    score
+}
+
+/// Greedy orders with support awareness.
+///
+/// Two-pass approach: first picks greedy move/hold for each unit, then checks
+/// if any unit would score better supporting an adjacent ally's move or holding
+/// position. This ensures the lookahead doesn't systematically undervalue supports.
+fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
+    let mut all_orders: Vec<(Order, Power)> = Vec::with_capacity(22);
+    let mut order_scores: Vec<f32> = Vec::with_capacity(22);
+
+    // Pass 1: pick greedy move/hold for each unit.
+    for i in 0..PROVINCE_COUNT {
+        let (power, unit_type) = match state.units[i] {
+            Some(pu) => pu,
+            None => continue,
+        };
+        let prov = ALL_PROVINCES[i];
+        let coast = state.fleet_coast[i].unwrap_or(Coast::None);
+        let is_fleet = unit_type == UnitType::Fleet;
+        let unit = OrderUnit {
+            unit_type,
+            location: Location::with_coast(prov, coast),
+        };
+
+        let mut best_order = Order::Hold { unit };
+        let mut best_score: f32 = -1.0;
+
+        for adj in adj_from(prov) {
+            if is_fleet && !adj.fleet_ok {
+                continue;
+            }
+            if !is_fleet && !adj.army_ok {
+                continue;
+            }
+            if coast != Coast::None && adj.from_coast != Coast::None && adj.from_coast != coast {
+                continue;
+            }
+            let dest = adj.to;
+            let dest_type = dest.province_type();
+
+            if is_fleet && dest_type == ProvinceType::Land {
+                continue;
+            }
+            if !is_fleet && dest_type == ProvinceType::Sea {
+                continue;
+            }
+
+            let dest_coast = if is_fleet && dest.has_coasts() {
+                adj.to_coast
+            } else {
+                Coast::None
+            };
+
+            let score = score_move_fast(dest, power, state);
+            if score > best_score {
+                best_score = score;
+                best_order = Order::Move {
+                    unit,
+                    dest: Location::with_coast(dest, dest_coast),
+                };
+            }
+        }
+
+        all_orders.push((best_order, power));
+        order_scores.push(best_score);
+    }
+
+    // Pass 2: check if any unit would do better supporting an adjacent ally's move.
+    // For each unit, scan adjacent provinces for same-power units that are moving
+    // to a valuable destination. If supporting that move scores higher, switch.
+    let order_snapshot = all_orders.clone();
+    for (oi, &(ref order, power)) in order_snapshot.iter().enumerate() {
+        let unit = match order {
+            Order::Hold { unit }
+            | Order::Move { unit, .. }
+            | Order::SupportHold { unit, .. }
+            | Order::SupportMove { unit, .. }
+            | Order::Convoy { unit, .. } => *unit,
+            _ => continue,
+        };
+        let prov = unit.location.province;
+        let coast = unit.location.coast;
+        let is_fleet = unit.unit_type == UnitType::Fleet;
+
+        // Build reachable set for this unit (provinces it can move to).
+        let mut reachable: Vec<Province> = Vec::new();
+        for adj in adj_from(prov) {
+            if is_fleet && !adj.fleet_ok {
+                continue;
+            }
+            if !is_fleet && !adj.army_ok {
+                continue;
+            }
+            if coast != Coast::None && adj.from_coast != Coast::None && adj.from_coast != coast {
+                continue;
+            }
+            let dest_type = adj.to.province_type();
+            if is_fleet && dest_type == ProvinceType::Land {
+                continue;
+            }
+            if !is_fleet && dest_type == ProvinceType::Sea {
+                continue;
+            }
+            reachable.push(adj.to);
+        }
+
+        let mut best_support_score: f32 = order_scores[oi];
+        let mut best_support_order: Option<Order> = None;
+
+        // Check other same-power units for support-move opportunities.
+        for (oj, &(ref other_order, other_power)) in order_snapshot.iter().enumerate() {
+            if oj == oi || other_power != power {
+                continue;
+            }
+            if let Order::Move {
+                unit: other_unit,
+                dest,
+            } = other_order
+            {
+                let move_dest = dest.province;
+                // Can this unit reach the move destination? (required for support-move)
+                if !reachable.contains(&move_dest) {
+                    continue;
+                }
+                // Score the support-move: value of supporting the attack.
+                let mut support_score: f32 = 2.0;
+                if move_dest.is_supply_center() {
+                    match state.sc_owner[move_dest as usize] {
+                        None => support_score += 6.0,
+                        Some(o) if o != power => support_score += 5.0,
+                        _ => {}
+                    }
+                }
+                if let Some((p, _)) = state.units[move_dest as usize] {
+                    if p != power {
+                        support_score += 3.0;
+                    }
+                }
+                if support_score > best_support_score {
+                    best_support_score = support_score;
+                    let supported = *other_unit;
+                    best_support_order = Some(Order::SupportMove {
+                        unit,
+                        supported,
+                        dest: Location::new(move_dest),
+                    });
+                }
+            }
+        }
+
+        // Check for support-hold on threatened own SCs.
+        for &neighbor_prov in &reachable {
+            if let Some((neighbor_power, neighbor_ut)) = state.units[neighbor_prov as usize] {
+                if neighbor_power != power {
+                    continue;
+                }
+                // Support hold is valuable if the neighbor is on a threatened own SC.
+                if neighbor_prov.is_supply_center()
+                    && state.sc_owner[neighbor_prov as usize] == Some(power)
+                {
+                    // Check if any enemy can reach this SC (simplified threat check).
+                    let mut threatened = false;
+                    for adj in adj_from(neighbor_prov) {
+                        if let Some((ep, _)) = state.units[adj.to as usize] {
+                            if ep != power {
+                                threatened = true;
+                                break;
+                            }
+                        }
+                    }
+                    if threatened {
+                        let support_score: f32 = 5.0;
+                        if support_score > best_support_score {
+                            best_support_score = support_score;
+                            let neighbor_coast =
+                                state.fleet_coast[neighbor_prov as usize].unwrap_or(Coast::None);
+                            let supported = OrderUnit {
+                                unit_type: neighbor_ut,
+                                location: Location::with_coast(neighbor_prov, neighbor_coast),
+                            };
+                            best_support_order = Some(Order::SupportHold { unit, supported });
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(support_order) = best_support_order {
+            all_orders[oi] = (support_order, power);
+        }
+    }
+
     all_orders
 }
 
@@ -1461,5 +1826,136 @@ mod tests {
         assert!((weight_at(1) - 0.01).abs() < 0.001);
         assert!((weight_at(50) - 0.50).abs() < 0.001);
         assert!((weight_at(100) - 1.00).abs() < 0.001);
+    }
+
+    #[test]
+    fn coordinated_candidates_contain_support_orders() {
+        // Two adjacent Austrian units: Gal can support Bud->Rum.
+        let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+
+        let mut rng = SmallRng::seed_from_u64(42);
+        let cands = generate_candidates(Power::Austria, &state, NUM_CANDIDATES, &mut rng);
+
+        let has_support_move = cands.iter().any(|cand| {
+            cand.iter()
+                .any(|(o, _)| matches!(o, Order::SupportMove { .. }))
+        });
+        assert!(
+            has_support_move,
+            "Coordinated candidates should include at least one support-move order"
+        );
+    }
+
+    #[test]
+    fn coordinated_candidates_pair_support_with_move() {
+        // Verify support-move and matching move appear in the same candidate.
+        let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+
+        let mut rng = SmallRng::seed_from_u64(42);
+        let cands = generate_candidates(Power::Austria, &state, NUM_CANDIDATES, &mut rng);
+
+        let has_coordinated_pair = cands.iter().any(|cand| {
+            // Find a support-move order and check if the matching move exists.
+            for (order, _) in cand {
+                if let Order::SupportMove { dest, .. } = order {
+                    let move_dest = dest.province;
+                    let has_matching_move = cand.iter().any(|(o, _)| {
+                        matches!(o, Order::Move { dest: d, .. } if d.province == move_dest)
+                    });
+                    if has_matching_move {
+                        return true;
+                    }
+                }
+            }
+            false
+        });
+
+        assert!(
+            has_coordinated_pair,
+            "Should have at least one candidate with a coordinated support-move + move pair"
+        );
+    }
+
+    #[test]
+    fn greedy_orders_fast_includes_supports() {
+        // Set up a board where both Bud and Gal want Rum (enemy SC with defender),
+        // and all other nearby SCs are already owned so neither has a better move.
+        let mut state = BoardState::empty(1903, Season::Fall, Phase::Movement);
+        state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        // Own all nearby SCs so they aren't attractive move targets.
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Vie, Some(Power::Austria));
+        state.set_sc_owner(Province::War, Some(Power::Austria));
+        state.set_sc_owner(Province::Ser, Some(Power::Austria));
+        state.set_sc_owner(Province::Tri, Some(Power::Austria));
+        // Enemy unit on Rum makes it the only valuable target.
+        state.place_unit(Province::Rum, Power::Turkey, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Rum, Some(Power::Turkey));
+
+        let orders = generate_greedy_orders_fast(&state);
+
+        let austrian_orders: Vec<&Order> = orders
+            .iter()
+            .filter(|(_, p)| *p == Power::Austria)
+            .map(|(o, _)| o)
+            .collect();
+
+        let has_support = austrian_orders
+            .iter()
+            .any(|o| matches!(o, Order::SupportMove { .. } | Order::SupportHold { .. }));
+
+        assert!(
+            has_support,
+            "One unit should support the other's attack on Rum. Got: {:?}",
+            austrian_orders
+        );
+    }
+
+    #[test]
+    fn cooperation_penalty_reduced() {
+        // Verify the cooperation penalty is now lower (1.0 per extra power instead of 2.0).
+        let mut state = BoardState::empty(1903, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Ser, Power::Turkey, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Ser, Some(Power::Turkey));
+        state.place_unit(Province::Ven, Power::Italy, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Ven, Some(Power::Italy));
+
+        use crate::board::order::{Location, OrderUnit};
+        let orders = vec![
+            (
+                Order::Move {
+                    unit: OrderUnit {
+                        unit_type: UnitType::Army,
+                        location: Location::new(Province::Bud),
+                    },
+                    dest: Location::new(Province::Ser),
+                },
+                Power::Austria,
+            ),
+            (
+                Order::Move {
+                    unit: OrderUnit {
+                        unit_type: UnitType::Army,
+                        location: Location::new(Province::Tyr),
+                    },
+                    dest: Location::new(Province::Ven),
+                },
+                Power::Austria,
+            ),
+        ];
+
+        let penalty = cooperation_penalty(&orders, &state, Power::Austria);
+        assert!(
+            (penalty - 1.0).abs() < 0.001,
+            "Penalty for 2 powers should be 1.0, got {}",
+            penalty
+        );
     }
 }
