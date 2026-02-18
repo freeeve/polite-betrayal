@@ -6,11 +6,14 @@
 //! counterfactual regret updates to converge toward an equilibrium.
 //! The engine's power then plays a best response against that equilibrium.
 
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::time::{Duration, Instant};
 
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+use rayon::prelude::*;
 
 use crate::board::province::{Power, Province, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT};
 use crate::board::state::{BoardState, Phase, Season};
@@ -46,6 +49,61 @@ const BUDGET_CAND_GEN: f64 = 0.25;
 
 /// Budget fraction for RM+ iterations.
 const BUDGET_RM_ITER: f64 = 0.50;
+
+/// Maximum entries in the second-ply greedy order cache.
+const GREEDY_CACHE_CAPACITY: usize = 1024;
+
+/// Computes a hash of the board state fields relevant to movegen.
+///
+/// Hashes units, fleet_coast, sc_owner, season, and phase — the fields that
+/// determine which greedy orders will be generated. Skips year and dislodged
+/// since they don't affect movement order generation.
+fn hash_board_for_movegen(state: &BoardState) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    state.season.hash(&mut hasher);
+    state.phase.hash(&mut hasher);
+    for u in &state.units {
+        u.hash(&mut hasher);
+    }
+    for c in &state.fleet_coast {
+        c.hash(&mut hasher);
+    }
+    for o in &state.sc_owner {
+        o.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+/// Simple cache for second-ply greedy orders, keyed by board state hash.
+///
+/// When capacity is exceeded, the cache is cleared (simpler than true LRU,
+/// and the cache rebuilds quickly within an RM+ search).
+struct GreedyOrderCache {
+    map: HashMap<u64, Vec<(Order, Power)>>,
+    capacity: usize,
+}
+
+impl GreedyOrderCache {
+    fn new(capacity: usize) -> Self {
+        GreedyOrderCache {
+            map: HashMap::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    /// Looks up cached greedy orders for a board state hash.
+    fn get(&self, key: u64) -> Option<&Vec<(Order, Power)>> {
+        self.map.get(&key)
+    }
+
+    /// Inserts greedy orders for a board state hash, evicting all entries if at capacity.
+    fn insert(&mut self, key: u64, orders: Vec<(Order, Power)>) {
+        if self.map.len() >= self.capacity {
+            self.map.clear();
+        }
+        self.map.insert(key, orders);
+    }
+}
 
 /// A scored candidate order for a single unit.
 #[derive(Clone, Copy)]
@@ -606,6 +664,9 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
 /// Uses lightweight movegen (hold + move only, no support/convoy) for all
 /// movement phases. Support orders rarely win as greedy top-1 picks, and
 /// skipping them cuts movegen cost by ~3-5x per ply.
+///
+/// An LRU cache avoids redundant greedy movegen for board states that have
+/// already been seen during the current search.
 fn simulate_n_phases(
     state: &BoardState,
     _power: Power,
@@ -613,6 +674,7 @@ fn simulate_n_phases(
     depth: usize,
     start_year: u16,
     _rng: &mut SmallRng,
+    greedy_cache: &mut GreedyOrderCache,
 ) -> BoardState {
     let mut current = state.clone();
 
@@ -623,7 +685,14 @@ fn simulate_n_phases(
 
         match current.phase {
             Phase::Movement => {
-                let all_orders = generate_greedy_orders_fast(&current);
+                let board_hash = hash_board_for_movegen(&current);
+                let all_orders = if let Some(cached) = greedy_cache.get(board_hash) {
+                    cached.clone()
+                } else {
+                    let orders = generate_greedy_orders_fast(&current);
+                    greedy_cache.insert(board_hash, orders.clone());
+                    orders
+                };
 
                 let (results, dislodged) = resolver.resolve(&all_orders, &current);
                 apply_resolution(&mut current, &results, &dislodged);
@@ -957,7 +1026,7 @@ pub fn regret_matching_search<W: Write>(
         .collect();
     let mut sampled: Vec<usize> = vec![0; num_powers];
     let mut combined: Vec<(Order, Power)> = Vec::with_capacity(32);
-    let mut alt_combined: Vec<(Order, Power)> = Vec::with_capacity(32);
+    let mut greedy_cache = GreedyOrderCache::new(GREEDY_CACHE_CAPACITY);
 
     // Main RM+ loop (time-based with minimum iteration guarantee)
     loop {
@@ -1014,46 +1083,52 @@ pub fn regret_matching_search<W: Write>(
             LOOKAHEAD_DEPTH,
             start_year,
             &mut rng,
+            &mut greedy_cache,
         );
         let base_value = rm_evaluate(power, &future) - coop_penalties[sampled[our_power_idx]];
         nodes += 1;
 
-        // Counterfactual regret update for our power's alternatives
-        for ci in 0..our_k {
-            if ci == sampled[our_power_idx] {
-                continue;
-            }
-
-            // Build alternative combined orders with ci for our power (reuse buffer)
-            alt_combined.clear();
-            for (pi, (_, cands)) in power_candidates.iter().enumerate() {
-                if pi == our_power_idx {
-                    alt_combined.extend_from_slice(&cands[ci]);
-                } else {
-                    alt_combined.extend_from_slice(&cands[sampled[pi]]);
+        // Counterfactual regret update for our power's alternatives (parallelized with rayon)
+        let cf_results: Vec<(usize, f64)> = (0..our_k)
+            .into_par_iter()
+            .filter(|&ci| ci != sampled[our_power_idx])
+            .map(|ci| {
+                let mut alt_orders: Vec<(Order, Power)> = Vec::with_capacity(32);
+                for (pi, (_, cands)) in power_candidates.iter().enumerate() {
+                    if pi == our_power_idx {
+                        alt_orders.extend_from_slice(&cands[ci]);
+                    } else {
+                        alt_orders.extend_from_slice(&cands[sampled[pi]]);
+                    }
                 }
-            }
 
-            let (alt_results, alt_dislodged) = resolver.resolve(&alt_combined, state);
-            let mut alt_scratch = state.clone();
-            apply_resolution(&mut alt_scratch, &alt_results, &alt_dislodged);
-            let alt_has_dislodged = alt_scratch.dislodged.iter().any(|d| d.is_some());
-            advance_state(&mut alt_scratch, alt_has_dislodged);
+                let mut tl_resolver = Resolver::new(64);
+                let mut tl_rng = SmallRng::from_entropy();
+                let mut tl_cache = GreedyOrderCache::new(GREEDY_CACHE_CAPACITY);
 
-            // Lookahead: fast greedy simulation for post-resolution board state
-            let alt_future = simulate_n_phases(
-                &alt_scratch,
-                power,
-                &mut resolver,
-                LOOKAHEAD_DEPTH,
-                start_year,
-                &mut rng,
-            );
-            let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
+                let (alt_results, alt_dislodged) = tl_resolver.resolve(&alt_orders, state);
+                let mut alt_scratch = state.clone();
+                apply_resolution(&mut alt_scratch, &alt_results, &alt_dislodged);
+                let alt_has_dislodged = alt_scratch.dislodged.iter().any(|d| d.is_some());
+                advance_state(&mut alt_scratch, alt_has_dislodged);
 
-            // RM+: clip regret to non-negative
-            cum_regrets[our_power_idx][ci] =
-                f64::max(0.0, cum_regrets[our_power_idx][ci] + cf_value - base_value);
+                let alt_future = simulate_n_phases(
+                    &alt_scratch,
+                    power,
+                    &mut tl_resolver,
+                    LOOKAHEAD_DEPTH,
+                    start_year,
+                    &mut tl_rng,
+                    &mut tl_cache,
+                );
+                let cf_value = rm_evaluate(power, &alt_future) - coop_penalties[ci];
+                (ci, cf_value)
+            })
+            .collect();
+
+        for (ci, cf_value) in &cf_results {
+            cum_regrets[our_power_idx][*ci] =
+                f64::max(0.0, cum_regrets[our_power_idx][*ci] + cf_value - base_value);
             nodes += 1;
         }
 

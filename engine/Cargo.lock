@@ -793,6 +793,7 @@ dependencies = [
  "ndarray",
  "ort",
  "rand",
+ "rayon",
  "serde",
  "serde_json",
  "thiserror",
