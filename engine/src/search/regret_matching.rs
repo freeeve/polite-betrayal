@@ -372,10 +372,10 @@ fn coordinate_candidate_supports(
                         &unit_orders,
                         unit_provinces,
                     );
-                    if let Some(new_order) = replacement {
-                        candidate[ci] = (new_order, power);
-                        changed = true;
-                    }
+                    // If no replacement found in candidates, fall back to hold.
+                    let new_order = replacement.unwrap_or(Order::Hold { unit });
+                    candidate[ci] = (new_order, power);
+                    changed = true;
                     continue;
                 }
 
@@ -403,15 +403,62 @@ fn coordinate_candidate_supports(
                     unit_provinces,
                 );
 
-                if let Some(new_order) = replacement {
-                    candidate[ci] = (new_order, power);
-                    changed = true;
-                }
+                // If no replacement found in candidates, fall back to hold.
+                let new_order = replacement.unwrap_or(Order::Hold { unit });
+                candidate[ci] = (new_order, power);
+                changed = true;
             }
         }
 
         if !changed {
             break;
+        }
+    }
+
+    // Final safety net: force any remaining phantom support-moves to hold.
+    // This catches edge cases where the iterative replacement couldn't resolve
+    // circular chains or when the top-K candidates contained only support orders.
+    let final_orders: Vec<(Province, Order)> = candidate
+        .iter()
+        .map(|(o, _)| {
+            let prov = match *o {
+                Order::Hold { unit }
+                | Order::Move { unit, .. }
+                | Order::SupportHold { unit, .. }
+                | Order::SupportMove { unit, .. }
+                | Order::Convoy { unit, .. } => unit.location.province,
+                _ => Province::Adr,
+            };
+            (prov, *o)
+        })
+        .collect();
+
+    for ci in 0..candidate.len() {
+        let (order, ord_power) = candidate[ci];
+        if ord_power != power {
+            continue;
+        }
+        if let Order::SupportMove {
+            unit,
+            supported,
+            dest,
+            ..
+        } = order
+        {
+            let supported_prov = supported.location.province;
+            let supported_is_ours = final_orders.iter().any(|(p, _)| *p == supported_prov);
+            if !supported_is_ours {
+                // Foreign support-move survived all passes -- force hold.
+                candidate[ci] = (Order::Hold { unit }, power);
+                continue;
+            }
+            let is_matching = final_orders.iter().any(|(p, o)| {
+                *p == supported_prov
+                    && matches!(*o, Order::Move { dest: d, .. } if d.province == dest.province)
+            });
+            if !is_matching {
+                candidate[ci] = (Order::Hold { unit }, power);
+            }
         }
     }
 }
@@ -2498,6 +2545,92 @@ mod tests {
                 "Power {:?}: found {} cross-power support-move orders out of {} total across {} candidates",
                 p, foreign_support_move_count, total_support_move_count, cands.len()
             );
+        }
+    }
+
+    #[test]
+    fn no_phantom_supports_in_clustered_midgame_position() {
+        // Regression test for phantom supports when a unit's top-K candidates
+        // are all support orders (no hold/move available in the top-K).
+        // This happens in mid/late game with many clustered friendly units.
+        let mut state = BoardState::empty(1908, Season::Fall, Phase::Movement);
+
+        // Create a dense cluster of Austrian units in the Balkans.
+        // The unit in Ser is surrounded by friendly units on all sides,
+        // making all its top scored orders likely to be supports.
+        for &(prov, ut) in &[
+            (Province::Vie, UnitType::Army),
+            (Province::Bud, UnitType::Army),
+            (Province::Tri, UnitType::Army),
+            (Province::Ser, UnitType::Army),
+            (Province::Rum, UnitType::Army),
+            (Province::Bul, UnitType::Army),
+            (Province::Gre, UnitType::Army),
+            (Province::Gal, UnitType::Army),
+        ] {
+            state.place_unit(prov, Power::Austria, ut, Coast::None);
+        }
+        for &sc in &[
+            Province::Vie,
+            Province::Bud,
+            Province::Tri,
+            Province::Ser,
+            Province::Rum,
+            Province::Bul,
+            Province::Gre,
+        ] {
+            state.set_sc_owner(sc, Some(Power::Austria));
+        }
+
+        // Add some enemy units creating threats (makes supports score higher).
+        state.place_unit(Province::Alb, Power::Turkey, UnitType::Army, Coast::None);
+        state.place_unit(Province::Con, Power::Turkey, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Con, Some(Power::Turkey));
+        state.place_unit(Province::Ven, Power::Italy, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Ven, Some(Power::Italy));
+
+        let mut rng = SmallRng::seed_from_u64(42);
+        let cands = generate_candidates(Power::Austria, &state, 32, &mut rng);
+
+        let our_provinces: Vec<Province> = (0..PROVINCE_COUNT)
+            .filter_map(|i| {
+                if let Some((owner, _)) = state.units[i] {
+                    if owner == Power::Austria {
+                        return Some(ALL_PROVINCES[i]);
+                    }
+                }
+                None
+            })
+            .collect();
+
+        for (ci, cand) in cands.iter().enumerate() {
+            for (order, _) in cand {
+                if let Order::SupportMove {
+                    supported, dest, ..
+                } = order
+                {
+                    let supported_prov = supported.location.province;
+                    if !our_provinces.contains(&supported_prov) {
+                        panic!(
+                            "Candidate {} has cross-power support-move for {:?}",
+                            ci, supported_prov
+                        );
+                    }
+                    let has_matching_move = cand.iter().any(|(o, _)| {
+                        matches!(o, Order::Move { dest: d, .. }
+                        if d.province == dest.province
+                        && match o {
+                            Order::Move { unit: u, .. } => u.location.province == supported_prov,
+                            _ => false,
+                        })
+                    });
+                    assert!(
+                        has_matching_move,
+                        "Candidate {} has phantom support-move: supports {:?} -> {:?} but no matching move",
+                        ci, supported_prov, dest.province
+                    );
+                }
+            }
         }
     }
 }
