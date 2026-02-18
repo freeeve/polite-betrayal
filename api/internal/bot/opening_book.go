@@ -341,16 +341,6 @@ func unitKey(gs *diplomacy.GameState, power diplomacy.Power) map[string]string {
 	return m
 }
 
-// positionsMatch returns true if every required position is present in actual.
-func positionsMatch(required, actual map[string]string) bool {
-	for prov, utype := range required {
-		if actual[prov] != utype {
-			return false
-		}
-	}
-	return true
-}
-
 // bookWeightedSelect picks an option from a weighted list using random selection.
 func bookWeightedSelect(options []BookOption) *BookOption {
 	if len(options) == 0 {
@@ -442,28 +432,6 @@ func orderInputToOrder(o OrderInput, power diplomacy.Power) diplomacy.Order {
 		AuxTarget:   o.AuxTarget,
 		AuxUnitType: parseUnitTypeStr(o.AuxUnitType),
 	}
-}
-
-// Shorthand constructors for building OrderInputs in tests.
-
-func mv(ut, loc, target string) OrderInput {
-	return OrderInput{UnitType: ut, Location: loc, OrderType: "move", Target: target}
-}
-
-func mvC(ut, loc, coast, target, targetCoast string) OrderInput {
-	return OrderInput{UnitType: ut, Location: loc, Coast: coast, OrderType: "move", Target: target, TargetCoast: targetCoast}
-}
-
-func hld(ut, loc string) OrderInput {
-	return OrderInput{UnitType: ut, Location: loc, OrderType: "hold"}
-}
-
-func sup(ut, loc, auxLoc, auxTarget, auxUt string) OrderInput {
-	return OrderInput{UnitType: ut, Location: loc, OrderType: "support", AuxLoc: auxLoc, AuxTarget: auxTarget, AuxUnitType: auxUt}
-}
-
-func con(loc, auxLoc, auxTarget string) OrderInput {
-	return OrderInput{UnitType: "fleet", Location: loc, OrderType: "convoy", AuxLoc: auxLoc, AuxTarget: auxTarget, AuxUnitType: "army"}
 }
 
 // parsePhaseStr converts a phase string from JSON to the engine PhaseType.
@@ -585,25 +553,4 @@ func LookupOpening(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.
 		return validateBuildOrders(selected.Orders, gs, power, m)
 	}
 	return validateOrders(selected.Orders, gs, power, m)
-}
-
-// initialUnitPositions returns the expected starting unit positions for a power.
-func initialUnitPositions(power diplomacy.Power) map[string]string {
-	switch power {
-	case diplomacy.England:
-		return map[string]string{"lon": "fleet", "edi": "fleet", "lvp": "army"}
-	case diplomacy.France:
-		return map[string]string{"bre": "fleet", "par": "army", "mar": "army"}
-	case diplomacy.Germany:
-		return map[string]string{"kie": "fleet", "ber": "army", "mun": "army"}
-	case diplomacy.Italy:
-		return map[string]string{"nap": "fleet", "rom": "army", "ven": "army"}
-	case diplomacy.Austria:
-		return map[string]string{"tri": "fleet", "vie": "army", "bud": "army"}
-	case diplomacy.Russia:
-		return map[string]string{"stp": "fleet", "sev": "fleet", "mos": "army", "war": "army"}
-	case diplomacy.Turkey:
-		return map[string]string{"ank": "fleet", "con": "army", "smy": "army"}
-	}
-	return nil
 }
