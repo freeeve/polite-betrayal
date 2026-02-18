@@ -73,10 +73,9 @@ func (s HardStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power dipl
 		return nil
 	}
 
-	if gs.Year == 1901 {
-		if opening := LookupOpening(gs, power, m); opening != nil {
-			return opening
-		}
+	// Use opening book for known positions (1901-1907).
+	if opening := LookupOpening(gs, power, m); opening != nil {
+		return opening
 	}
 
 	candidates := s.generateCandidates(gs, power, units, m)

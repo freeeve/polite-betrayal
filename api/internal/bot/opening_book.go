@@ -333,10 +333,15 @@ func scoreCondition(cond *BookCondition, gs *diplomacy.GameState, power diplomac
 }
 
 // unitKey builds a position fingerprint mapping province to unit type string.
+// For units on a coast, both "prov" and "prov/coast" keys are set so that
+// opening book entries using either format will match.
 func unitKey(gs *diplomacy.GameState, power diplomacy.Power) map[string]string {
 	m := make(map[string]string)
 	for _, u := range gs.UnitsOf(power) {
 		m[u.Province] = u.Type.String()
+		if u.Coast != "" {
+			m[u.Province+"/"+string(u.Coast)] = u.Type.String()
+		}
 	}
 	return m
 }

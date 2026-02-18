@@ -39,11 +39,9 @@ func (s TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power 
 		return nil
 	}
 
-	// Use opening book for 1901
-	if gs.Year == 1901 {
-		if opening := LookupOpening(gs, power, m); opening != nil {
-			return opening
-		}
+	// Use opening book for known positions (1901-1907).
+	if opening := LookupOpening(gs, power, m); opening != nil {
+		return opening
 	}
 
 	// Generate opponent orders once for all evaluations.
