@@ -116,17 +116,21 @@ func (m *DiplomacyMap) FleetCoastsTo(src string, srcCoast Coast, dst string) []C
 }
 
 // ProvincesAdjacentTo returns all province IDs adjacent to the given province
-// accessible by the given unit type. Results are cached after the first call
-// for each (province, coast, isFleet) triple, since the map is immutable.
-// The returned slice must not be modified by the caller.
+// accessible by the given unit type. The adjCache must be pre-populated via
+// precomputeAdjCache before concurrent use. The returned slice must not be
+// modified by the caller.
 func (m *DiplomacyMap) ProvincesAdjacentTo(provID string, coast Coast, isFleet bool) []string {
 	key := adjCacheKey{provID, coast, isFleet}
-	if m.adjCache != nil {
-		if cached, ok := m.adjCache[key]; ok {
-			return cached
-		}
+	if cached, ok := m.adjCache[key]; ok {
+		return cached
 	}
 
+	// Fallback for non-standard maps without a pre-computed cache.
+	return m.computeAdjacentTo(provID, coast, isFleet)
+}
+
+// computeAdjacentTo calculates the adjacent provinces without caching.
+func (m *DiplomacyMap) computeAdjacentTo(provID string, coast Coast, isFleet bool) []string {
 	seen := make(map[string]bool)
 	var result []string
 	for _, adj := range m.Adjacencies[provID] {
@@ -144,12 +148,25 @@ func (m *DiplomacyMap) ProvincesAdjacentTo(provID string, coast Coast, isFleet b
 			result = append(result, adj.To)
 		}
 	}
-
-	if m.adjCache == nil {
-		m.adjCache = make(map[adjCacheKey][]string, 256)
-	}
-	m.adjCache[key] = result
 	return result
+}
+
+// precomputeAdjCache eagerly populates the adjacency cache for every
+// (province, coast, isFleet) combination so that ProvincesAdjacentTo
+// is safe for concurrent reads without any locking.
+func (m *DiplomacyMap) precomputeAdjCache() {
+	m.adjCache = make(map[adjCacheKey][]string, 256)
+	for provID, prov := range m.Provinces {
+		for _, isFleet := range []bool{false, true} {
+			key := adjCacheKey{provID, NoCoast, isFleet}
+			m.adjCache[key] = m.computeAdjacentTo(provID, NoCoast, isFleet)
+
+			for _, coast := range prov.Coasts {
+				key = adjCacheKey{provID, coast, isFleet}
+				m.adjCache[key] = m.computeAdjacentTo(provID, coast, isFleet)
+			}
+		}
+	}
 }
 
 // HasCoasts returns true if the province has split coasts (e.g. Spain, St Petersburg, Bulgaria).

@@ -452,5 +452,7 @@ func buildStandardMap() *DiplomacyMap {
 		m.provNames[i] = id
 	}
 
+	m.precomputeAdjCache()
+
 	return m
 }
