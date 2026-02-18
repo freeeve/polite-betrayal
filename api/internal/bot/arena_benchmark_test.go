@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +30,11 @@ func benchNumGames(defaultN int) int {
 // benchVerbose returns true when BENCH_VERBOSE=1, enabling per-game logging.
 func benchVerbose() bool {
 	return os.Getenv("BENCH_VERBOSE") == "1"
+}
+
+// benchSave returns true when BENCH_SAVE=1, saving games to DB instead of dry run.
+func benchSave() bool {
+	return os.Getenv("BENCH_SAVE") == "1"
 }
 
 // BenchmarkResult holds aggregate metrics from a series of arena games.
@@ -116,6 +122,21 @@ func (b *BenchmarkResult) StdDevSCs(power string) float64 {
 	return math.Sqrt(sumSq / float64(len(counts)-1))
 }
 
+// neuralEngineOptions returns ExternalOptions that enable neural-guided search.
+// The model path is derived from the engine binary location.
+func neuralEngineOptions(t *testing.T) []ExternalOption {
+	t.Helper()
+	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
+	if _, err := os.Stat(filepath.Join(modelsDir, "policy_v1.onnx")); err != nil {
+		t.Logf("WARNING: policy model not found at %s; running without neural eval", modelsDir)
+		return nil
+	}
+	return []ExternalOption{
+		WithEngineOption("ModelPath", modelsDir),
+		WithEngineOption("EvalMode", "neural"),
+	}
+}
+
 // runBenchmarkSuite runs numGames arena games with the specified config.
 func runBenchmarkSuite(t *testing.T, matchup string, numGames int, powerConfig string, maxYear int) *BenchmarkResult {
 	t.Helper()
@@ -123,7 +144,12 @@ func runBenchmarkSuite(t *testing.T, matchup string, numGames int, powerConfig s
 	bin := enginePath(t)
 	origPath := ExternalEnginePath
 	ExternalEnginePath = bin
-	defer func() { ExternalEnginePath = origPath }()
+	origOpts := ExternalEngineOptions
+	ExternalEngineOptions = neuralEngineOptions(t)
+	defer func() {
+		ExternalEnginePath = origPath
+		ExternalEngineOptions = origOpts
+	}()
 
 	result := &BenchmarkResult{
 		Matchup:  matchup,
@@ -139,7 +165,7 @@ func runBenchmarkSuite(t *testing.T, matchup string, numGames int, powerConfig s
 			PowerConfig: ParsePowerConfig(powerConfig),
 			MaxYear:     maxYear,
 			Seed:        int64(i + 1),
-			DryRun:      true,
+			DryRun:      !benchSave(),
 		}
 
 		start := time.Now()
@@ -276,7 +302,7 @@ func runEasyVsRandomBenchmark(t *testing.T, testPower diplomacy.Power, numGames,
 			PowerConfig: pc,
 			MaxYear:     maxYear,
 			Seed:        int64(i + 1),
-			DryRun:      true,
+			DryRun:      !benchSave(),
 		}
 
 		start := time.Now()
@@ -399,7 +425,7 @@ func runTimelineBenchmark(t *testing.T, testPower diplomacy.Power, testDiff, opp
 			PowerConfig: pc,
 			MaxYear:     maxYear,
 			Seed:        int64(i + 1),
-			DryRun:      true,
+			DryRun:      !benchSave(),
 		}
 
 		start := time.Now()
@@ -592,7 +618,12 @@ func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 	bin := enginePath(t)
 	origPath := ExternalEnginePath
 	ExternalEnginePath = bin
-	defer func() { ExternalEnginePath = origPath }()
+	origOpts := ExternalEngineOptions
+	ExternalEngineOptions = neuralEngineOptions(t)
+	defer func() {
+		ExternalEnginePath = origPath
+		ExternalEngineOptions = origOpts
+	}()
 
 	numGames := benchNumGames(100)
 	maxYear := 1930

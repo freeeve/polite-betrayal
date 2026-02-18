@@ -32,6 +32,10 @@ type DiplomaticStrategy interface {
 // an environment variable) before creating strategies.
 var ExternalEnginePath string
 
+// ExternalEngineOptions holds DUI setoption commands sent during handshake.
+// Set this alongside ExternalEnginePath to configure model path, eval mode, etc.
+var ExternalEngineOptions []ExternalOption
+
 // StrategyForDifficulty returns the appropriate strategy for a bot difficulty level.
 func StrategyForDifficulty(difficulty string) Strategy {
 	switch difficulty {
@@ -58,7 +62,7 @@ func newExternalOrFallback(difficulty string) Strategy {
 	}
 	// Power is set per-query via setpower, so we use a placeholder here.
 	// The actual power is passed in each Generate* call.
-	es, err := NewExternalStrategy(ExternalEnginePath, "")
+	es, err := NewExternalStrategy(ExternalEnginePath, "", ExternalEngineOptions...)
 	if err != nil {
 		log.Printf("bot: failed to start external engine %q: %v; falling back to hard", ExternalEnginePath, err)
 		return &HardStrategy{}
