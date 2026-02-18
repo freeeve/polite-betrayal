@@ -12,7 +12,8 @@
 - **Phantom support fix #1**: Same-power support-move orders now validated against actual unit orders
 - **Phantom support fix #2**: Cross-power support-moves eliminated (37.7% of supports were phantom). Converted to support-holds or replaced.
 - **Value network RM+ blend**: 0.6 neural + 0.4 heuristic (needs retrained model to validate)
-- **Rust vs medium benchmark**: 0% win rate with current neural model — value net blend may be hurting. Needs retrained 15.4M model.
+- **Rust vs medium benchmark**: 17% overall (70 games, fix #1 only). France 40%, Italy 30%, Turkey/Germany 20%. England 0% despite 9.8 avg SCs.
+- **Rust vs easy benchmark** (partial, fix #1 only): 22.5% (4/7 powers). Germany 40% (was 0%), France 40%.
 
 ### Neural Architecture
 - **Task 089**: Board encoding extended from 36 to 47 features (previous-state encoding)
@@ -166,3 +167,5 @@ Task 092 has been broken into four sequential subtasks to manage complexity:
 - `benchmarks/easy-vs-random-all-powers-post-perf-2026-02-18.md` — Easy vs random (100%)
 - `benchmarks/rust-value-net-blend-2026-02-18.md` — Rust value net (14%, small sample)
 - `benchmarks/medium-opening-book-extended-2026-02-18.md` — Extended book (23.4%, REVERTED)
+- `benchmarks/rust-post-phantom-fix-2026-02-18.md` — Rust vs easy post fix #1 (22.5% partial)
+- `benchmarks/rust-vs-medium-all-powers-2026-02-18.md` — Rust vs medium (17%, fix #1 only)
