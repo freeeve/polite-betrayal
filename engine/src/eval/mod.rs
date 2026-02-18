@@ -7,5 +7,7 @@
 //! `api/internal/bot/eval.go` (distance matrices, threat/defense helpers).
 
 pub(crate) mod heuristic;
+pub mod neural;
 
 pub use heuristic::{evaluate, evaluate_all};
+pub use neural::NeuralEvaluator;

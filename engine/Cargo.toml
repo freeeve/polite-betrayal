@@ -7,12 +7,13 @@ authors = ["polite-betrayal"]
 
 [features]
 default = []
-neural = ["ort"]
+neural = ["ort", "ndarray"]
 
 [dependencies]
 thiserror = "2"
 rand = { version = "0.8", features = ["small_rng"] }
-ort = { version = "2", optional = true }
+ort = { version = "2.0.0-rc.11", optional = true }
+ndarray = { version = "0.17", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

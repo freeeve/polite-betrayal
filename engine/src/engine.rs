@@ -13,6 +13,7 @@ use rand::SeedableRng;
 
 use crate::board::province::Power;
 use crate::board::state::{BoardState, Phase};
+use crate::eval::NeuralEvaluator;
 use crate::movegen::random_orders;
 use crate::protocol::dfen::parse_dfen;
 use crate::protocol::dson::format_orders;
@@ -28,6 +29,7 @@ pub struct Engine {
     pub position: Option<BoardState>,
     pub active_power: Option<Power>,
     pub options: HashMap<String, String>,
+    pub neural: Option<NeuralEvaluator>,
     rng: SmallRng,
 }
 
@@ -38,6 +40,7 @@ impl Engine {
             position: None,
             active_power: None,
             options: HashMap::new(),
+            neural: None,
             rng: SmallRng::from_entropy(),
         }
     }
@@ -46,6 +49,20 @@ impl Engine {
     pub fn new_game(&mut self) {
         self.position = None;
         self.active_power = None;
+    }
+
+    /// Lazily initializes the neural evaluator when ModelPath is first set.
+    fn ensure_neural(&mut self) {
+        if self.neural.is_some() {
+            return;
+        }
+        let model_dir = match self.options.get("ModelPath") {
+            Some(p) if !p.is_empty() => p.clone(),
+            _ => return,
+        };
+        let policy_path = format!("{}/policy_v1.onnx", model_dir);
+        let value_path = format!("{}/value_v1.onnx", model_dir);
+        self.neural = Some(NeuralEvaluator::new(Some(&policy_path), Some(&value_path)));
     }
 
     /// Sets the current board position from a DFEN string.
@@ -67,6 +84,7 @@ impl Engine {
 
     /// Sets an engine option.
     pub fn set_option(&mut self, name: String, value: Option<String>) {
+        let reload_neural = name == "ModelPath";
         match value {
             Some(v) => {
                 self.options.insert(name, v);
@@ -74,6 +92,10 @@ impl Engine {
             None => {
                 self.options.insert(name, String::new());
             }
+        }
+        if reload_neural {
+            self.neural = None; // force re-initialization
+            self.ensure_neural();
         }
     }
 
@@ -85,6 +107,17 @@ impl Engine {
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_MOVETIME_MS);
         Duration::from_millis(ms)
+    }
+
+    /// Returns true if the engine is configured for neural evaluation.
+    #[allow(dead_code)]
+    fn use_neural(&self) -> bool {
+        let mode = self
+            .options
+            .get("EvalMode")
+            .map(|s| s.as_str())
+            .unwrap_or("heuristic");
+        mode == "neural" || mode == "auto"
     }
 
     /// Handles the DUI handshake: writes id, options, protocol_version, and duiok.
@@ -100,6 +133,12 @@ impl Engine {
         writeln!(
             out,
             "option name Strength type spin default 100 min 1 max 100"
+        )
+        .unwrap();
+        writeln!(out, "option name ModelPath type string default models").unwrap();
+        writeln!(
+            out,
+            "option name EvalMode type combo default heuristic var heuristic var neural var auto"
         )
         .unwrap();
         writeln!(out, "protocol_version 1").unwrap();
@@ -283,6 +322,8 @@ mod tests {
         let output_str = String::from_utf8(output).unwrap();
         assert!(output_str.contains("id name realpolitik"));
         assert!(output_str.contains("id author polite-betrayal"));
+        assert!(output_str.contains("option name ModelPath"));
+        assert!(output_str.contains("option name EvalMode"));
         assert!(output_str.contains("protocol_version 1"));
         assert!(output_str.contains("duiok"));
     }
