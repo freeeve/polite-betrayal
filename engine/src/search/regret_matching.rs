@@ -36,8 +36,17 @@ use crate::search::cartesian::{
 use crate::search::neural_candidates::{neural_top_k_per_unit, softmax_weights};
 use crate::search::SearchResult;
 
-/// Number of candidate order sets to generate per power.
+/// Default number of candidate order sets to generate per power (used in tests).
+#[cfg(test)]
 const NUM_CANDIDATES: usize = 16;
+
+/// Minimum RM+ iterations when neural guidance is available.
+const MIN_RM_ITERATIONS_NEURAL: usize = 128;
+
+/// Scales candidate count with unit count: at least 16, otherwise 4 per unit.
+fn num_candidates(unit_count: usize) -> usize {
+    16.max(4 * unit_count)
+}
 
 /// Minimum number of RM+ iterations (guarantees quality even with short budgets).
 const MIN_RM_ITERATIONS: usize = 48;
@@ -1130,18 +1139,17 @@ pub fn regret_matching_search<W: Write>(
             continue;
         }
 
-        let cands = if has_neural && p == power {
-            // Use neural-guided candidates for our power.
-            generate_candidates_neural(
-                p,
-                state,
-                neural.unwrap(),
-                NUM_CANDIDATES,
-                neural_weight,
-                &mut rng,
-            )
+        // Count units for this power to scale candidate count.
+        let unit_count = (0..PROVINCE_COUNT)
+            .filter(|&i| matches!(state.units[i], Some((pw, _)) if pw == p))
+            .count();
+        let n_cands = num_candidates(unit_count);
+
+        let cands = if has_neural {
+            // Use neural-guided candidates for all powers.
+            generate_candidates_neural(p, state, neural.unwrap(), n_cands, neural_weight, &mut rng)
         } else {
-            generate_candidates(p, state, NUM_CANDIDATES, &mut rng)
+            generate_candidates(p, state, n_cands, &mut rng)
         };
         if cands.is_empty() {
             continue;
@@ -1275,9 +1283,14 @@ pub fn regret_matching_search<W: Write>(
     let mut greedy_cache = GreedyOrderCache::new(GREEDY_CACHE_CAPACITY);
 
     // Main RM+ loop (time-based with minimum iteration guarantee)
+    let min_iters = if has_neural {
+        MIN_RM_ITERATIONS_NEURAL
+    } else {
+        MIN_RM_ITERATIONS
+    };
     loop {
         // After minimum iterations, check time budget
-        if iteration_count >= MIN_RM_ITERATIONS as u64 && Instant::now() >= rm_deadline {
+        if iteration_count >= min_iters as u64 && Instant::now() >= rm_deadline {
             break;
         }
 
