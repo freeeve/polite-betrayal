@@ -91,14 +91,18 @@ class MapPainter extends CustomPainter {
 
     // Adjacency pairs where the flood fill should not cross.
     // naf/tun: visually distant provinces that share a game adjacency.
-    // fin/swe, fin/nwy, fin/stp: Finland is a large non-SC province that
-    // should not tint when an adjacent SC is owned.
+    // fin, ukr: large non-SC buffer provinces that border multiple powers
+    // and should not tint when an adjacent territory is owned.
     const blockedFloodFill = {
       ('naf', 'tun'), ('tun', 'naf'),
       ('swe', 'fin'), ('fin', 'swe'),
       ('nwy', 'fin'), ('fin', 'nwy'),
       ('stp', 'fin'), ('fin', 'stp'),
       ('rum', 'ukr'), ('ukr', 'rum'),
+      ('gal', 'ukr'), ('ukr', 'gal'),
+      ('sev', 'ukr'), ('ukr', 'sev'),
+      ('war', 'ukr'), ('ukr', 'war'),
+      ('mos', 'ukr'), ('ukr', 'mos'),
     };
 
     var i = 0;
