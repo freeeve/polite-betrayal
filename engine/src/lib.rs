@@ -12,3 +12,4 @@ pub mod opening_book;
 pub mod protocol;
 pub mod resolve;
 pub mod search;
+pub mod selfplay;
