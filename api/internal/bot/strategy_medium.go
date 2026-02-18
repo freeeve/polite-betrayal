@@ -1,6 +1,8 @@
 package bot
 
 import (
+	"sort"
+
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
 
@@ -72,9 +74,231 @@ func (TacticalStrategy) GenerateRetreatOrders(gs *diplomacy.GameState, power dip
 	return HeuristicStrategy{}.GenerateRetreatOrders(gs, power, m)
 }
 
-// GenerateBuildOrders delegates to the easy bot's build logic.
+// GenerateBuildOrders makes front-aware build/disband decisions. Builds are
+// placed in home SCs closest to threats and expansion targets, with unit type
+// chosen based on whether the front is land or naval. Disbands remove the
+// unit furthest from the action.
 func (TacticalStrategy) GenerateBuildOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
-	return HeuristicStrategy{}.GenerateBuildOrders(gs, power, m)
+	scCount := gs.SupplyCenterCount(power)
+	unitCount := gs.UnitCount(power)
+	diff := scCount - unitCount
+
+	if diff > 0 {
+		return frontAwareBuilds(gs, power, m, diff)
+	} else if diff < 0 {
+		return frontAwareDisbands(gs, power, m, -diff)
+	}
+	return nil
+}
+
+// frontAwareBuilds scores each available home SC by proximity to threats and
+// unowned SCs, then picks the unit type based on whether a fleet or army is
+// more useful for the active front.
+func frontAwareBuilds(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap, count int) []OrderInput {
+	homes := diplomacy.HomeCenters(power)
+	armyDM := getDistMatrix(m)
+	fleetDM := getFleetDistMatrix(m)
+
+	type buildOption struct {
+		loc       string
+		score     float64
+		navalBias float64 // positive = fleet preferred, negative = army preferred
+	}
+	var available []buildOption
+
+	for _, h := range homes {
+		if gs.SupplyCenters[h] != power || gs.UnitAt(h) != nil {
+			continue
+		}
+		prov := m.Provinces[h]
+		if prov == nil {
+			continue
+		}
+
+		score := 0.0
+		navalBias := 0.0
+
+		// Score by threat proximity: home SCs near enemy units are higher priority
+		threat := ProvinceThreat(h, power, gs, m)
+		score += 8.0 * float64(threat)
+
+		// Score by proximity to nearest unowned SC (by both army and fleet)
+		_, aDist := NearestUnownedSCByUnit(h, power, gs, m, false)
+		_, fDist := NearestUnownedSCByUnit(h, power, gs, m, true)
+		if aDist >= 0 {
+			score += 4.0 / float64(1+aDist)
+		}
+		if fDist >= 0 {
+			score += 4.0 / float64(1+fDist)
+		}
+
+		// Naval bias: check whether enemy targets are reachable faster by fleet
+		for prov, owner := range gs.SupplyCenters {
+			if owner == power {
+				continue
+			}
+			ad := armyDM.Distance(h, prov)
+			fd := fleetDM.Distance(h, prov)
+			if fd >= 0 && (ad < 0 || fd < ad) {
+				navalBias += 1.0
+			} else if ad >= 0 {
+				navalBias -= 1.0
+			}
+		}
+
+		available = append(available, buildOption{h, score, navalBias})
+	}
+
+	sort.Slice(available, func(i, j int) bool {
+		return available[i].score > available[j].score
+	})
+
+	// Count existing fleet ratio
+	units := gs.UnitsOf(power)
+	fleetCount := 0
+	for _, u := range units {
+		if u.Type == diplomacy.Fleet {
+			fleetCount++
+		}
+	}
+	totalUnits := len(units)
+
+	island := isIslandPower(power, m)
+	needsConvoys := needsConvoyFleets(gs, power, m)
+
+	var orders []OrderInput
+	built := 0
+	for _, opt := range available {
+		if built >= count {
+			break
+		}
+		prov := m.Provinces[opt.loc]
+		if prov == nil {
+			continue
+		}
+
+		unitType := diplomacy.Army
+		switch prov.Type {
+		case diplomacy.Sea:
+			unitType = diplomacy.Fleet
+		case diplomacy.Coastal:
+			fleetRatio := 0.0
+			if totalUnits > 0 {
+				fleetRatio = float64(fleetCount) / float64(totalUnits)
+			}
+
+			// Use naval bias from front analysis combined with fleet ratio
+			if island || needsConvoys {
+				if fleetRatio < 0.5 || opt.navalBias > 2 {
+					unitType = diplomacy.Fleet
+				}
+			} else if opt.navalBias > 3 {
+				unitType = diplomacy.Fleet
+			} else if fleetRatio < 0.25 {
+				unitType = diplomacy.Fleet
+			}
+		}
+
+		oi := OrderInput{
+			UnitType:  unitType.String(),
+			Location:  opt.loc,
+			OrderType: "build",
+		}
+
+		if unitType == diplomacy.Fleet && len(prov.Coasts) > 0 {
+			oi.Coast = bestFleetCoast(opt.loc, prov, gs, power, m)
+		}
+
+		bo := diplomacy.BuildOrder{
+			Power:    power,
+			Type:     diplomacy.BuildUnit,
+			UnitType: unitType,
+			Location: opt.loc,
+			Coast:    diplomacy.Coast(oi.Coast),
+		}
+		if diplomacy.ValidateBuildOrder(bo, gs, m) == nil {
+			orders = append(orders, oi)
+			built++
+			if unitType == diplomacy.Fleet {
+				fleetCount++
+			}
+			totalUnits++
+		}
+	}
+	return orders
+}
+
+// bestFleetCoast picks the coast facing the most unowned SCs.
+func bestFleetCoast(loc string, prov *diplomacy.Province, gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) string {
+	bestCoast := prov.Coasts[0]
+	bestScore := -1
+	for _, c := range prov.Coasts {
+		score := 0
+		for _, adj := range m.ProvincesAdjacentTo(loc, c, true) {
+			ap := m.Provinces[adj]
+			if ap != nil && ap.IsSupplyCenter && gs.SupplyCenters[adj] != power {
+				score++
+			}
+		}
+		if score > bestScore {
+			bestScore = score
+			bestCoast = c
+		}
+	}
+	return string(bestCoast)
+}
+
+// frontAwareDisbands removes units furthest from the action: farthest from
+// any unowned SC, with a penalty for stranded armies and a bonus for fleets
+// in useful convoy positions.
+func frontAwareDisbands(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap, count int) []OrderInput {
+	units := gs.UnitsOf(power)
+
+	type unitScore struct {
+		unit diplomacy.Unit
+		dist int
+	}
+	var scored []unitScore
+	for _, u := range units {
+		isFleet := u.Type == diplomacy.Fleet
+		_, dist := NearestUnownedSCByUnit(u.Province, power, gs, m, isFleet)
+		if dist < 0 {
+			dist = 999
+		}
+
+		// Protect fleets on coasts/seas (useful for convoys)
+		if u.Type == diplomacy.Fleet {
+			p := m.Provinces[u.Province]
+			if p != nil && (p.Type == diplomacy.Sea || p.Type == diplomacy.Coastal) {
+				if dist > 3 {
+					dist = 3
+				}
+			}
+		}
+
+		// Penalize stranded armies
+		if u.Type == diplomacy.Army && dist > 6 {
+			dist = 999
+		}
+
+		scored = append(scored, unitScore{u, dist})
+	}
+
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].dist > scored[j].dist
+	})
+
+	var orders []OrderInput
+	for i := 0; i < count && i < len(scored); i++ {
+		u := scored[i].unit
+		orders = append(orders, OrderInput{
+			UnitType:  u.Type.String(),
+			Location:  u.Province,
+			Coast:     string(u.Coast),
+			OrderType: "disband",
+		})
+	}
+	return orders
 }
 
 // GenerateDiplomaticMessages proposes non-aggression pacts to bordering powers
