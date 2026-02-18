@@ -46,6 +46,7 @@
 - For DB benchmarks, use `DryRun: false` so games are reviewable in the UI
 - Store benchmark results in `benchmarks/` (not `tasks/`). Use descriptive filenames like `easy-vs-random-2026-02-17.md`
 - Include SC timeline stats (avg/min/p25/p50/p75/p95/max per year) when running arena benchmarks
+- Never use BENCH_VERBOSE=1 when running arena benchmarks in agents — it wastes context tokens. Default quiet mode only prints summaries.
 
 ### Communication
 - Report concise status updates to the user — completed tasks, active agents, blockers
