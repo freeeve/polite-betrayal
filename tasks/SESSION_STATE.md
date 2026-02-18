@@ -5,20 +5,24 @@
 ### Medium Bot: 23% → 35.3% (+12.3pp)
 - **Experiment C (083)**: buildOrdersFromScored candidates → 23% to 28% (+5pp)
 - **Experiment F (078)**: 3-ply blend (0.5p1 + 0.2p2 + 0.3p3) → 28% to 35.3% (+7.3pp)
-- **Opening book extension**: 1901-only → 1901-1907 (2,587 clusters) — benchmarking
+- **Opening book extension**: Tested 1901-1907 (2,587 clusters) — regressed to 23.4%, REVERTED to 1901-only
 
 ### Rust Engine Fixes
 - **Build shortfall fix**: Units now vacate home SCs in Fall + waive protocol bug fixed
-- **Phantom support fix**: Support-move orders now validated against actual unit orders
-- **Value network RM+ blend**: 0.6 neural + 0.4 heuristic (needs retraining to validate)
+- **Phantom support fix #1**: Same-power support-move orders now validated against actual unit orders
+- **Phantom support fix #2**: Cross-power support-moves eliminated (37.7% of supports were phantom). Converted to support-holds or replaced.
+- **Value network RM+ blend**: 0.6 neural + 0.4 heuristic (needs retrained model to validate)
+- **Rust vs medium benchmark**: 0% win rate with current neural model — value net blend may be hurting. Needs retrained 15.4M model.
 
 ### Neural Architecture
 - **Task 089**: Board encoding extended from 36 to 47 features (previous-state encoding)
-- **Task 090**: Policy network scaled to 6 GAT layers / 512-d / 15.4M params — training in progress (~5hrs remaining)
+- **Task 090**: Policy network scaled to 6 GAT layers / 512-d / 15.4M params — training in progress (epoch ~6-7/10)
 - **Task 091**: Value network blended into RM+ eval in Rust engine
+- **Task 092a**: Autoregressive decoder architecture implemented + tested
 
 ### Other
 - **Task 056**: Structured press DUI protocol with trust model
+- **Task 093**: NAF flood fill bug when selecting MAO (created, pending)
 
 ---
 
@@ -100,19 +104,31 @@ Baseline after 083 rework: Medium 28% vs Easy (after Experiment C committed)
 | 089 | Previous-state board encoding (36→47 features) | `39d7ac0`, `497d42b` |
 | 091 | Value network RM+ integration (0.6/0.4 blend) | `66b76c2` |
 | — | Rust engine build shortfall fix (home SC + waive) | `0e6c999` |
-| — | Rust engine phantom support-move fix | `1e71277` |
-| — | Opening book extension (1901→1901-1907) | `b2e34a2` |
+| — | Rust engine phantom support-move fix (same-power) | `1e71277` |
+| — | Rust engine phantom support-move fix (cross-power) | `d103d1a` |
+| — | Opening book extension (tested, REVERTED) | `b2e34a2`, `99e7bf3` |
+| 092a | Autoregressive decoder architecture | `94c2e96` |
+| 090 | Larger policy network architecture | `5255e5a` |
 | — | build.go lint modernization | `97d1ee3` |
 | — | strategy_medium.go lint (max builtin) | `61603d2` |
 | — | Easy vs random benchmark (100% post-perf) | — |
 
-## Session 6 In Progress
+## Session 6 In Progress / Carry Forward
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 090 | Larger policy network (6 layers, 512-d, 15.4M params) | Epoch 5/10, val_loss 0.65, ~5hrs remaining. Architecture: `5255e5a` |
-| — | Opening book 700-game benchmark | Running (book-ext agent) |
-| — | Rust engine post-fix benchmark vs medium | Running (support-fix agent) |
+| 090 | Larger policy network training | Epoch ~6-7/10, val_loss 0.65. Architecture: `5255e5a`. Running on MPS, ~3-4hrs remaining. Then value network training (~3-4hrs), ONNX export. |
+| 092b | Teacher forcing training | Blocked on 090 completion |
+| 092c | Beam search inference | Blocked on 092b |
+| 092d | ONNX export + Rust integration | Blocked on 092c |
+| 055 | RL training loop | Blocked on 092d |
+| 093 | NAF flood fill bug (UI) | Pending |
+
+## Next Session Priorities
+1. **Complete 090**: Value network training + ONNX export after policy training finishes
+2. **Re-benchmark Rust engine**: After 090 models are ready, benchmark with retrained neural models + both phantom support fixes + build fix. Consider reducing value net blend weight if still underperforming.
+3. **092b-d**: Train autoregressive decoder, implement beam search, ONNX export + Rust integration
+4. **093**: Fix NAF/MAO flood fill in UI
 
 ---
 
@@ -122,7 +138,7 @@ Task 092 has been broken into four sequential subtasks to manage complexity:
 
 | Task | Description | Status | Est. Effort |
 |------|-------------|--------|-------------|
-| 092a | Order embedding + Transformer decoder architecture | Pending | M |
+| 092a | Order embedding + Transformer decoder architecture | ✓ Done (`94c2e96`) | M |
 | 092b | Teacher forcing training pipeline | Pending (blocked by 092a) | M |
 | 092c | Beam search / top-K inference | Pending (blocked by 092b) | M |
 | 092d | ONNX export + Rust integration | Pending (blocked by 092c) | L |
@@ -149,3 +165,4 @@ Task 092 has been broken into four sequential subtasks to manage complexity:
 - `benchmarks/medium-ply-experiment-f-blend-all-2026-02-18.md` — Experiment F (35.3%, KEEP)
 - `benchmarks/easy-vs-random-all-powers-post-perf-2026-02-18.md` — Easy vs random (100%)
 - `benchmarks/rust-value-net-blend-2026-02-18.md` — Rust value net (14%, small sample)
+- `benchmarks/medium-opening-book-extended-2026-02-18.md` — Extended book (23.4%, REVERTED)
