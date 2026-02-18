@@ -9,5 +9,14 @@ authors = ["polite-betrayal"]
 thiserror = "2"
 rand = { version = "0.8", features = ["small_rng"] }
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "engine_bench"
+harness = false
+
 [profile.release]
 opt-level = 3
+lto = "thin"
+codegen-units = 1
