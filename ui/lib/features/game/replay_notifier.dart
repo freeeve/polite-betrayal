@@ -102,13 +102,21 @@ class ReplayNotifier extends StateNotifier<ReplayState> {
   /// Views the phase and schedules the next advance. For phases without
   /// animation (no stateAfter), the delay starts immediately. For animated
   /// phases, the delay starts after [notifyAnimationComplete] is called.
+  ///
+  /// Build phases use a build/disband overlay animation instead of movement
+  /// animation, so notifyAnimationComplete is called from that callback.
+  /// Retreat phases with no movement (all disbands / empty orders) also skip
+  /// the movement animation -- we detect this by checking whether viewPhase
+  /// actually set a previousHistoricalState for the movement animation.
   void _viewPhaseAndSchedule(int index) {
     _historyNotifier.viewPhase(index);
 
     final historyState = _readHistoryState();
     final phase = historyState.phases[index];
-    final hasAnimation = phase.stateAfter != null;
-    if (!hasAnimation) {
+    final hasMovementAnimation = phase.stateAfter != null
+        && phase.phaseType != 'build'
+        && historyState.previousHistoricalState != null;
+    if (!hasMovementAnimation) {
       _scheduleAdvance();
     }
     // Otherwise wait for notifyAnimationComplete() from the map widget.

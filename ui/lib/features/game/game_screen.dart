@@ -295,6 +295,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   /// Clears build/disband animation state after animation completes.
+  /// During replay, notifies the replay controller so it can advance
+  /// after the build/disband visual finishes.
   void _onBuildDisbandAnimationComplete() {
     if (!mounted) return;
     setState(() {
@@ -302,6 +304,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       _disbandAnimProvinces = {};
       _disbandAnimUnits = [];
     });
+    final historyState = ref.read(phaseHistoryProvider(widget.gameId));
+    if (historyState.viewingIndex != null) {
+      ref.read(replayProvider(widget.gameId).notifier)
+          .notifyAnimationComplete();
+    }
   }
 
   @override
