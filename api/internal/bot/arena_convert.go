@@ -40,8 +40,11 @@ func inputToRetreatOrder(in OrderInput, power diplomacy.Power) diplomacy.Retreat
 
 func inputToBuildOrder(in OrderInput, power diplomacy.Power) diplomacy.BuildOrder {
 	bt := diplomacy.BuildUnit
-	if in.OrderType == "disband" {
+	switch in.OrderType {
+	case "disband":
 		bt = diplomacy.DisbandUnit
+	case "waive":
+		bt = diplomacy.WaiveBuild
 	}
 	return diplomacy.BuildOrder{
 		Power:    power,

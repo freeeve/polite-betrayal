@@ -465,8 +465,11 @@ func retreatOrderToInput(ro diplomacy.RetreatOrder) OrderInput {
 // buildOrderToInput converts a diplomacy.BuildOrder to a bot OrderInput.
 func buildOrderToInput(bo diplomacy.BuildOrder) OrderInput {
 	orderType := "build"
-	if bo.Type == diplomacy.DisbandUnit {
+	switch bo.Type {
+	case diplomacy.DisbandUnit:
 		orderType = "disband"
+	case diplomacy.WaiveBuild:
+		orderType = "waive"
 	}
 	return OrderInput{
 		UnitType:  bo.UnitType.String(),

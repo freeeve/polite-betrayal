@@ -463,6 +463,8 @@ func DSONToBuildOrder(d DSONOrder, power Power) BuildOrder {
 		o.Type = BuildUnit
 	case DSONDisband:
 		o.Type = DisbandUnit
+	case DSONWaive:
+		o.Type = WaiveBuild
 	}
 	return o
 }

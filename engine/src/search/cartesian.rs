@@ -33,6 +33,21 @@ pub struct SearchResult {
     pub nodes: u64,
 }
 
+/// Returns the number of unoccupied home SCs for a power (potential build slots).
+fn unoccupied_home_sc_count(power: Power, state: &BoardState) -> i32 {
+    let mut count = 0i32;
+    for (i, p) in ALL_PROVINCES.iter().enumerate() {
+        if p.is_supply_center()
+            && p.home_power() == Some(power)
+            && state.sc_owner[i] == Some(power)
+            && state.units[i].is_none()
+        {
+            count += 1;
+        }
+    }
+    count
+}
+
 /// Scores a single movement order using heuristic features.
 /// Higher score = more promising move.
 fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
@@ -49,6 +64,28 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
             }
             // Small penalty for holding otherwise (prefer action)
             score -= 1.0;
+
+            // Fall penalty: holding on a home SC when we need builds blocks construction
+            if state.season == Season::Fall
+                && prov.is_supply_center()
+                && prov.home_power() == Some(power)
+                && state.sc_owner[prov as usize] == Some(power)
+            {
+                let sc_count = count_scs(state, power);
+                let unit_count = state
+                    .units
+                    .iter()
+                    .filter(|u| matches!(u, Some((p, _)) if *p == power))
+                    .count() as i32;
+                let pending_builds = sc_count - unit_count;
+                if pending_builds > 0 {
+                    let free_homes = unoccupied_home_sc_count(power, state);
+                    if free_homes < pending_builds {
+                        score -= 8.0;
+                    }
+                }
+            }
+
             score
         }
         Order::Move { unit, dest } => {
@@ -80,6 +117,27 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
                 && state.sc_owner[src as usize] != Some(power)
             {
                 score -= 12.0;
+            }
+
+            // Fall home SC vacating bonus: move off home SCs to make room for builds
+            if state.season == Season::Fall
+                && src.is_supply_center()
+                && src.home_power() == Some(power)
+                && state.sc_owner[src as usize] == Some(power)
+            {
+                let sc_count = count_scs(state, power);
+                let unit_count = state
+                    .units
+                    .iter()
+                    .filter(|u| matches!(u, Some((p, _)) if *p == power))
+                    .count() as i32;
+                let pending_builds = sc_count - unit_count;
+                if pending_builds > 0 {
+                    let free_homes = unoccupied_home_sc_count(power, state);
+                    if free_homes < pending_builds {
+                        score += 8.0;
+                    }
+                }
             }
 
             // Threat awareness: penalize leaving an owned SC with enemies nearby

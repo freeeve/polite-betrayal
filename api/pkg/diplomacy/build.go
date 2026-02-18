@@ -6,6 +6,7 @@ type BuildOrderType int
 const (
 	BuildUnit   BuildOrderType = iota // Build a new unit
 	DisbandUnit                       // Disband an existing unit
+	WaiveBuild                        // Voluntarily skip a build
 )
 
 // BuildOrder represents an order given during the build/disband phase.
@@ -30,6 +31,8 @@ func ValidateBuildOrder(order BuildOrder, gs *GameState, m *DiplomacyMap) error 
 		return validateBuild(order, gs, m)
 	case DisbandUnit:
 		return validateDisband(order, gs)
+	case WaiveBuild:
+		return nil
 	default:
 		return &ValidationError{
 			Order:   Order{Location: order.Location, Power: order.Power},
@@ -152,15 +155,20 @@ func ResolveBuildOrders(orders []BuildOrder, gs *GameState, m *DiplomacyMap) []B
 			// Needs builds
 			built := 0
 			for _, o := range submitted {
-				if o.Type != BuildUnit {
-					continue
-				}
-				if err := ValidateBuildOrder(o, gs, m); err != nil {
-					results = append(results, BuildResult{Order: o, Result: ResultVoid})
+				if o.Type != BuildUnit && o.Type != WaiveBuild {
 					continue
 				}
 				if built >= diff {
 					results = append(results, BuildResult{Order: o, Result: ResultFailed})
+					continue
+				}
+				if o.Type == WaiveBuild {
+					results = append(results, BuildResult{Order: o, Result: ResultSucceeded})
+					built++
+					continue
+				}
+				if err := ValidateBuildOrder(o, gs, m); err != nil {
+					results = append(results, BuildResult{Order: o, Result: ResultVoid})
 					continue
 				}
 				results = append(results, BuildResult{Order: o, Result: ResultSucceeded})
