@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -53,9 +54,16 @@ func RunGame(
 			diff = "easy"
 		}
 		s := StrategyForDifficulty(diff)
-		_ = s // time budgets handled internally by strategies
 		strategies[p] = s
 	}
+	// Close strategies that implement io.Closer (e.g. ExternalStrategy) on exit.
+	defer func() {
+		for _, s := range strategies {
+			if c, ok := s.(io.Closer); ok {
+				c.Close()
+			}
+		}
+	}()
 
 	// Create game in DB
 	var gameID string
