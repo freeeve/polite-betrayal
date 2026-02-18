@@ -60,7 +60,7 @@ func (s TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power 
 	searchCandidate := s.searchOrders(gs, power, m, units, opponentOrders, deadline)
 
 	// Phase 2: Heuristic sampling candidates from the easy bot.
-	const numSamples = 12
+	const numSamples = 24
 	candidates := make([][]OrderInput, 0, numSamples+1)
 	if searchCandidate != nil {
 		candidates = append(candidates, searchCandidate)
