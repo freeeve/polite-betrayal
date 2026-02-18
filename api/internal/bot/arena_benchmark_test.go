@@ -507,6 +507,21 @@ func TestBenchmark_MediumVsEasy(t *testing.T) {
 	}
 }
 
+// TestBenchmark_MediumVsEasyAllPowers runs all 7 powers as Medium against 6 Easy, 100 games each.
+func TestBenchmark_MediumVsEasyAllPowers(t *testing.T) {
+	numGames := 100
+	maxYear := 1930
+
+	for _, power := range diplomacy.AllPowers() {
+		power := power
+		t.Run(string(power), func(t *testing.T) {
+			r := runTimelineBenchmark(t, power, "medium", "easy", numGames, maxYear)
+			label := fmt.Sprintf("%s (Medium) vs 6 Easy", strings.Title(string(power)))
+			logTimelineResultsLabeled(t, r, label)
+		})
+	}
+}
+
 // TestBenchmark_RustVsEasy runs the Rust RM+ engine as France against 6 easy Go bots.
 func TestBenchmark_RustVsEasy(t *testing.T) {
 	if os.Getenv("REALPOLITIK_PATH") == "" {
