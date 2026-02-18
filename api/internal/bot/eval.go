@@ -308,32 +308,41 @@ func CanSupportMove(supporter, origin, target string, supporterUnit diplomacy.Un
 // ProvinceConnectivity returns the number of army-accessible neighbors of a province.
 // Army-only: use UnitProvinceConnectivity for fleet-aware counts.
 func ProvinceConnectivity(province string, m *diplomacy.DiplomacyMap) int {
-	seen := make(map[string]bool)
-	for _, adj := range m.Adjacencies[province] {
-		if adj.ArmyOK && !seen[adj.To] {
-			seen[adj.To] = true
-		}
-	}
-	return len(seen)
+	return UnitProvinceConnectivity(province, m, false)
 }
 
 // UnitProvinceConnectivity returns the number of neighbors accessible by the
 // given unit type. When isFleet is true, counts FleetOK neighbors; otherwise
 // counts ArmyOK neighbors (same as ProvinceConnectivity).
 func UnitProvinceConnectivity(province string, m *diplomacy.DiplomacyMap, isFleet bool) int {
-	seen := make(map[string]bool)
-	for _, adj := range m.Adjacencies[province] {
-		if isFleet {
-			if adj.FleetOK && !seen[adj.To] {
-				seen[adj.To] = true
-			}
-		} else {
-			if adj.ArmyOK && !seen[adj.To] {
-				seen[adj.To] = true
+	adjs := m.Adjacencies[province]
+	if len(adjs) == 0 {
+		return 0
+	}
+	// Count unique destinations without map allocation. Adjacency lists are
+	// short (typically <10 entries), so a linear scan is cheaper than a map.
+	count := 0
+	for i, adj := range adjs {
+		ok := (isFleet && adj.FleetOK) || (!isFleet && adj.ArmyOK)
+		if !ok {
+			continue
+		}
+		// Check if we already counted this destination.
+		dup := false
+		for j := 0; j < i; j++ {
+			if adjs[j].To == adj.To {
+				okJ := (isFleet && adjs[j].FleetOK) || (!isFleet && adjs[j].ArmyOK)
+				if okJ {
+					dup = true
+					break
+				}
 			}
 		}
+		if !dup {
+			count++
+		}
 	}
-	return len(seen)
+	return count
 }
 
 // NearestUnownedSCByUnit finds the closest supply center not owned by this power,
