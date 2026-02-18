@@ -1,0 +1,13 @@
+[package]
+name = "realpolitik"
+version = "0.1.0"
+edition = "2021"
+description = "A Diplomacy engine implementing the DUI protocol"
+authors = ["polite-betrayal"]
+
+[dependencies]
+thiserror = "2"
+rand = { version = "0.8", features = ["small_rng"] }
+
+[profile.release]
+opt-level = 3
