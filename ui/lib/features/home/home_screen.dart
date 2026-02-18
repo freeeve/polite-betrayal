@@ -40,10 +40,8 @@ class HomeScreen extends ConsumerWidget {
               onTap: (game) => context.push('/game/${game.id}/lobby'),
             ),
             _MyGamesTab(ref: ref),
-            _GameListTab(
-              provider: pastGamesProvider,
-              onRefresh: () => ref.read(myGamesProvider.notifier).refresh(),
-              emptyMessage: 'No completed games yet.',
+            _PastGamesTab(
+              onRefresh: () => ref.read(finishedGamesProvider.notifier).refresh(),
               onTap: (game) => context.push('/game/${game.id}'),
             ),
           ],
@@ -219,6 +217,101 @@ class _GameListTab extends ConsumerWidget {
               onTap: () => onTap(list[i]),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+class _PastGamesTab extends ConsumerStatefulWidget {
+  final Future<void> Function() onRefresh;
+  final void Function(Game) onTap;
+
+  const _PastGamesTab({required this.onRefresh, required this.onTap});
+
+  @override
+  ConsumerState<_PastGamesTab> createState() => _PastGamesTabState();
+}
+
+class _PastGamesTabState extends ConsumerState<_PastGamesTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final games = ref.watch(pastGamesProvider);
+
+    return games.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Error: $err'),
+            const SizedBox(height: 8),
+            FilledButton(onPressed: widget.onRefresh, child: const Text('Retry')),
+          ],
+        ),
+      ),
+      data: (list) {
+        final filtered = _query.isEmpty
+            ? list
+            : list.where((g) => g.name.toLowerCase().contains(_query)).toList();
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search games...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        )
+                      : null,
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  setState(() => _query = value.toLowerCase());
+                },
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        _query.isEmpty
+                            ? 'No completed games yet.'
+                            : 'No games matching "$_query".',
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: widget.onRefresh,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) => GameCard(
+                          game: filtered[i],
+                          onTap: () => widget.onTap(filtered[i]),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         );
       },
     );
