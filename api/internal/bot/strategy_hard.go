@@ -812,8 +812,7 @@ func weightedSample(probs []float64, rng *rand.Rand) int {
 // penalizes candidates that attack multiple distinct enemy powers simultaneously.
 func cooperationPenalty(candidate []OrderInput, gs *diplomacy.GameState, power diplomacy.Power) float64 {
 	// Use a fixed-size array indexed by power to avoid map allocation.
-	// There are only 7 powers.
-	var attacked [7]bool
+	var attacked [8]bool
 	n := 0
 	for _, o := range candidate {
 		if o.OrderType != "move" {
@@ -823,7 +822,7 @@ func cooperationPenalty(candidate []OrderInput, gs *diplomacy.GameState, power d
 		owner := gs.SupplyCenters[o.Target]
 		if owner != "" && owner != power && owner != diplomacy.Neutral {
 			idx := powerIndex(owner)
-			if idx >= 0 && !attacked[idx] {
+			if idx < 7 && !attacked[idx] {
 				attacked[idx] = true
 				n++
 			}
@@ -831,7 +830,7 @@ func cooperationPenalty(candidate []OrderInput, gs *diplomacy.GameState, power d
 		// Unit dislodge attempt
 		if u := gs.UnitAt(o.Target); u != nil && u.Power != power {
 			idx := powerIndex(u.Power)
-			if idx >= 0 && !attacked[idx] {
+			if idx < 7 && !attacked[idx] {
 				attacked[idx] = true
 				n++
 			}
@@ -843,7 +842,8 @@ func cooperationPenalty(candidate []OrderInput, gs *diplomacy.GameState, power d
 	return 2.0 * float64(n-1)
 }
 
-// powerIndex returns a fixed 0-6 index for each power, or -1 for unknown.
+// powerIndex maps a Power string to a small integer for use in fixed-size arrays.
+// Returns 0-6 for the 7 standard powers, 7 for neutral/unknown.
 func powerIndex(p diplomacy.Power) int {
 	switch p {
 	case diplomacy.Austria:
@@ -861,7 +861,7 @@ func powerIndex(p diplomacy.Power) int {
 	case diplomacy.Turkey:
 		return 6
 	default:
-		return -1
+		return 7
 	}
 }
 

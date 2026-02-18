@@ -34,27 +34,33 @@ func (h *comboHeap) Pop() any {
 // When unit A supports unit B moving to X, but B is actually doing something
 // else, the support is wasted. This function redirects, converts to
 // support-hold, or falls back to hold.
+// Uses linear scans over the combo slice (typically 3-17 orders) to avoid
+// map allocations in the hot loop.
 func sanitizeCombo(combo []diplomacy.Order, gs *diplomacy.GameState, m *diplomacy.DiplomacyMap) {
-	// Build map of actual moves: location → target
-	moves := make(map[string]string, len(combo))
-	ownLocs := make(map[string]bool, len(combo))
-	for i := range combo {
-		ownLocs[combo[i].Location] = true
-		if combo[i].Type == diplomacy.OrderMove {
-			moves[combo[i].Location] = combo[i].Target
-		}
-	}
-
 	for i := range combo {
 		o := &combo[i]
 		if o.Type != diplomacy.OrderSupport || o.AuxTarget == "" {
 			continue // not a support-move
 		}
-		if !ownLocs[o.AuxLoc] {
+
+		// Check if AuxLoc is one of our own units (linear scan).
+		isOwn := false
+		actualTarget := ""
+		isMoving := false
+		for j := range combo {
+			if combo[j].Location == o.AuxLoc {
+				isOwn = true
+				if combo[j].Type == diplomacy.OrderMove {
+					isMoving = true
+					actualTarget = combo[j].Target
+				}
+				break
+			}
+		}
+		if !isOwn {
 			continue // inter-power support, can't validate
 		}
 
-		actualTarget, isMoving := moves[o.AuxLoc]
 		if isMoving && actualTarget == o.AuxTarget {
 			continue // support matches actual move
 		}
@@ -91,6 +97,7 @@ func sanitizeCombo(combo []diplomacy.Order, gs *diplomacy.GameState, m *diplomac
 // searchTopN enumerates the Cartesian product of per-unit order options and
 // returns the top-N order combinations ranked by position evaluation score.
 // Uses a min-heap of size N so that only the best N combos are retained.
+// Uses a reusable Resolver to minimize allocations in the hot loop.
 func searchTopN(
 	gs *diplomacy.GameState,
 	power diplomacy.Power,
@@ -111,11 +118,12 @@ func searchTopN(
 	heap.Init(h)
 	iteration := 0
 
-	// Pre-allocate combo, allOrders, and scratch state to avoid per-iteration allocation.
+	// Pre-allocate combo, allOrders, scratch state, and reusable resolver.
 	combo := make([]diplomacy.Order, numUnits)
 	allOrders := make([]diplomacy.Order, numUnits+len(opponentOrders))
 	copy(allOrders[numUnits:], opponentOrders)
 	scratch := gs.Clone()
+	rv := diplomacy.NewResolver(len(allOrders))
 
 	for {
 		for i, idx := range indices {
@@ -124,9 +132,9 @@ func searchTopN(
 		sanitizeCombo(combo, gs, m)
 		copy(allOrders[:numUnits], combo)
 
-		results, dislodged := diplomacy.ResolveOrders(allOrders, gs, m)
+		rv.Resolve(allOrders, gs, m)
 		gs.CloneInto(scratch)
-		diplomacy.ApplyResolution(scratch, m, results, dislodged)
+		rv.Apply(scratch, m)
 		score := EvaluatePosition(scratch, power, m)
 
 		if h.Len() < n {
@@ -487,27 +495,58 @@ func pow(base, exp int) int {
 func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) float64 {
 	score := float64(0)
 
-	// SC count is dominant with accelerating bonus near victory
-	ownSCs := gs.SupplyCenterCount(power)
+	// Single pass over supply centers to count SCs per power, compute
+	// own SC count, total enemy SCs, max enemy SCs, and SC vulnerability.
+	// This replaces 13+ separate map iterations.
+	var scCounts [8]int // indexed by powerIndex; slot 7 = neutral/unknown
+	ownSCs := 0
+	totalEnemy := 0
+	maxEnemy := 0
+	for prov, owner := range gs.SupplyCenters {
+		pi := powerIndex(owner)
+		scCounts[pi]++
+		if owner == power {
+			ownSCs++
+		} else if owner != diplomacy.Neutral && owner != "" {
+			totalEnemy++
+			_ = prov // used below for vulnerability
+		}
+	}
+
 	score += 10.0 * float64(ownSCs)
-	// Non-linear bonus: each SC above 10 is worth increasingly more
 	if ownSCs > 10 {
 		bonus := float64(ownSCs - 10)
-		score += bonus * bonus * 2.0 // e.g. 14 SCs = 4^2*2 = 32 extra
+		score += bonus * bonus * 2.0
 	}
-	// Massive bonus for solo victory threshold
 	if ownSCs >= 18 {
 		score += 500.0
 	}
 
-	// Single pass over units for unit count, pending captures, and SC proximity.
+	// Compute max enemy and alive enemies from the counts array.
+	aliveEnemies := 0
+	for _, p := range diplomacy.AllPowers() {
+		if p == power {
+			continue
+		}
+		sc := scCounts[powerIndex(p)]
+		if sc > maxEnemy {
+			maxEnemy = sc
+		}
+		if sc > 0 {
+			aliveEnemies++
+		}
+	}
+	// Also count enemies with units but no SCs as alive.
+	// Use a single pass over units for this + own unit stats.
 	pendingBonus := 8.0
 	if gs.Season == diplomacy.Fall {
 		pendingBonus = 12.0
 	}
 	unitCount := 0
+	var hasUnits [8]bool
 	for i := range gs.Units {
 		u := &gs.Units[i]
+		hasUnits[powerIndex(u.Power)] = true
 		if u.Power != power {
 			continue
 		}
@@ -528,11 +567,22 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 	}
 	score += 2.0 * float64(unitCount)
 
+	// Count enemies that have units but no SCs (alive but SC-less).
+	for _, p := range diplomacy.AllPowers() {
+		if p == power {
+			continue
+		}
+		pi := powerIndex(p)
+		if scCounts[pi] == 0 && hasUnits[pi] {
+			aliveEnemies++
+		}
+	}
+
 	// Vulnerability of owned SCs: penalize undefended SCs more heavily
 	// when the empire is small (existential threat) vs large (manageable).
 	basePenalty := 4.0
 	if ownSCs <= 4 {
-		basePenalty = 6.0 // small empires can't afford SC losses
+		basePenalty = 6.0
 	}
 	for prov, owner := range gs.SupplyCenters {
 		if owner != power {
@@ -543,7 +593,7 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 		if threat > defense {
 			penalty := basePenalty * float64(threat-defense)
 			if ownSCs >= 16 {
-				penalty *= 0.2 // almost ignore defense when 2 from winning
+				penalty *= 0.2
 			} else if ownSCs >= 14 {
 				penalty *= 0.5
 			}
@@ -551,24 +601,6 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 		}
 	}
 
-	// Penalize enemy strength: subtract all enemy SCs once,
-	// plus an extra 50% penalty for the strongest enemy.
-	totalEnemy := 0
-	maxEnemy := 0
-	aliveEnemies := 0
-	for _, p := range diplomacy.AllPowers() {
-		if p == power {
-			continue
-		}
-		sc := gs.SupplyCenterCount(p)
-		totalEnemy += sc
-		if sc > maxEnemy {
-			maxEnemy = sc
-		}
-		if gs.PowerIsAlive(p) && sc > 0 {
-			aliveEnemies++
-		}
-	}
 	score -= float64(totalEnemy)
 	score -= 0.5 * float64(maxEnemy)
 
@@ -777,6 +809,7 @@ func simulateAhead(gs *diplomacy.GameState, m *diplomacy.DiplomacyMap, power dip
 // searchBestOrders enumerates the Cartesian product of per-unit order options,
 // resolves each combination, and returns the best order set with its score.
 // Checks deadline every 1000 iterations and bails out if exceeded.
+// Uses a reusable Resolver to minimize allocations in the hot loop.
 func searchBestOrders(
 	gs *diplomacy.GameState,
 	power diplomacy.Power,
@@ -796,11 +829,12 @@ func searchBestOrders(
 	var bestOrders []diplomacy.Order
 	iteration := 0
 
-	// Pre-allocate combo, allOrders, and scratch state to avoid per-iteration allocation.
+	// Pre-allocate combo, allOrders, scratch state, and reusable resolver.
 	combo := make([]diplomacy.Order, numUnits)
 	allOrders := make([]diplomacy.Order, numUnits+len(opponentOrders))
 	copy(allOrders[numUnits:], opponentOrders)
 	scratch := gs.Clone()
+	rv := diplomacy.NewResolver(len(allOrders))
 
 	for {
 		for i, idx := range indices {
@@ -809,9 +843,9 @@ func searchBestOrders(
 		sanitizeCombo(combo, gs, m)
 		copy(allOrders[:numUnits], combo)
 
-		results, dislodged := diplomacy.ResolveOrders(allOrders, gs, m)
+		rv.Resolve(allOrders, gs, m)
 		gs.CloneInto(scratch)
-		diplomacy.ApplyResolution(scratch, m, results, dislodged)
+		rv.Apply(scratch, m)
 		score := EvaluatePosition(scratch, power, m)
 
 		if score > bestScore {
