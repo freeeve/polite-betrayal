@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 610 560" width="610" height="560">
+  <defs/>
+
+  <!-- Background (ocean) -->
+  <rect x="0" y="0" width="610" height="560" fill="#D4E6F1"/>
+
+  <!-- ============================================================ -->
+  <!-- SEA PROVINCES (19)                                           -->
+  <!-- ============================================================ -->
+
+  <!-- North Atlantic Ocean -->
+  <polygon id="nao" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="0,0 60,0 60,60 40,100 20,140 0,160"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="25" y="75">NAO</text>
+
+  <!-- Norwegian Sea -->
+  <polygon id="nrg" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="60,0 180,0 200,20 180,60 140,80 100,80 60,60"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="130" y="40">NRG</text>
+
+  <!-- Barents Sea -->
+  <polygon id="bar" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="200,0 380,0 420,0 420,40 380,40 340,20 280,20 240,10 200,20"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="320" y="15">BAR</text>
+
+  <!-- North Sea -->
+  <polygon id="nth" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="140,80 180,60 200,70 220,80 240,110 240,150 220,170 200,180 180,160 160,140 140,140"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="190" y="125">NTH</text>
+
+  <!-- Skagerrak -->
+  <polygon id="ska" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="240,110 280,100 300,110 290,130 260,140 240,150"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="265" y="125">SKA</text>
+
+  <!-- Heligoland Bight -->
+  <polygon id="hel" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="220,170 240,150 260,140 280,150 280,175 260,185 240,185"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="255" y="168">HEL</text>
+
+  <!-- Baltic Sea -->
+  <polygon id="bal" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="290,130 310,120 340,130 360,150 360,185 340,200 320,200 300,190 290,175 280,175 280,150"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="325" y="165">BAL</text>
+
+  <!-- Gulf of Bothnia -->
+  <polygon id="bot" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="340,60 370,60 400,70 400,110 380,130 360,150 340,130 320,100 330,80"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="365" y="100">BOT</text>
+
+  <!-- Irish Sea -->
+  <polygon id="iri" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="40,100 60,100 80,120 90,150 80,170 60,180 40,180 20,170 20,140"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="55" y="145">IRI</text>
+
+  <!-- English Channel -->
+  <polygon id="eng" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="80,170 100,175 140,180 160,190 180,200 160,210 140,210 120,205 100,200 80,200"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="130" y="195">ENG</text>
+
+  <!-- Mid-Atlantic Ocean -->
+  <polygon id="mao" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="0,160 20,170 40,180 60,200 80,220 80,280 60,340 40,380 20,400 0,420 0,160"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="30" y="290">MAO</text>
+
+  <!-- Western Mediterranean -->
+  <polygon id="wes" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="100,400 140,380 180,390 200,420 180,440 140,450 100,450 80,440"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="140" y="425">WES</text>
+
+  <!-- Gulf of Lyon -->
+  <polygon id="gol" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="140,330 180,320 200,340 210,370 200,390 180,390 140,380 130,360"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="170" y="360">GOL</text>
+
+  <!-- Tyrrhenian Sea -->
+  <polygon id="tys" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="200,390 230,380 260,400 270,430 260,460 230,470 200,460 200,420"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="235" y="435">TYS</text>
+
+  <!-- Ionian Sea -->
+  <polygon id="ion" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="260,460 290,450 320,460 340,490 330,520 300,540 270,540 250,520 250,490"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="295" y="500">ION</text>
+
+  <!-- Adriatic Sea -->
+  <polygon id="adr" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="260,340 280,350 290,380 290,420 280,440 260,450 240,430 240,380 250,360"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="268" y="395">ADR</text>
+
+  <!-- Aegean Sea -->
+  <polygon id="aeg" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="380,430 410,420 440,430 450,460 440,490 410,500 380,490 370,460"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="410" y="460">AEG</text>
+
+  <!-- Eastern Mediterranean -->
+  <polygon id="eas" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="410,500 450,490 500,500 540,510 560,530 540,560 440,560 400,540"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="480" y="530">EAS</text>
+
+  <!-- Black Sea -->
+  <polygon id="bla" fill="#D4E6F1" stroke="#333333" stroke-width="0.5" points="440,320 470,310 510,300 550,310 580,320 580,370 560,390 520,400 480,400 450,380 440,350"/>
+  <text font-family="sans-serif" font-size="6" fill="#4A6FA5" text-anchor="middle" font-style="italic" x="510" y="355">BLA</text>
+
+  <!-- ============================================================ -->
+  <!-- LAND PROVINCES                                               -->
+  <!-- ============================================================ -->
+
+  <!-- === BRITISH ISLES === -->
+
+  <!-- Clyde -->
+  <polygon id="cly" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="60,60 100,60 100,80 90,95 70,95 60,80"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="80" y="80">Cly</text>
+
+  <!-- Edinburgh -->
+  <polygon id="edi" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="100,60 140,60 140,80 130,100 100,100 100,80"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="120" y="82">Edi</text>
+  <circle fill="#333333" cx="120" cy="72" r="2.5"/>
+
+  <!-- Liverpool -->
+  <polygon id="lvp" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="60,80 70,95 90,95 100,100 100,130 90,140 70,140 60,130 60,100"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="80" y="118">Lvp</text>
+  <circle fill="#333333" cx="80" cy="108" r="2.5"/>
+
+  <!-- Yorkshire -->
+  <polygon id="yor" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="100,100 130,100 140,110 140,140 120,140 100,130"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="120" y="122">Yor</text>
+
+  <!-- Wales -->
+  <polygon id="wal" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="60,130 70,140 90,140 100,150 100,170 80,170 60,160"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="80" y="155">Wal</text>
+
+  <!-- London -->
+  <polygon id="lon" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="100,130 120,140 140,140 160,140 160,170 140,180 100,175 80,170 100,170 100,150"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="130" y="160">Lon</text>
+  <circle fill="#333333" cx="130" cy="152" r="2.5"/>
+
+  <!-- === SCANDINAVIA === -->
+
+  <!-- Norway -->
+  <polygon id="nwy" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="200,20 240,10 280,20 280,60 260,80 240,100 240,110 220,80 200,70"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="240" y="55">Nwy</text>
+  <circle fill="#333333" cx="245" cy="45" r="2.5"/>
+
+  <!-- Sweden -->
+  <polygon id="swe" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="280,60 320,50 340,60 330,80 320,100 310,120 300,110 280,100 260,80"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="300" y="85">Swe</text>
+  <circle fill="#333333" cx="305" cy="75" r="2.5"/>
+
+  <!-- Finland -->
+  <polygon id="fin" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="340,20 380,20 400,40 400,70 370,60 340,60 320,50"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="365" y="45">Fin</text>
+
+  <!-- Denmark (Jutland peninsula + islands) -->
+  <polygon id="den" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="260,140 275,128 290,130 280,150 290,175 280,185 260,185 240,185 240,150"/>
+  <polygon id="den-island" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="265,152 258,145 265,140 278,148 282,160 267,165"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="267" y="165">Den</text>
+  <circle fill="#333333" cx="267" cy="155" r="2.5"/>
+
+  <!-- St. Petersburg (Kola peninsula + main territory) -->
+  <polygon id="stp" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="340,20 380,40 420,40 420,0 500,0 520,0 520,60 480,80 440,90 440,110 400,110 400,70 400,40 380,20"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="460" y="40">StP</text>
+  <circle fill="#333333" cx="460" cy="50" r="2.5"/>
+
+  <!-- === RUSSIA === -->
+
+  <!-- Livonia -->
+  <polygon id="lvn" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="360,150 380,130 400,110 440,110 440,150 420,170 400,170 380,170"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="410" y="145">Lvn</text>
+
+  <!-- Moscow -->
+  <polygon id="mos" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="440,90 480,80 520,60 560,60 560,160 520,180 480,170 460,150 440,150 440,110"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="500" y="120">Mos</text>
+  <circle fill="#333333" cx="505" cy="110" r="2.5"/>
+
+  <!-- Warsaw -->
+  <polygon id="war" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="360,185 380,170 400,170 420,170 440,150 460,150 460,200 440,220 420,230 380,220 360,210"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="415" y="198">War</text>
+  <circle fill="#333333" cx="415" cy="188" r="2.5"/>
+
+  <!-- Ukraine -->
+  <polygon id="ukr" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="460,200 480,170 520,180 560,160 580,180 580,240 560,260 520,260 480,250 460,230 440,220"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="520" y="220">Ukr</text>
+
+  <!-- Sevastopol -->
+  <polygon id="sev" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="520,260 560,260 580,240 610,250 610,310 580,320 550,310 510,300 490,290 500,270"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="560" y="285">Sev</text>
+  <circle fill="#333333" cx="565" cy="275" r="2.5"/>
+
+  <!-- === FRANCE === -->
+
+  <!-- Brest -->
+  <polygon id="bre" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="60,200 80,200 100,200 120,205 120,230 100,245 80,240 60,230"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="92" y="222">Bre</text>
+  <circle fill="#333333" cx="92" cy="212" r="2.5"/>
+
+  <!-- Picardy -->
+  <polygon id="pic" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="120,205 140,210 160,210 180,200 180,220 160,230 140,230 120,230"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="150" y="220">Pic</text>
+
+  <!-- Paris -->
+  <polygon id="par" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="100,245 120,230 140,230 160,230 170,250 160,270 140,280 120,275 100,260"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="135" y="258">Par</text>
+  <circle fill="#333333" cx="135" cy="248" r="2.5"/>
+
+  <!-- Burgundy -->
+  <polygon id="bur" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="160,230 180,220 200,230 220,240 220,270 200,290 180,300 160,290 160,270 170,250"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="190" y="265">Bur</text>
+
+  <!-- Gascony -->
+  <polygon id="gas" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="60,280 80,280 100,280 120,275 140,280 140,320 120,340 100,350 80,340 60,330"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="100" y="310">Gas</text>
+
+  <!-- Marseilles -->
+  <polygon id="mar" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="140,280 160,290 180,300 180,320 140,330 130,360 120,340 140,320"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="152" y="312">Mar</text>
+  <circle fill="#333333" cx="155" cy="302" r="2.5"/>
+
+  <!-- === IBERIA === -->
+
+  <!-- Spain -->
+  <polygon id="spa" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="20,400 40,380 60,350 80,340 100,350 120,340 140,380 100,400 80,420 60,420 40,420"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="80" y="390">Spa</text>
+  <circle fill="#333333" cx="85" cy="380" r="2.5"/>
+
+  <!-- Portugal -->
+  <polygon id="por" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="0,420 20,400 40,380 60,350 60,330 40,340 20,360 0,380"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="30" y="380">Por</text>
+  <circle fill="#333333" cx="35" cy="370" r="2.5"/>
+
+  <!-- === LOW COUNTRIES === -->
+
+  <!-- Belgium -->
+  <polygon id="bel" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="180,200 200,180 220,170 220,200 210,215 200,230 180,220"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="200" y="202">Bel</text>
+  <circle fill="#333333" cx="200" cy="193" r="2.5"/>
+
+  <!-- Holland -->
+  <polygon id="hol" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="220,170 240,165 240,185 260,185 260,200 240,210 220,200"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="240" y="190">Hol</text>
+  <circle fill="#333333" cx="240" cy="180" r="2.5"/>
+
+  <!-- === GERMANY === -->
+
+  <!-- Ruhr -->
+  <polygon id="ruh" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="220,200 240,210 260,210 270,230 260,250 240,260 220,250 220,240 200,230 210,215"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="240" y="235">Ruh</text>
+
+  <!-- Kiel -->
+  <polygon id="kie" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="240,185 260,185 280,185 290,175 300,190 300,210 280,215 260,210 240,210"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="275" y="200">Kie</text>
+  <circle fill="#333333" cx="275" cy="190" r="2.5"/>
+
+  <!-- Berlin -->
+  <polygon id="ber" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="300,190 320,200 340,200 350,210 340,225 320,230 300,220 300,210"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="322" y="215">Ber</text>
+  <circle fill="#333333" cx="322" cy="205" r="2.5"/>
+
+  <!-- Munich -->
+  <polygon id="mun" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="240,260 260,250 270,260 290,260 300,280 280,300 260,300 240,290 230,275"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="268" y="280">Mun</text>
+  <circle fill="#333333" cx="268" cy="270" r="2.5"/>
+
+  <!-- Prussia -->
+  <polygon id="pru" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="340,200 360,185 380,170 380,200 370,210 350,210"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="365" y="198">Pru</text>
+
+  <!-- Silesia -->
+  <polygon id="sil" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="300,220 320,230 340,225 350,210 370,210 380,220 400,230 400,250 380,260 350,260 320,260 300,260 290,260 300,240"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="350" y="245">Sil</text>
+
+  <!-- === AUSTRIA-HUNGARY === -->
+
+  <!-- Tyrolia -->
+  <polygon id="tyr" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="240,290 260,300 280,300 300,310 290,330 270,340 250,330 230,320 230,300"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="265" y="320">Tyr</text>
+
+  <!-- Bohemia -->
+  <polygon id="boh" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="290,260 300,260 320,260 350,260 370,270 370,290 350,300 330,310 310,310 300,310 300,280"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="335" y="285">Boh</text>
+
+  <!-- Vienna -->
+  <polygon id="vie" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="300,310 310,310 330,310 350,300 370,310 370,330 350,340 330,340 310,340 300,330 290,330"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="335" y="325">Vie</text>
+  <circle fill="#333333" cx="340" cy="315" r="2.5"/>
+
+  <!-- Budapest -->
+  <polygon id="bud" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="370,290 400,280 430,290 440,310 430,330 410,340 390,340 370,330 370,310"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="405" y="315">Bud</text>
+  <circle fill="#333333" cx="405" cy="305" r="2.5"/>
+
+  <!-- Galicia -->
+  <polygon id="gal" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="380,220 380,260 370,270 370,290 400,280 430,290 440,310 460,300 480,280 480,250 460,230 440,220 420,230"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="430" y="268">Gal</text>
+
+  <!-- Trieste -->
+  <polygon id="tri" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="270,340 290,330 300,330 310,340 330,340 340,360 320,370 300,380 290,370 280,350"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="310" y="358">Tri</text>
+  <circle fill="#333333" cx="310" cy="348" r="2.5"/>
+
+  <!-- === ITALY === -->
+
+  <!-- Piedmont -->
+  <polygon id="pie" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="200,310 210,300 230,300 230,320 220,340 210,360 200,350 195,330"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="213" y="330">Pie</text>
+
+  <!-- Venice -->
+  <polygon id="ven" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="230,320 250,330 270,340 280,350 260,370 240,380 230,370 220,360 220,340"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="248" y="355">Ven</text>
+  <circle fill="#333333" cx="250" cy="345" r="2.5"/>
+
+  <!-- Tuscany -->
+  <polygon id="tus" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="200,350 210,360 220,370 230,380 230,400 220,410 210,400 200,390"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="215" y="385">Tus</text>
+
+  <!-- Rome -->
+  <polygon id="rom" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="230,400 240,380 260,400 260,420 250,435 240,430 230,420"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="247" y="415">Rom</text>
+  <circle fill="#333333" cx="247" cy="405" r="2.5"/>
+
+  <!-- Apulia -->
+  <polygon id="apu" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="260,400 280,380 290,380 300,400 300,430 290,440 280,440 270,430 260,420"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="280" y="415">Apu</text>
+
+  <!-- Naples -->
+  <polygon id="nap" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="250,435 260,420 270,430 280,440 290,450 270,470 250,470 240,460"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="265" y="455">Nap</text>
+  <circle fill="#333333" cx="265" cy="445" r="2.5"/>
+
+  <!-- === BALKANS === -->
+
+  <!-- Serbia -->
+  <polygon id="ser" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="340,360 350,340 370,330 390,340 400,360 390,380 370,390 350,390 340,370"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="368" y="370">Ser</text>
+  <circle fill="#333333" cx="368" cy="360" r="2.5"/>
+
+  <!-- Albania -->
+  <polygon id="alb" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="320,370 340,370 350,390 350,420 340,430 320,430 310,410 310,390"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="332" y="405">Alb</text>
+
+  <!-- Greece -->
+  <polygon id="gre" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="340,430 350,420 370,420 380,430 380,470 370,490 350,490 340,470 330,460"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="358" y="455">Gre</text>
+  <circle fill="#333333" cx="358" cy="445" r="2.5"/>
+
+  <!-- Rumania -->
+  <polygon id="rum" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="400,280 430,290 440,310 460,300 480,280 500,270 510,300 470,310 440,320 420,340 400,340 400,360 390,380 370,390 350,390 340,370 340,360 350,340 370,330 390,340"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="450" y="300">Rum</text>
+  <circle fill="#333333" cx="455" cy="290" r="2.5"/>
+
+  <!-- Bulgaria -->
+  <polygon id="bul" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="390,380 400,360 420,370 440,370 450,380 440,410 420,420 400,420 390,400"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="420" y="398">Bul</text>
+  <circle fill="#333333" cx="420" cy="388" r="2.5"/>
+
+  <!-- === TURKEY === -->
+
+  <!-- Constantinople -->
+  <polygon id="con" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="440,370 450,380 460,400 450,420 440,430 420,420 440,410"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="445" y="405">Con</text>
+  <circle fill="#333333" cx="445" cy="395" r="2.5"/>
+
+  <!-- Smyrna -->
+  <polygon id="smy" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="450,420 460,400 480,400 510,420 520,450 500,470 470,470 450,460"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="485" y="445">Smy</text>
+  <circle fill="#333333" cx="485" cy="435" r="2.5"/>
+
+  <!-- Ankara -->
+  <polygon id="ank" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="480,400 520,400 560,390 580,370 610,380 610,420 580,430 540,430 510,420"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="555" y="410">Ank</text>
+  <circle fill="#333333" cx="555" cy="400" r="2.5"/>
+
+  <!-- Armenia -->
+  <polygon id="arm" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="580,370 610,350 610,380 610,420 580,430 560,440 550,420 560,400 560,390"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="590" y="400">Arm</text>
+
+  <!-- Syria -->
+  <polygon id="syr" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="520,450 540,430 560,440 580,460 580,510 560,530 540,510 520,490 510,470"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="550" y="475">Syr</text>
+
+  <!-- === NORTH AFRICA === -->
+
+  <!-- North Africa -->
+  <polygon id="naf" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="0,420 40,420 80,440 100,450 140,450 160,460 180,460 180,500 160,520 120,540 80,550 40,560 0,560"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="90" y="500">NAf</text>
+
+  <!-- Tunisia -->
+  <polygon id="tun" fill="#F5E6CC" stroke="#333333" stroke-width="0.7" points="180,460 200,460 230,470 250,490 240,510 220,520 200,520 180,510 180,500"/>
+  <text font-family="sans-serif" font-size="7" fill="#333333" text-anchor="middle" x="215" y="495">Tun</text>
+  <circle fill="#333333" cx="215" cy="485" r="2.5"/>
+
+  <!-- ============================================================ -->
+  <!-- FIX-UP: Redraw Rumania as simpler shape to avoid overlap     -->
+  <!-- (The complex polygon above handles the bend around Balkans)  -->
+  <!-- ============================================================ -->
+
+  <!-- Re-overlay province border outlines for clarity on key areas -->
+
+  <!-- Inland provinces with adjusted shapes -->
+
+  <!-- ============================================================ -->
+  <!-- Additional visual: thin coast lines for split-coast provinces -->
+  <!-- ============================================================ -->
+  <!-- St. Petersburg north coast indicator -->
+  <line x1="420" y1="0" x2="380" y2="20" stroke="#4A6FA5" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <!-- St. Petersburg south coast indicator -->
+  <line x1="400" y1="70" x2="400" y2="110" stroke="#4A6FA5" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <!-- Spain north coast indicator -->
+  <line x1="60" y1="350" x2="80" y2="340" stroke="#4A6FA5" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <!-- Spain south coast indicator -->
+  <line x1="100" y1="400" x2="140" y2="380" stroke="#4A6FA5" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <!-- Bulgaria east coast indicator -->
+  <line x1="440" y1="370" x2="450" y2="380" stroke="#4A6FA5" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <!-- Bulgaria south coast indicator -->
+  <line x1="400" y1="420" x2="420" y2="420" stroke="#4A6FA5" stroke-width="1.5" stroke-dasharray="3,2"/>
+
+</svg>
