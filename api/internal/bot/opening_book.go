@@ -277,12 +277,12 @@ func fallOpenings(power diplomacy.Power) []fallCondition {
 			// Welsh result: F nrg, F nth, A wal
 			{positions: map[string]string{"nrg": "fleet", "nth": "fleet", "wal": "army"},
 				entries: []openingEntry{
-					{name: "Welsh: convoy wal to nwy", weight: 60, orders: []OrderInput{
+					{name: "Welsh: nwy+hol", weight: 60, orders: []OrderInput{
 						mv("fleet", "nrg", "nwy"),
-						con("nth", "wal", "bel"),
-						mv("army", "wal", "bel"),
+						mv("fleet", "nth", "hol"),
+						mv("army", "wal", "lon"),
 					}},
-					{name: "Welsh: nrg to nwy, wal to lon", weight: 40, orders: []OrderInput{
+					{name: "Welsh: nwy+bel", weight: 40, orders: []OrderInput{
 						mv("fleet", "nrg", "nwy"),
 						mv("fleet", "nth", "bel"),
 						mv("army", "wal", "lon"),
@@ -491,6 +491,20 @@ func fallOpenings(power diplomacy.Power) []fallCondition {
 						mv("fleet", "ion", "tun"),
 						hld("army", "ven"),
 						mv("army", "pie", "tyr"),
+					}},
+				}},
+			// Trieste Strike bounce: F ion, A rom, A ven (ven->tri bounced, rom->ven bounced)
+			{positions: map[string]string{"ion": "fleet", "rom": "army", "ven": "army"},
+				entries: []openingEntry{
+					{name: "Trieste bounce: tun+tyr", weight: 60, orders: []OrderInput{
+						mv("fleet", "ion", "tun"),
+						mv("army", "rom", "apu"),
+						mv("army", "ven", "tyr"),
+					}},
+					{name: "Trieste bounce: tun+tri retry", weight: 40, orders: []OrderInput{
+						mv("fleet", "ion", "tun"),
+						mv("army", "rom", "ven"),
+						mv("army", "ven", "tri"),
 					}},
 				}},
 			// Trieste Strike result: F ion, A ven, A tri (rom->ven, ven->tri)
