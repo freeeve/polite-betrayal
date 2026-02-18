@@ -98,6 +98,7 @@ class MapPainter extends CustomPainter {
       ('swe', 'fin'), ('fin', 'swe'),
       ('nwy', 'fin'), ('fin', 'nwy'),
       ('stp', 'fin'), ('fin', 'stp'),
+      ('rum', 'ukr'), ('ukr', 'rum'),
     };
 
     var i = 0;
