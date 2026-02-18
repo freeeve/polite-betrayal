@@ -949,6 +949,16 @@ pub fn regret_matching_search<W: Write>(
     let rm_deadline = start + cand_budget + rm_budget;
     let mut iteration_count: u64 = 0;
 
+    // Pre-allocate reusable buffers for the hot loop (P2 optimization).
+    let num_powers = power_candidates.len();
+    let mut strategies: Vec<Vec<f64>> = power_candidates
+        .iter()
+        .map(|(_, cands)| vec![0.0; cands.len()])
+        .collect();
+    let mut sampled: Vec<usize> = vec![0; num_powers];
+    let mut combined: Vec<(Order, Power)> = Vec::with_capacity(32);
+    let mut alt_combined: Vec<(Order, Power)> = Vec::with_capacity(32);
+
     // Main RM+ loop (time-based with minimum iteration guarantee)
     loop {
         // After minimum iterations, check time budget
@@ -963,30 +973,31 @@ pub fn regret_matching_search<W: Write>(
             }
         }
 
-        // Compute current strategy for each power from RM+ regrets
-        let mut strategies: Vec<Vec<f64>> = Vec::with_capacity(power_candidates.len());
-        for regrets in &cum_regrets {
+        // Compute current strategy for each power from RM+ regrets (reuse buffers)
+        for (pi, regrets) in cum_regrets.iter().enumerate() {
             let total: f64 = regrets.iter().sum();
             if total > 0.0 {
-                strategies.push(regrets.iter().map(|r| r / total).collect());
+                for (j, r) in regrets.iter().enumerate() {
+                    strategies[pi][j] = r / total;
+                }
             } else {
                 let uniform = 1.0 / regrets.len() as f64;
-                strategies.push(vec![uniform; regrets.len()]);
+                for s in strategies[pi].iter_mut() {
+                    *s = uniform;
+                }
             }
         }
 
         // Sample a candidate index for each power from their strategy
-        let sampled: Vec<usize> = strategies
-            .iter()
-            .map(|strat| weighted_sample(strat, &mut rng))
-            .collect();
+        for (pi, strat) in strategies.iter().enumerate() {
+            sampled[pi] = weighted_sample(strat, &mut rng);
+        }
 
-        // Build combined order set from sampled profile
-        let combined: Vec<(Order, Power)> = power_candidates
-            .iter()
-            .enumerate()
-            .flat_map(|(pi, (_, cands))| cands[sampled[pi]].iter().copied())
-            .collect();
+        // Build combined order set from sampled profile (reuse buffer)
+        combined.clear();
+        for (pi, (_, cands)) in power_candidates.iter().enumerate() {
+            combined.extend_from_slice(&cands[sampled[pi]]);
+        }
 
         // Resolve and evaluate the sampled profile
         let (results, dislodged) = resolver.resolve(&combined, state);
@@ -1013,8 +1024,8 @@ pub fn regret_matching_search<W: Write>(
                 continue;
             }
 
-            // Build alternative combined orders with ci for our power
-            let mut alt_combined: Vec<(Order, Power)> = Vec::with_capacity(combined.len());
+            // Build alternative combined orders with ci for our power (reuse buffer)
+            alt_combined.clear();
             for (pi, (_, cands)) in power_candidates.iter().enumerate() {
                 if pi == our_power_idx {
                     alt_combined.extend_from_slice(&cands[ci]);
