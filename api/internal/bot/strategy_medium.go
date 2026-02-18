@@ -5,9 +5,8 @@ import (
 )
 
 // TacticalStrategy generates orders for the "medium" difficulty bot.
-// Uses the opening book for known positions, then falls back to the same
-// heuristic logic as the easy bot for everything else. This serves as a
-// clean baseline for incremental improvements.
+// Uses the opening book for known positions, then generates multiple
+// candidate order sets and picks the best via 1-ply lookahead.
 type TacticalStrategy struct{}
 
 func (TacticalStrategy) Name() string { return "medium" }
@@ -17,13 +16,55 @@ func (TacticalStrategy) ShouldVoteDraw(_ *diplomacy.GameState, _ diplomacy.Power
 	return true
 }
 
-// GenerateMovementOrders checks the opening book first, then delegates to
-// the easy bot's heuristic logic.
+// GenerateMovementOrders checks the opening book first, then generates 16
+// candidate order sets using the easy bot (which has built-in randomness)
+// and picks the one that produces the best evaluated position after
+// 1-ply resolution.
 func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
 	if opening := LookupOpening(gs, power, m); opening != nil {
 		return opening
 	}
-	return HeuristicStrategy{}.GenerateMovementOrders(gs, power, m)
+
+	const numCandidates = 16
+	easy := HeuristicStrategy{}
+
+	// Generate opponent orders once (predicted via easy heuristic).
+	var opponentOrders []diplomacy.Order
+	for _, p := range diplomacy.AllPowers() {
+		if p == power || !gs.PowerIsAlive(p) {
+			continue
+		}
+		opponentOrders = append(opponentOrders, GenerateOpponentOrders(gs, p, m)...)
+	}
+
+	// Generate N candidate order sets and evaluate each via lookahead.
+	rv := diplomacy.NewResolver(34)
+	clone := gs.Clone()
+	orderBuf := make([]diplomacy.Order, 0, 34)
+
+	bestScore := -1e9
+	var bestOrders []OrderInput
+
+	for range numCandidates {
+		candidate := easy.GenerateMovementOrders(gs, power, m)
+		myOrders := OrderInputsToOrders(candidate, power)
+
+		orderBuf = orderBuf[:0]
+		orderBuf = append(orderBuf, myOrders...)
+		orderBuf = append(orderBuf, opponentOrders...)
+
+		rv.Resolve(orderBuf, gs, m)
+		gs.CloneInto(clone)
+		rv.Apply(clone, m)
+		score := EvaluatePosition(clone, power, m)
+
+		if score > bestScore {
+			bestScore = score
+			bestOrders = candidate
+		}
+	}
+
+	return bestOrders
 }
 
 // GenerateRetreatOrders delegates to the easy bot's retreat logic.
