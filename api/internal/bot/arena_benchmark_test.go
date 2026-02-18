@@ -202,6 +202,171 @@ func logBenchmarkResults(t *testing.T, r *BenchmarkResult) {
 	t.Log(sb.String())
 }
 
+// TimelineBenchmarkResult holds aggregate metrics including per-year SC timeline stats.
+type TimelineBenchmarkResult struct {
+	Power        string
+	NumGames     int
+	Wins         int
+	Draws        int
+	Losses       int
+	TotalSCs     int
+	VictoryYears []int
+	Durations    []time.Duration
+	// SCByYear maps year -> slice of SC counts across all games for the test power
+	SCByYear map[int][]int
+}
+
+// percentile returns the p-th percentile (0-100) from a sorted slice of ints.
+func percentile(sorted []int, p float64) int {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := p / 100 * float64(len(sorted)-1)
+	lower := int(math.Floor(idx))
+	if lower >= len(sorted)-1 {
+		return sorted[len(sorted)-1]
+	}
+	return sorted[lower]
+}
+
+// runEasyVsRandomBenchmark runs numGames where testPower uses "easy" and all others use "random".
+func runEasyVsRandomBenchmark(t *testing.T, testPower diplomacy.Power, numGames, maxYear int) *TimelineBenchmarkResult {
+	t.Helper()
+
+	powerStr := string(testPower)
+	result := &TimelineBenchmarkResult{
+		Power:    powerStr,
+		NumGames: numGames,
+		SCByYear: make(map[int][]int),
+	}
+
+	ctx := context.Background()
+
+	for i := range numGames {
+		// Build power config: testPower=easy, *=random
+		pc := make(map[diplomacy.Power]string)
+		for _, p := range diplomacy.AllPowers() {
+			if p == testPower {
+				pc[p] = "easy"
+			} else {
+				pc[p] = "random"
+			}
+		}
+
+		cfg := ArenaConfig{
+			GameName:    fmt.Sprintf("bench-easy-%s-vs-random", powerStr),
+			PowerConfig: pc,
+			MaxYear:     maxYear,
+			Seed:        int64(i + 1),
+			DryRun:      true,
+		}
+
+		start := time.Now()
+		gameResult, err := RunGame(ctx, cfg, nil, nil, nil)
+		elapsed := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("game %d failed: %v", i+1, err)
+		}
+
+		result.Durations = append(result.Durations, elapsed)
+
+		testSCs := gameResult.SCCounts[powerStr]
+		result.TotalSCs += testSCs
+
+		if gameResult.Winner == powerStr {
+			result.Wins++
+			result.VictoryYears = append(result.VictoryYears, gameResult.FinalYear)
+		} else if gameResult.Winner == "" {
+			result.Draws++
+		} else {
+			result.Losses++
+		}
+
+		// Collect SC timeline for the test power
+		for idx, year := range gameResult.TimelineYears {
+			scSlice := gameResult.SCTimeline[powerStr]
+			if idx < len(scSlice) {
+				result.SCByYear[year] = append(result.SCByYear[year], scSlice[idx])
+			}
+		}
+	}
+
+	return result
+}
+
+// logTimelineResults logs summary stats and per-year SC timeline table.
+func logTimelineResults(t *testing.T, r *TimelineBenchmarkResult) {
+	t.Helper()
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("\n=== %s (Easy) vs 6 Random — %d games ===\n", strings.Title(r.Power), r.NumGames))
+
+	winRate := float64(r.Wins) / float64(r.NumGames) * 100
+	avgSCs := float64(r.TotalSCs) / float64(r.NumGames)
+	sb.WriteString(fmt.Sprintf("Win: %d/%d (%.0f%%), Draw: %d, Loss: %d\n", r.Wins, r.NumGames, winRate, r.Draws, r.Losses))
+	sb.WriteString(fmt.Sprintf("Avg Final SCs: %.1f\n", avgSCs))
+
+	if len(r.VictoryYears) > 0 {
+		sum := 0
+		for _, y := range r.VictoryYears {
+			sum += y
+		}
+		sb.WriteString(fmt.Sprintf("Avg Victory Year: %.1f\n", float64(sum)/float64(len(r.VictoryYears))))
+	}
+
+	// Collect and sort years
+	var years []int
+	for y := range r.SCByYear {
+		years = append(years, y)
+	}
+	sort.Ints(years)
+
+	if len(years) > 0 {
+		sb.WriteString("\nYear | Avg  | Min | P25 | P50 | P75 | P95 | Max | N\n")
+		sb.WriteString("-----|------|-----|-----|-----|-----|-----|-----|---\n")
+		for _, year := range years {
+			counts := r.SCByYear[year]
+			sorted := make([]int, len(counts))
+			copy(sorted, counts)
+			sort.Ints(sorted)
+
+			sum := 0
+			for _, c := range sorted {
+				sum += c
+			}
+			avg := float64(sum) / float64(len(sorted))
+
+			sb.WriteString(fmt.Sprintf("%d | %4.1f | %3d | %3d | %3d | %3d | %3d | %3d | %d\n",
+				year, avg,
+				sorted[0],
+				percentile(sorted, 25),
+				percentile(sorted, 50),
+				percentile(sorted, 75),
+				percentile(sorted, 95),
+				sorted[len(sorted)-1],
+				len(sorted),
+			))
+		}
+	}
+
+	t.Log(sb.String())
+}
+
+// TestBenchmark_EasyVsRandom runs each of the 7 powers as Easy against 6 Random, 20 games each.
+func TestBenchmark_EasyVsRandom(t *testing.T) {
+	numGames := 20
+	maxYear := 1930
+
+	for _, power := range diplomacy.AllPowers() {
+		power := power // capture
+		t.Run(string(power), func(t *testing.T) {
+			r := runEasyVsRandomBenchmark(t, power, numGames, maxYear)
+			logTimelineResults(t, r)
+		})
+	}
+}
+
 // TestBenchmark_RustVsEasy runs the Rust RM+ engine as France against 6 easy Go bots.
 func TestBenchmark_RustVsEasy(t *testing.T) {
 	if os.Getenv("REALPOLITIK_PATH") == "" {

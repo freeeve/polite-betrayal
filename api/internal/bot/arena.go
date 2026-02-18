@@ -25,12 +25,14 @@ type ArenaConfig struct {
 
 // ArenaResult describes the outcome of a completed arena game.
 type ArenaResult struct {
-	GameID      string
-	Winner      string // power name or "" for draw
-	FinalYear   int
-	FinalSeason string
-	TotalPhases int
-	SCCounts    map[string]int // power -> final SC count
+	GameID        string
+	Winner        string // power name or "" for draw
+	FinalYear     int
+	FinalSeason   string
+	TotalPhases   int
+	SCCounts      map[string]int   // power -> final SC count
+	SCTimeline    map[string][]int // power -> SC count after each Fall (indexed by year - 1901)
+	TimelineYears []int            // years corresponding to SCTimeline entries
 }
 
 // RunGame plays a full Diplomacy game using bot strategies, saving results to Postgres.
@@ -87,8 +89,9 @@ func RunGame(
 	resolver := diplomacy.NewResolver(34)
 
 	result := &ArenaResult{
-		GameID:   gameID,
-		SCCounts: make(map[string]int),
+		GameID:     gameID,
+		SCCounts:   make(map[string]int),
+		SCTimeline: make(map[string][]int),
 	}
 
 	for {
@@ -148,7 +151,19 @@ func RunGame(
 
 		// Advance game state (updates year/season/phase, SC ownership)
 		hasDislodgements := len(gs.Dislodged) > 0
+		prevSeason := gs.Season
+		prevPhase := gs.Phase
+		prevYear := gs.Year
 		diplomacy.AdvanceState(gs, hasDislodgements)
+
+		// Snapshot SC counts after Fall resolution (SC ownership just updated)
+		if prevSeason == diplomacy.Fall && (prevPhase == diplomacy.PhaseMovement || prevPhase == diplomacy.PhaseRetreat) {
+			result.TimelineYears = append(result.TimelineYears, prevYear)
+			for _, p := range diplomacy.AllPowers() {
+				pStr := string(p)
+				result.SCTimeline[pStr] = append(result.SCTimeline[pStr], gs.SupplyCenterCount(p))
+			}
+		}
 
 		// Check for solo victory
 		if gameOver, winner := diplomacy.IsGameOver(gs); gameOver {
