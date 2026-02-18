@@ -230,7 +230,7 @@ func civilDisorder(power Power, count int, gs *GameState, m *DiplomacyMap) []Bui
 	// Use simple selection since we only need `count` items
 	var results []BuildResult
 	disbanded := make(map[string]bool)
-	for i := 0; i < count; i++ {
+	for range count {
 		maxDist := -1
 		maxIdx := -1
 		for j, ud := range distances {
