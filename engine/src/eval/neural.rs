@@ -177,7 +177,7 @@ impl NeuralEvaluator {
 fn load_session(path: &str) -> Option<Session> {
     match Session::builder()
         .and_then(|b| b.with_optimization_level(GraphOptimizationLevel::Level3))
-        .and_then(|b| b.with_intra_threads(1))
+        .and_then(|b| b.with_intra_threads(4))
         .and_then(|b| b.commit_from_file(path))
     {
         Ok(session) => Some(session),
