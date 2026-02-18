@@ -814,9 +814,19 @@ fn score_order_with_logits(order: &Order, logits: &[f32]) -> f32 {
 }
 
 /// Computes the cooperation penalty: penalizes attacking multiple distinct powers.
-fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Power) -> f64 {
+///
+/// When trust scores are provided, attacks against hostile powers (low trust)
+/// are penalized less, and attacks against allied powers (high trust) are
+/// penalized more.
+fn cooperation_penalty(
+    orders: &[(Order, Power)],
+    state: &BoardState,
+    power: Power,
+    trust_scores: Option<&[f64; 7]>,
+) -> f64 {
     let mut attacked = [false; 7];
     let mut count = 0usize;
+    let mut trust_adjustment = 0.0f64;
 
     for &(order, _) in orders {
         if let Order::Move { dest, .. } = order {
@@ -828,6 +838,12 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
                     if !attacked[idx] {
                         attacked[idx] = true;
                         count += 1;
+                        // Trust-based adjustment: attacking allies costs more,
+                        // attacking hostiles costs less
+                        if let Some(trust) = trust_scores {
+                            // trust > 0.5 = ally (penalty bonus), trust < 0.5 = hostile (penalty reduction)
+                            trust_adjustment += (trust[idx] - 0.5) * 4.0;
+                        }
                     }
                 }
             }
@@ -838,6 +854,9 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
                     if !attacked[idx] {
                         attacked[idx] = true;
                         count += 1;
+                        if let Some(trust) = trust_scores {
+                            trust_adjustment += (trust[idx] - 0.5) * 4.0;
+                        }
                     }
                 }
             }
@@ -845,12 +864,9 @@ fn cooperation_penalty(orders: &[(Order, Power)], state: &BoardState, power: Pow
     }
 
     if count <= 1 {
-        0.0
+        trust_adjustment.max(0.0)
     } else {
-        // Reduced from 2.0: concentrated force against one power is often
-        // correct (especially with support coordination), so only lightly
-        // penalize spreading attacks across many different powers.
-        1.0 * (count - 1) as f64
+        (1.0 * (count - 1) as f64 + trust_adjustment).max(0.0)
     }
 }
 
@@ -1164,6 +1180,7 @@ pub fn regret_matching_search<W: Write>(
     out: &mut W,
     neural: Option<&NeuralEvaluator>,
     strength: u64,
+    trust_scores: Option<&[f64; 7]>,
 ) -> SearchResult {
     let start = Instant::now();
     let mut rng = SmallRng::from_entropy();
@@ -1275,7 +1292,7 @@ pub fn regret_matching_search<W: Write>(
     let coop_penalties: Vec<f64> = power_candidates[our_power_idx]
         .1
         .iter()
-        .map(|cand| cooperation_penalty(cand, state, power))
+        .map(|cand| cooperation_penalty(cand, state, power, trust_scores))
         .collect();
 
     let start_year = state.year;
@@ -1506,6 +1523,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
         assert_eq!(result.orders.len(), 3, "Austria has 3 units");
         assert!(result.nodes > 0, "Should search at least 1 node");
@@ -1522,6 +1540,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
         assert_eq!(result.orders.len(), 4, "Russia has 4 units");
     }
@@ -1538,6 +1557,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
         let elapsed = start.elapsed();
         assert!(
@@ -1558,6 +1578,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
         let output = String::from_utf8(out).unwrap();
         assert!(
@@ -1581,6 +1602,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
 
         assert_eq!(result.orders.len(), 1);
@@ -1630,7 +1652,10 @@ mod tests {
     fn cooperation_penalty_none_for_single_target() {
         let state = BoardState::empty(1901, Season::Spring, Phase::Movement);
         let orders = vec![];
-        assert_eq!(cooperation_penalty(&orders, &state, Power::Austria), 0.0);
+        assert_eq!(
+            cooperation_penalty(&orders, &state, Power::Austria, None),
+            0.0
+        );
     }
 
     #[test]
@@ -1665,7 +1690,7 @@ mod tests {
             ),
         ];
 
-        let penalty = cooperation_penalty(&orders, &state, Power::Austria);
+        let penalty = cooperation_penalty(&orders, &state, Power::Austria, None);
         assert!(
             penalty > 0.0,
             "Should penalize attacking two powers, got {}",
@@ -1706,6 +1731,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
         let elapsed = start.elapsed();
         assert!(
@@ -1730,6 +1756,7 @@ mod tests {
                 &mut out,
                 None,
                 strength,
+                None,
             );
             assert_eq!(
                 result.orders.len(),
@@ -1759,6 +1786,7 @@ mod tests {
             &mut out,
             Some(&evaluator),
             100,
+            None,
         );
         assert_eq!(result.orders.len(), 3, "Should fallback to heuristic");
     }
@@ -1859,7 +1887,7 @@ mod tests {
             ),
         ];
 
-        let penalty = cooperation_penalty(&orders, &state, Power::Austria);
+        let penalty = cooperation_penalty(&orders, &state, Power::Austria, None);
         assert!(
             (penalty - 1.0).abs() < 0.001,
             "Penalty for 2 powers should be 1.0, got {}",
@@ -1935,6 +1963,7 @@ mod tests {
             &mut out,
             None,
             100,
+            None,
         );
         let output = String::from_utf8(out).unwrap();
         assert!(

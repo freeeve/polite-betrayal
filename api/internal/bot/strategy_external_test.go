@@ -941,6 +941,189 @@ func TestExternalStrategy_HoldFallback_Fields(t *testing.T) {
 	}
 }
 
+func TestFormatPressDUI(t *testing.T) {
+	tests := []struct {
+		intent DiplomaticIntent
+		want   string
+	}{
+		{
+			intent: DiplomaticIntent{Type: IntentRequestSupport, From: "france", Provinces: []string{"par", "bur"}},
+			want:   "press france request_support par bur",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentProposeAlliance, From: "russia", TargetPower: "turkey"},
+			want:   "press russia propose_alliance against turkey",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentProposeNonAggression, From: "england"},
+			want:   "press england propose_nonaggression",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentProposeNonAggression, From: "england", Provinces: []string{"nwy", "swe"}},
+			want:   "press england propose_nonaggression nwy swe",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentThreaten, From: "turkey", Provinces: []string{"gre"}},
+			want:   "press turkey threaten gre",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentOfferDeal, From: "italy", Provinces: []string{"tun", "gre"}},
+			want:   "press italy offer_deal tun gre",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentAccept, From: "france"},
+			want:   "press france accept",
+		},
+		{
+			intent: DiplomaticIntent{Type: IntentReject, From: "germany"},
+			want:   "press germany reject",
+		},
+	}
+
+	for _, tt := range tests {
+		got := formatPressDUI(tt.intent)
+		if got != tt.want {
+			t.Errorf("formatPressDUI(%v) = %q, want %q", tt.intent.Type, got, tt.want)
+		}
+	}
+}
+
+func TestParsePressDUIOut(t *testing.T) {
+	tests := []struct {
+		line     string
+		from     diplomacy.Power
+		wantType IntentType
+		wantTo   diplomacy.Power
+	}{
+		{
+			line:     "press_out france propose_alliance against germany",
+			from:     "austria",
+			wantType: IntentProposeAlliance,
+			wantTo:   "france",
+		},
+		{
+			line:     "press_out russia request_support war gal",
+			from:     "austria",
+			wantType: IntentRequestSupport,
+			wantTo:   "russia",
+		},
+		{
+			line:     "press_out england accept",
+			from:     "france",
+			wantType: IntentAccept,
+			wantTo:   "england",
+		},
+		{
+			line:     "press_out turkey reject",
+			from:     "russia",
+			wantType: IntentReject,
+			wantTo:   "turkey",
+		},
+	}
+
+	for _, tt := range tests {
+		intent := parsePressDUIOut(tt.line, tt.from)
+		if intent == nil {
+			t.Fatalf("parsePressDUIOut(%q) returned nil", tt.line)
+		}
+		if intent.Type != tt.wantType {
+			t.Errorf("parsePressDUIOut(%q).Type = %v, want %v", tt.line, intent.Type, tt.wantType)
+		}
+		if intent.To != tt.wantTo {
+			t.Errorf("parsePressDUIOut(%q).To = %q, want %q", tt.line, intent.To, tt.wantTo)
+		}
+		if intent.From != tt.from {
+			t.Errorf("parsePressDUIOut(%q).From = %q, want %q", tt.line, intent.From, tt.from)
+		}
+	}
+}
+
+func TestExternalStrategy_PressIntegration(t *testing.T) {
+	// Mock engine that receives press commands and emits press_out after bestorders.
+	pressSource := `package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
+
+func main() {
+	scanner := bufio.NewScanner(os.Stdin)
+	pressCount := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case line == "dui":
+			fmt.Println("id name mock-press-engine")
+			fmt.Println("id author test")
+			fmt.Println("duiok")
+		case line == "isready":
+			fmt.Println("readyok")
+		case strings.HasPrefix(line, "position "):
+			// accepted
+		case strings.HasPrefix(line, "setpower "):
+			// accepted
+		case strings.HasPrefix(line, "press "):
+			pressCount++
+		case strings.HasPrefix(line, "go "):
+			if pressCount > 0 {
+				fmt.Println("press_out france propose_alliance against germany")
+				fmt.Println("press_out russia accept")
+			}
+			fmt.Println("bestorders A vie H ; A bud - ser ; F tri - alb")
+		case line == "quit":
+			os.Exit(0)
+		}
+	}
+}
+`
+	bin := buildMockEngine(t, pressSource)
+	es, err := NewExternalStrategy(bin, diplomacy.Austria, WithTimeout(5*time.Second))
+	if err != nil {
+		t.Fatalf("NewExternalStrategy: %v", err)
+	}
+	defer es.Close()
+
+	gs := initialGameState()
+
+	// Query with press messages
+	pressMessages := []DiplomaticIntent{
+		{Type: IntentProposeAlliance, From: "england", TargetPower: "germany"},
+	}
+	orders, err := es.queryEngineWithPress(gs, diplomacy.Austria, pressMessages)
+	if err != nil {
+		t.Fatalf("queryEngineWithPress: %v", err)
+	}
+	if len(orders) != 3 {
+		t.Fatalf("expected 3 orders, got %d", len(orders))
+	}
+
+	// Check that press_out was captured
+	if len(es.lastPressOut) != 2 {
+		t.Fatalf("expected 2 press_out lines, got %d: %v", len(es.lastPressOut), es.lastPressOut)
+	}
+
+	// Test DiplomaticStrategy interface
+	m := diplomacy.StandardMap()
+	responses := es.GenerateDiplomaticMessages(gs, diplomacy.Austria, m, nil)
+	if len(responses) != 2 {
+		t.Fatalf("expected 2 diplomatic responses, got %d", len(responses))
+	}
+	if responses[0].Type != IntentProposeAlliance {
+		t.Errorf("first response type: expected ProposeAlliance, got %v", responses[0].Type)
+	}
+	if responses[1].Type != IntentAccept {
+		t.Errorf("second response type: expected Accept, got %v", responses[1].Type)
+	}
+}
+
+// TestExternalStrategy_DiplomaticStrategyInterface verifies ExternalStrategy satisfies DiplomaticStrategy.
+func TestExternalStrategy_DiplomaticStrategyInterface(t *testing.T) {
+	var _ DiplomaticStrategy = (*ExternalStrategy)(nil)
+}
+
 func TestExternalStrategy_DisbandFallback_Fields(t *testing.T) {
 	gs := &diplomacy.GameState{
 		Year:   1901,

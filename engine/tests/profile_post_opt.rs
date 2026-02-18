@@ -44,6 +44,7 @@ fn profile_post_opt() {
                 &mut out,
                 None,
                 100,
+                None,
             );
             let elapsed = start.elapsed();
             let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
@@ -296,6 +297,7 @@ fn profile_post_opt() {
                     &mut out,
                     None,
                     100,
+                    None,
                 );
                 let elapsed = start.elapsed();
                 let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
@@ -338,6 +340,7 @@ fn profile_post_opt() {
             &mut out,
             None,
             100,
+            None,
         );
         let elapsed = start.elapsed();
         let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();

@@ -54,8 +54,8 @@ fn main() {
             Command::Stop => {
                 // No async search to interrupt yet; no-op
             }
-            Command::Press { raw: _ } => {
-                // Press handling is stubbed for now
+            Command::Press { raw } => {
+                engine.handle_press(&raw);
             }
             Command::Quit => {
                 break;

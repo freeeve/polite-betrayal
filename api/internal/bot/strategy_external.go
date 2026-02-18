@@ -62,6 +62,9 @@ type ExternalStrategy struct {
 
 	// exited is closed when the process exits; used by isAlive.
 	exited chan struct{}
+
+	// lastPressOut holds press_out lines from the last engine query.
+	lastPressOut []string
 }
 
 // NewExternalStrategy spawns the engine process, performs the DUI handshake
@@ -234,6 +237,12 @@ func (e *ExternalStrategy) handshake() error {
 // queryEngine sends position + setpower + go to the engine and reads the
 // bestorders response. Returns parsed DSONOrders or an error.
 func (e *ExternalStrategy) queryEngine(gs *diplomacy.GameState, power diplomacy.Power) ([]diplomacy.DSONOrder, error) {
+	return e.queryEngineWithPress(gs, power, nil)
+}
+
+// queryEngineWithPress sends press messages, position, setpower, and go to the engine.
+// Returns parsed DSONOrders and captures press_out responses.
+func (e *ExternalStrategy) queryEngineWithPress(gs *diplomacy.GameState, power diplomacy.Power, pressMessages []DiplomaticIntent) ([]diplomacy.DSONOrder, error) {
 	e.mu.Lock()
 	if e.closed {
 		e.mu.Unlock()
@@ -248,14 +257,26 @@ func (e *ExternalStrategy) queryEngine(gs *diplomacy.GameState, power diplomacy.
 	dfen := diplomacy.EncodeDFEN(gs)
 	e.send(fmt.Sprintf("position %s", dfen))
 	e.send(fmt.Sprintf("setpower %s", string(power)))
-	e.send(fmt.Sprintf("go movetime %d", e.moveTimeMs))
 
-	line, err := e.readBestOrders()
-	if err != nil {
-		return nil, fmt.Errorf("reading bestorders: %w", err)
+	// Send press messages before go
+	for _, msg := range pressMessages {
+		pressCmd := formatPressDUI(msg)
+		if pressCmd != "" {
+			e.send(pressCmd)
+		}
 	}
 
-	orderStr := strings.TrimPrefix(line, "bestorders ")
+	e.send(fmt.Sprintf("go movetime %d", e.moveTimeMs))
+
+	resp, err := e.readEngineResponse()
+	if err != nil {
+		return nil, fmt.Errorf("reading engine response: %w", err)
+	}
+
+	// Store press_out for later retrieval
+	e.lastPressOut = resp.pressOut
+
+	orderStr := strings.TrimPrefix(resp.bestorders, "bestorders ")
 	orders, err := diplomacy.ParseDSON(orderStr)
 	if err != nil {
 		return nil, fmt.Errorf("parsing DSON response %q: %w", orderStr, err)
@@ -264,24 +285,44 @@ func (e *ExternalStrategy) queryEngine(gs *diplomacy.GameState, power diplomacy.
 	return orders, nil
 }
 
-// readBestOrders reads lines from the engine until a "bestorders" line is found.
+// engineResponse holds the bestorders line and any press_out lines.
+type engineResponse struct {
+	bestorders string
+	pressOut   []string
+}
+
+// readEngineResponse reads lines from the engine, collecting any press_out lines
+// that appear before bestorders. The engine emits press_out before bestorders so
+// the reader doesn't block waiting for more output after bestorders.
 // If the timeout is exceeded, it sends "stop" and reads one more time.
-func (e *ExternalStrategy) readBestOrders() (string, error) {
+func (e *ExternalStrategy) readEngineResponse() (engineResponse, error) {
 	type result struct {
-		line string
+		resp engineResponse
 		err  error
 	}
 
 	ch := make(chan result, 1)
 	go func() {
+		var resp engineResponse
+
 		for e.scanner.Scan() {
 			line := e.scanner.Text()
+
+			// Collect press_out lines emitted before bestorders
+			if strings.HasPrefix(line, "press_out ") {
+				resp.pressOut = append(resp.pressOut, line)
+				continue
+			}
+
 			if strings.HasPrefix(line, "bestorders ") {
-				ch <- result{line: line}
+				resp.bestorders = line
+				ch <- result{resp: resp}
 				return
 			}
-			// Skip info lines and other engine output
+
+			// Skip info lines
 		}
+
 		if err := e.scanner.Err(); err != nil {
 			ch <- result{err: fmt.Errorf("scanner: %w", err)}
 		} else {
@@ -291,15 +332,15 @@ func (e *ExternalStrategy) readBestOrders() (string, error) {
 
 	select {
 	case r := <-ch:
-		return r.line, r.err
+		return r.resp, r.err
 	case <-time.After(e.timeout):
 		e.send("stop")
 		// Give engine a short grace period to emit bestorders after stop.
 		select {
 		case r := <-ch:
-			return r.line, r.err
+			return r.resp, r.err
 		case <-time.After(2 * time.Second):
-			return "", fmt.Errorf("engine did not respond to stop within 2s")
+			return engineResponse{}, fmt.Errorf("engine did not respond to stop within 2s")
 		}
 	}
 }
@@ -433,4 +474,132 @@ func buildOrderToInput(bo diplomacy.BuildOrder) OrderInput {
 		Coast:     string(bo.Coast),
 		OrderType: orderType,
 	}
+}
+
+// GenerateDiplomaticMessages implements DiplomaticStrategy for ExternalStrategy.
+// Sends received press to the engine and returns outbound press from the engine.
+func (e *ExternalStrategy) GenerateDiplomaticMessages(gs *diplomacy.GameState, power diplomacy.Power, _ *diplomacy.DiplomacyMap, received []DiplomaticIntent) []DiplomaticIntent {
+	// The press was already sent during the last queryEngineWithPress call.
+	// Parse any press_out lines from the engine into DiplomaticIntents.
+	var responses []DiplomaticIntent
+	for _, line := range e.lastPressOut {
+		if intent := parsePressDUIOut(line, power); intent != nil {
+			responses = append(responses, *intent)
+		}
+	}
+	return responses
+}
+
+// formatPressDUI converts a DiplomaticIntent into a DUI press command.
+// Format: press <from_power> <message_type> [args...]
+func formatPressDUI(intent DiplomaticIntent) string {
+	from := strings.ToLower(string(intent.From))
+	switch intent.Type {
+	case IntentRequestSupport:
+		if len(intent.Provinces) >= 2 {
+			return fmt.Sprintf("press %s request_support %s %s", from, intent.Provinces[0], intent.Provinces[1])
+		}
+		return ""
+	case IntentProposeNonAggression:
+		if len(intent.Provinces) > 0 {
+			return fmt.Sprintf("press %s propose_nonaggression %s", from, strings.Join(intent.Provinces, " "))
+		}
+		return fmt.Sprintf("press %s propose_nonaggression", from)
+	case IntentProposeAlliance:
+		if intent.TargetPower != "" {
+			return fmt.Sprintf("press %s propose_alliance against %s", from, strings.ToLower(string(intent.TargetPower)))
+		}
+		return fmt.Sprintf("press %s propose_alliance", from)
+	case IntentThreaten:
+		if len(intent.Provinces) > 0 {
+			return fmt.Sprintf("press %s threaten %s", from, intent.Provinces[0])
+		}
+		return ""
+	case IntentOfferDeal:
+		if len(intent.Provinces) >= 2 {
+			return fmt.Sprintf("press %s offer_deal %s %s", from, intent.Provinces[0], intent.Provinces[1])
+		}
+		return ""
+	case IntentAccept:
+		return fmt.Sprintf("press %s accept", from)
+	case IntentReject:
+		return fmt.Sprintf("press %s reject", from)
+	}
+	return ""
+}
+
+// parsePressDUIOut parses a "press_out <to_power> <type> [args...]" line into a DiplomaticIntent.
+func parsePressDUIOut(line string, from diplomacy.Power) *DiplomaticIntent {
+	raw := strings.TrimPrefix(line, "press_out ")
+	tokens := strings.Fields(raw)
+	if len(tokens) < 2 {
+		return nil
+	}
+
+	to := diplomacy.Power(tokens[0])
+
+	switch tokens[1] {
+	case "request_support":
+		if len(tokens) < 4 {
+			return nil
+		}
+		return &DiplomaticIntent{
+			Type:      IntentRequestSupport,
+			From:      from,
+			To:        to,
+			Provinces: []string{tokens[2], tokens[3]},
+		}
+	case "propose_nonaggression":
+		provs := tokens[2:]
+		return &DiplomaticIntent{
+			Type:      IntentProposeNonAggression,
+			From:      from,
+			To:        to,
+			Provinces: provs,
+		}
+	case "propose_alliance":
+		var target diplomacy.Power
+		if len(tokens) >= 4 && tokens[2] == "against" {
+			target = diplomacy.Power(tokens[3])
+		}
+		return &DiplomaticIntent{
+			Type:        IntentProposeAlliance,
+			From:        from,
+			To:          to,
+			TargetPower: target,
+		}
+	case "threaten":
+		if len(tokens) < 3 {
+			return nil
+		}
+		return &DiplomaticIntent{
+			Type:      IntentThreaten,
+			From:      from,
+			To:        to,
+			Provinces: []string{tokens[2]},
+		}
+	case "offer_deal":
+		if len(tokens) < 4 {
+			return nil
+		}
+		return &DiplomaticIntent{
+			Type:      IntentOfferDeal,
+			From:      from,
+			To:        to,
+			Provinces: []string{tokens[2], tokens[3]},
+		}
+	case "accept":
+		return &DiplomaticIntent{
+			Type: IntentAccept,
+			From: from,
+			To:   to,
+		}
+	case "reject":
+		return &DiplomaticIntent{
+			Type: IntentReject,
+			From: from,
+			To:   to,
+		}
+	}
+	return nil
 }

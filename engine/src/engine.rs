@@ -16,6 +16,7 @@ use crate::board::state::{BoardState, Phase};
 use crate::eval::NeuralEvaluator;
 use crate::movegen::random_orders;
 use crate::opening_book::{self, BookMatchConfig, OpeningBook};
+use crate::press::{format_press_out, generate_outbound_press, parse_press_raw, PressState};
 use crate::protocol::dfen::parse_dfen;
 use crate::protocol::dson::format_orders;
 use crate::search::{
@@ -34,6 +35,7 @@ pub struct Engine {
     pub active_power: Option<Power>,
     pub options: HashMap<String, String>,
     pub neural: Option<NeuralEvaluator>,
+    pub press: PressState,
     book: Option<OpeningBook>,
     book_loaded: bool,
     rng: SmallRng,
@@ -47,6 +49,7 @@ impl Engine {
             active_power: None,
             options: HashMap::new(),
             neural: None,
+            press: PressState::new(),
             book: None,
             book_loaded: false,
             rng: SmallRng::from_entropy(),
@@ -57,6 +60,7 @@ impl Engine {
     pub fn new_game(&mut self) {
         self.position = None;
         self.active_power = None;
+        self.press.reset();
     }
 
     /// Lazily loads the opening book from the configured BookPath (or default).
@@ -97,8 +101,8 @@ impl Engine {
             Some(p) if !p.is_empty() => p.clone(),
             _ => return,
         };
-        let policy_path = format!("{}/policy_v1.onnx", model_dir);
-        let value_path = format!("{}/value_v1.onnx", model_dir);
+        let policy_path = format!("{}/policy_v2.onnx", model_dir);
+        let value_path = format!("{}/value_v2.onnx", model_dir);
         self.neural = Some(NeuralEvaluator::new(Some(&policy_path), Some(&value_path)));
     }
 
@@ -107,6 +111,9 @@ impl Engine {
     pub fn set_position(&mut self, dfen: &str) -> Result<(), String> {
         match parse_dfen(dfen) {
             Ok(state) => {
+                self.press.current_turn = state.year;
+                self.press.clear_turn();
+                self.press.trust.decay();
                 self.position = Some(state);
                 Ok(())
             }
@@ -151,8 +158,17 @@ impl Engine {
         let movetime = self.movetime();
         let strength = self.strength();
         let state = self.position.as_ref().unwrap();
+        let trust = self.press.trust.scores;
         let result = if strength >= 80 {
-            regret_matching_search(power, state, movetime, out, self.neural.as_ref(), strength)
+            regret_matching_search(
+                power,
+                state,
+                movetime,
+                out,
+                self.neural.as_ref(),
+                strength,
+                Some(&trust),
+            )
         } else {
             search(power, state, movetime, out)
         };
@@ -231,6 +247,22 @@ impl Engine {
             .unwrap_or(100)
     }
 
+    /// Handles an inbound press command. Parses the raw text and stores
+    /// the message in press state.
+    pub fn handle_press(&mut self, raw: &str) {
+        if let Some(mut msg) = parse_press_raw(raw) {
+            msg.turn_received = self.press.current_turn;
+            self.press.receive(msg);
+        } else {
+            eprintln!("press: failed to parse: {}", raw);
+        }
+    }
+
+    /// Returns the trust model's scores for use in RM+ search.
+    pub fn trust_scores(&self) -> &[f64; 7] {
+        &self.press.trust.scores
+    }
+
     /// Handles the `go` command. Uses RM+ search at high strength (>= 80)
     /// and Cartesian search otherwise. Retreat/build phases use heuristics.
     pub fn handle_go<W: Write>(&mut self, out: &mut W) {
@@ -294,6 +326,17 @@ impl Engine {
         };
 
         let dson = format_orders(&orders);
+
+        // Generate and emit outbound press before bestorders so the Go reader
+        // can collect press_out lines while scanning for bestorders without blocking.
+        if let Some(state) = self.position.as_ref() {
+            let press_out = generate_outbound_press(power, &orders, state, &self.press.trust);
+            for p in &press_out {
+                writeln!(out, "{}", format_press_out(p)).unwrap();
+            }
+            self.press.outbound = press_out;
+        }
+
         writeln!(out, "bestorders {}", dson).unwrap();
         out.flush().unwrap();
     }

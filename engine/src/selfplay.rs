@@ -265,6 +265,7 @@ pub fn play_game(config: &SelfPlayConfig, game_id: usize, rng: &mut SmallRng) ->
                             &mut null_out,
                             None,
                             config.strength,
+                            None,
                         )
                     } else {
                         search(power, &state, movetime, &mut null_out)
