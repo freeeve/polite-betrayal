@@ -1,8 +1,8 @@
 """Graph Attention Network (GAT) policy model for Diplomacy move prediction.
 
 Architecture:
-  1. Linear input projection: 47 -> 256 per province node
-  2. 3x GAT message-passing layers with residual connections + LayerNorm
+  1. Linear input projection: 47 -> 512 per province node
+  2. 6x GAT message-passing layers with residual connections + LayerNorm
   3. Per-unit order decoder: attention over province embeddings -> order logits
 
 The model predicts a probability distribution over ~169-dim order vectors
@@ -95,15 +95,15 @@ class GATLayer(nn.Module):
 class GATBlock(nn.Module):
     """GAT layer with residual connection and layer normalization."""
 
-    def __init__(self, dim: int, num_heads: int = 4, dropout: float = 0.1):
+    def __init__(self, dim: int, num_heads: int = 4, dropout: float = 0.1, ffn_mult: int = 4):
         super().__init__()
         self.gat = GATLayer(dim, dim, num_heads=num_heads, dropout=dropout)
         self.norm = nn.LayerNorm(dim)
         self.ffn = nn.Sequential(
-            nn.Linear(dim, dim * 2),
+            nn.Linear(dim, dim * ffn_mult),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(dim * 2, dim),
+            nn.Linear(dim * ffn_mult, dim),
             nn.Dropout(dropout),
         )
         self.norm2 = nn.LayerNorm(dim)
@@ -122,19 +122,18 @@ class DiplomacyPolicyNet(nn.Module):
 
     Takes a board state tensor [B, 81, 47] and adjacency matrix [81, 81],
     encodes province embeddings via GAT layers, then decodes per-unit
-    order predictions.
+    order predictions using cross-attention.
 
-    The decoder uses cross-attention from each unit's province embedding
-    to all province embeddings, then projects to the order vocabulary.
+    Default architecture: 6 GAT layers, 512-d hidden, 8 attention heads (~18M params).
     """
 
     def __init__(
         self,
         num_areas: int = 81,
         num_features: int = 47,
-        hidden_dim: int = 256,
-        num_gat_layers: int = 3,
-        num_heads: int = 4,
+        hidden_dim: int = 512,
+        num_gat_layers: int = 6,
+        num_heads: int = 8,
         order_vocab_size: int = 169,
         num_powers: int = 7,
         dropout: float = 0.1,

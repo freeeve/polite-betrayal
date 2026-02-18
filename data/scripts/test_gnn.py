@@ -175,11 +175,16 @@ class TestDiplomacyPolicyNet:
         emb = model.encode(board, adj)
         assert emb.shape == (3, NUM_AREAS, 64)
 
-    def test_parameter_count(self):
+    def test_parameter_count_default(self):
+        model = DiplomacyPolicyNet()
+        n = model.count_parameters()
+        # Default 6-layer 512-d model with 4x FFN: ~15M parameters
+        assert 10_000_000 < n < 25_000_000, f"Parameter count {n:,} outside expected range"
+
+    def test_parameter_count_small(self):
         model = DiplomacyPolicyNet(hidden_dim=256, num_gat_layers=3, num_heads=4)
         n = model.count_parameters()
-        # Target: 5-10M parameters
-        assert 1_000_000 < n < 20_000_000, f"Parameter count {n:,} outside expected range"
+        assert 1_000_000 < n < 10_000_000, f"Parameter count {n:,} outside expected range"
 
     def test_gradient_flows(self):
         model = DiplomacyPolicyNet(hidden_dim=64, num_gat_layers=2, num_heads=2)

@@ -1,12 +1,12 @@
 """Value network for Diplomacy position evaluation.
 
-Shares the GAT encoder from the policy network. Adds a value head that
-predicts game outcomes from board positions for a given power.
+Shares the GAT encoder architecture from the policy network. Adds a value
+head that predicts game outcomes from board positions for a given power.
 
 Architecture:
-  1. Shared GAT encoder: board [B, 81, 47] -> province embeddings [B, 81, 256]
+  1. Shared GAT encoder: board [B, 81, 47] -> province embeddings [B, 81, 512]
   2. Attention-weighted global pooling over province embeddings
-  3. Power-conditioned FC layers: 256 -> 128 -> 4 outputs
+  3. Power-conditioned FC layers: 512 -> 256 -> 4 outputs
   4. Output per power: [normalized_sc_count, win_prob, draw_prob, survival_prob]
 """
 
@@ -59,9 +59,9 @@ class DiplomacyValueNet(nn.Module):
         self,
         num_areas: int = 81,
         num_features: int = 47,
-        hidden_dim: int = 256,
-        num_gat_layers: int = 3,
-        num_heads: int = 4,
+        hidden_dim: int = 512,
+        num_gat_layers: int = 6,
+        num_heads: int = 8,
         num_powers: int = 7,
         dropout: float = 0.1,
     ):

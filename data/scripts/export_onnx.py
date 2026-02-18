@@ -307,10 +307,15 @@ def measure_latency(
     return median_ms
 
 
-def load_or_create_policy(ckpt_path: str | None, hidden_dim: int = 256) -> DiplomacyPolicyNet:
+def load_or_create_policy(
+    ckpt_path: str | None,
+    hidden_dim: int = 512,
+    num_layers: int = 6,
+    num_heads: int = 8,
+) -> DiplomacyPolicyNet:
     """Load a policy model from checkpoint or create one with random weights."""
     model = DiplomacyPolicyNet(
-        hidden_dim=hidden_dim, num_gat_layers=3, num_heads=4
+        hidden_dim=hidden_dim, num_gat_layers=num_layers, num_heads=num_heads
     )
     if ckpt_path:
         ckpt = torch.load(ckpt_path, weights_only=True, map_location="cpu")
@@ -322,10 +327,15 @@ def load_or_create_policy(ckpt_path: str | None, hidden_dim: int = 256) -> Diplo
     return model
 
 
-def load_or_create_value(ckpt_path: str | None, hidden_dim: int = 256) -> DiplomacyValueNet:
+def load_or_create_value(
+    ckpt_path: str | None,
+    hidden_dim: int = 512,
+    num_layers: int = 6,
+    num_heads: int = 8,
+) -> DiplomacyValueNet:
     """Load a value model from checkpoint or create one with random weights."""
     model = DiplomacyValueNet(
-        hidden_dim=hidden_dim, num_gat_layers=3, num_heads=4
+        hidden_dim=hidden_dim, num_gat_layers=num_layers, num_heads=num_heads
     )
     if ckpt_path:
         ckpt = torch.load(ckpt_path, weights_only=True, map_location="cpu")
@@ -345,14 +355,16 @@ def main():
     parser.add_argument("--dummy", action="store_true", help="Export with random weights for testing")
     parser.add_argument("--quantize", action="store_true", help="Also export INT8 quantized models")
     parser.add_argument("--validate", action="store_true", help="Validate ONNX vs PyTorch outputs")
-    parser.add_argument("--hidden-dim", type=int, default=256, help="Model hidden dimension")
+    parser.add_argument("--hidden-dim", type=int, default=512, help="Model hidden dimension")
+    parser.add_argument("--num-layers", type=int, default=6, help="Number of GAT layers")
+    parser.add_argument("--num-heads", type=int, default=8, help="Number of attention heads")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    policy_fp32 = out_dir / "policy_v1.onnx"
-    value_fp32 = out_dir / "value_v1.onnx"
+    policy_fp32 = out_dir / "policy_v2.onnx"
+    value_fp32 = out_dir / "value_v2.onnx"
 
     policy_model = None
     value_model = None
@@ -366,20 +378,24 @@ def main():
 
         # Export policy
         if args.dummy or policy_ckpt:
-            policy_model = load_or_create_policy(policy_ckpt, args.hidden_dim)
+            policy_model = load_or_create_policy(
+                policy_ckpt, args.hidden_dim, args.num_layers, args.num_heads
+            )
             export_policy(policy_model, policy_fp32)
 
         # Export value
         if args.dummy or value_ckpt:
-            value_model = load_or_create_value(value_ckpt, args.hidden_dim)
+            value_model = load_or_create_value(
+                value_ckpt, args.hidden_dim, args.num_layers, args.num_heads
+            )
             export_value(value_model, value_fp32)
 
         # Quantize
         if args.quantize:
             if policy_fp32.exists():
-                quantize_model(policy_fp32, out_dir / "policy_v1_int8.onnx")
+                quantize_model(policy_fp32, out_dir / "policy_v2_int8.onnx")
             if value_fp32.exists():
-                quantize_model(value_fp32, out_dir / "value_v1_int8.onnx")
+                quantize_model(value_fp32, out_dir / "value_v2_int8.onnx")
 
     # Validate
     import onnx
@@ -392,7 +408,9 @@ def main():
         print(f"Policy ONNX model is valid (opset {onnx_model.opset_import[0].version})")
 
         if policy_model is None:
-            policy_model = load_or_create_policy(args.policy_ckpt, args.hidden_dim)
+            policy_model = load_or_create_policy(
+                args.policy_ckpt, args.hidden_dim, args.num_layers, args.num_heads
+            )
         max_diff, _ = validate_policy(policy_model, policy_fp32)
         if max_diff > 1e-4:
             all_pass = False
@@ -413,7 +431,9 @@ def main():
         print(f"Value ONNX model is valid (opset {onnx_model.opset_import[0].version})")
 
         if value_model is None:
-            value_model = load_or_create_value(args.value_ckpt, args.hidden_dim)
+            value_model = load_or_create_value(
+                args.value_ckpt, args.hidden_dim, args.num_layers, args.num_heads
+            )
         max_diff, _ = validate_value(value_model, value_fp32)
         if max_diff > 1e-4:
             all_pass = False
@@ -428,7 +448,7 @@ def main():
         measure_latency(value_fp32, feed)
 
     # Validate INT8 if present
-    for name in ["policy_v1_int8.onnx", "value_v1_int8.onnx"]:
+    for name in ["policy_v2_int8.onnx", "value_v2_int8.onnx"]:
         int8_path = out_dir / name
         if int8_path.exists():
             onnx_model = onnx.load(str(int8_path))
