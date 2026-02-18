@@ -31,7 +31,6 @@ func TestOpeningSpringAllPowers(t *testing.T) {
 			t.Errorf("%s: expected %d orders, got %d", power, len(units), len(orders))
 		}
 
-		// Verify all orders reference valid unit locations
 		unitLocs := make(map[string]bool)
 		for _, u := range units {
 			unitLocs[u.Province] = true
@@ -51,7 +50,6 @@ func TestOpeningSpringValidation(t *testing.T) {
 	m := diplomacy.StandardMap()
 
 	for _, power := range diplomacy.AllPowers() {
-		// Run multiple times to hit different weighted selections
 		for i := 0; i < 50; i++ {
 			orders := LookupOpening(gs, power, m)
 			if orders == nil {
@@ -78,13 +76,11 @@ func TestOpeningFallConditional(t *testing.T) {
 	for _, power := range diplomacy.AllPowers() {
 		gs := diplomacy.NewInitialState()
 
-		// Generate Spring orders from the opening book
 		springOrders := LookupOpening(gs, power, m)
 		if springOrders == nil {
 			t.Fatalf("%s: no spring opening", power)
 		}
 
-		// Build full order set: our opening + hold for everyone else
 		var allOrders []diplomacy.Order
 		allOrders = append(allOrders, OrderInputsToOrders(springOrders, power)...)
 		for _, p := range diplomacy.AllPowers() {
@@ -102,7 +98,6 @@ func TestOpeningFallConditional(t *testing.T) {
 			}
 		}
 
-		// Resolve and advance to Fall
 		results, dislodged := diplomacy.ResolveOrders(allOrders, gs, m)
 		diplomacy.ApplyResolution(gs, m, results, dislodged)
 		diplomacy.AdvanceState(gs, len(dislodged) > 0)
@@ -111,7 +106,6 @@ func TestOpeningFallConditional(t *testing.T) {
 			t.Fatalf("%s: expected Fall after Spring resolution, got %s", power, gs.Season)
 		}
 
-		// Look up fall opening
 		fallOrders := LookupOpening(gs, power, m)
 		if fallOrders == nil {
 			t.Errorf("%s: no fall opening matched after spring resolution", power)
@@ -123,7 +117,6 @@ func TestOpeningFallConditional(t *testing.T) {
 			t.Errorf("%s: fall orders count %d != unit count %d", power, len(fallOrders), len(units))
 		}
 
-		// Validate all fall orders
 		for _, o := range fallOrders {
 			eng := orderInputToOrder(o, power)
 			if eng.Type == diplomacy.OrderHold {
@@ -170,7 +163,6 @@ func TestOpeningReturnsNilForDisplacedUnits(t *testing.T) {
 	gs := diplomacy.NewInitialState()
 	m := diplomacy.StandardMap()
 
-	// Move England's army from lvp to yor manually
 	for i := range gs.Units {
 		if gs.Units[i].Province == "lvp" && gs.Units[i].Power == diplomacy.England {
 			gs.Units[i].Province = "yor"
@@ -190,7 +182,6 @@ func TestOpeningWeightedSelection(t *testing.T) {
 	gs := diplomacy.NewInitialState()
 	m := diplomacy.StandardMap()
 
-	// Count how many unique order patterns emerge for England
 	seen := make(map[string]int)
 	for i := 0; i < 1000; i++ {
 		orders := LookupOpening(gs, diplomacy.England, m)
@@ -204,8 +195,6 @@ func TestOpeningWeightedSelection(t *testing.T) {
 		seen[key]++
 	}
 
-	// England has 4 Spring openings, we should see at least 3 of them
-	// in 1000 iterations (the lowest-weight one is 11%)
 	if len(seen) < 3 {
 		t.Errorf("expected at least 3 distinct opening patterns, got %d", len(seen))
 	}
@@ -219,7 +208,6 @@ func TestOpeningFallMismatchReturnsNil(t *testing.T) {
 		Season: diplomacy.Fall,
 		Phase:  diplomacy.PhaseMovement,
 		Units: []diplomacy.Unit{
-			// England units in weird positions
 			{Type: diplomacy.Fleet, Power: diplomacy.England, Province: "bar"},
 			{Type: diplomacy.Fleet, Power: diplomacy.England, Province: "ska"},
 			{Type: diplomacy.Army, Power: diplomacy.England, Province: "nwy"},
@@ -240,7 +228,6 @@ func TestOpeningOrderCountMatchesUnits(t *testing.T) {
 	m := diplomacy.StandardMap()
 
 	for _, power := range diplomacy.AllPowers() {
-		// Spring
 		gs := diplomacy.NewInitialState()
 		for i := 0; i < 20; i++ {
 			orders := LookupOpening(gs, power, m)
@@ -306,99 +293,320 @@ func TestOpeningNoDuplicateLocations(t *testing.T) {
 	}
 }
 
-// TestConditionMatchFeatureBased verifies feature-based matching for non-position conditions.
-func TestConditionMatchFeatureBased(t *testing.T) {
+// TestScoreConditionPositions verifies position-based scoring.
+func TestScoreConditionPositions(t *testing.T) {
 	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
 
-	// England starts with 3 home SCs
+	// Full match
 	cond := &BookCondition{
+		Positions: map[string]string{"lon": "fleet", "edi": "fleet", "lvp": "army"},
+	}
+	score, maxScore := scoreCondition(cond, gs, diplomacy.England, m, &cfg)
+	if score != maxScore || score <= 0 {
+		t.Errorf("full position match: score=%v, max=%v", score, maxScore)
+	}
+
+	// Partial match in hybrid mode
+	cond2 := &BookCondition{
+		Positions: map[string]string{"lon": "fleet", "edi": "fleet", "lvp": "fleet"},
+	}
+	score2, max2 := scoreCondition(cond2, gs, diplomacy.England, m, &cfg)
+	if score2 >= max2 {
+		t.Errorf("partial position match: score=%v should be < max=%v", score2, max2)
+	}
+	if score2 <= 0 {
+		t.Errorf("partial position match: score=%v should be > 0 (2 of 3 matched)", score2)
+	}
+
+	// Full mismatch in exact mode
+	cfgExact := cfg
+	cfgExact.Mode = MatchExact
+	score3, _ := scoreCondition(cond2, gs, diplomacy.England, m, &cfgExact)
+	if score3 != -1 {
+		t.Errorf("exact mode partial mismatch: score=%v, want -1", score3)
+	}
+}
+
+// TestScoreConditionSCs verifies SC-based scoring.
+func TestScoreConditionSCs(t *testing.T) {
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
+
+	// England has lon, edi, lvp
+	cond := &BookCondition{
+		OwnedSCs:   []string{"lon", "lvp", "edi"},
 		SCCountMin: 3,
 		SCCountMax: 5,
 	}
-	if !matchCondition(cond, gs, diplomacy.England) {
-		t.Error("expected SC count condition to match for England (3 SCs)")
+	score, maxScore := scoreCondition(cond, gs, diplomacy.England, m, &cfg)
+	if score != maxScore || score <= 0 {
+		t.Errorf("full SC match: score=%v, max=%v", score, maxScore)
 	}
 
-	// Test with too-high minimum
+	// Partial SC match: England doesn't own par
 	cond2 := &BookCondition{
-		SCCountMin: 10,
-	}
-	if matchCondition(cond2, gs, diplomacy.England) {
-		t.Error("expected SC count condition to NOT match for England with min=10")
-	}
-
-	// Test OwnedSCs
-	cond3 := &BookCondition{
-		OwnedSCs: []string{"lon", "lvp", "edi"},
-	}
-	if !matchCondition(cond3, gs, diplomacy.England) {
-		t.Error("expected OwnedSCs condition to match for England home SCs")
-	}
-
-	// Test OwnedSCs with foreign SC
-	cond4 := &BookCondition{
 		OwnedSCs: []string{"lon", "par"},
 	}
-	if matchCondition(cond4, gs, diplomacy.England) {
-		t.Error("expected OwnedSCs to NOT match when England doesn't own Paris")
+	score2, max2 := scoreCondition(cond2, gs, diplomacy.England, m, &cfg)
+	if score2 >= max2 {
+		t.Errorf("partial SC match: score=%v should be < max=%v", score2, max2)
+	}
+
+	// SC count out of range
+	cond3 := &BookCondition{
+		SCCountMin: 10,
+	}
+	score3, _ := scoreCondition(cond3, gs, diplomacy.England, m, &cfg)
+	if score3 > 0 {
+		t.Errorf("SC count out of range: score=%v should be 0", score3)
 	}
 }
 
-// TestConditionMatchArmyFleetCount verifies army/fleet count matching.
-func TestConditionMatchArmyFleetCount(t *testing.T) {
-	gs := diplomacy.NewInitialState()
+// TestScoreConditionNeighborStance verifies neighbor stance scoring.
+func TestScoreConditionNeighborStance(t *testing.T) {
+	// Create state where Germany is aggressive toward France
+	gs := &diplomacy.GameState{
+		Year:   1902,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseMovement,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "par"},
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "mar"},
+			{Type: diplomacy.Fleet, Power: diplomacy.France, Province: "bre"},
+			{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "bur"},
+			{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "pic"},
+			{Type: diplomacy.Fleet, Power: diplomacy.Germany, Province: "eng"},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"par": diplomacy.France, "mar": diplomacy.France, "bre": diplomacy.France,
+			"mun": diplomacy.Germany, "ber": diplomacy.Germany, "kie": diplomacy.Germany,
+		},
+	}
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
 
-	// England: 2 fleets, 1 army
 	cond := &BookCondition{
-		FleetCount: 2,
-		ArmyCount:  1,
+		NeighborStance: map[string]string{"germany": "aggressive"},
 	}
-	if !matchCondition(cond, gs, diplomacy.England) {
-		t.Error("expected fleet/army count to match for England")
+	score, maxScore := scoreCondition(cond, gs, diplomacy.France, m, &cfg)
+	if score != maxScore || score <= 0 {
+		t.Errorf("neighbor stance match: score=%v, max=%v", score, maxScore)
 	}
 
-	// Wrong counts
-	condWrong := &BookCondition{
-		FleetCount: 1,
-		ArmyCount:  2,
+	// Wrong stance
+	cond2 := &BookCondition{
+		NeighborStance: map[string]string{"germany": "retreating"},
 	}
-	if matchCondition(condWrong, gs, diplomacy.England) {
-		t.Error("expected wrong fleet/army count to NOT match")
+	score2, _ := scoreCondition(cond2, gs, diplomacy.France, m, &cfg)
+	if score2 > 0 {
+		t.Errorf("neighbor stance mismatch: score=%v, want 0", score2)
 	}
 }
 
-// TestConditionSpecificity verifies that more-specific conditions score higher.
-func TestConditionSpecificity(t *testing.T) {
-	c1 := &BookCondition{
-		Positions: map[string]string{"lon": "fleet", "edi": "fleet", "lvp": "army"},
+// TestScoreConditionBorderPressure verifies border pressure scoring.
+func TestScoreConditionBorderPressure(t *testing.T) {
+	gs := &diplomacy.GameState{
+		Year:   1902,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseMovement,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "par"},
+			{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "bur"}, // adjacent to par, mar
+			{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "pic"}, // adjacent to par, bre
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"par": diplomacy.France, "mar": diplomacy.France, "bre": diplomacy.France,
+			"mun": diplomacy.Germany, "ber": diplomacy.Germany, "kie": diplomacy.Germany,
+		},
 	}
-	c2 := &BookCondition{
-		SCCountMin: 3,
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
+
+	actual := borderPressure(gs, diplomacy.France, m)
+	if actual != 2 {
+		t.Errorf("border pressure for France: got %d, want 2", actual)
 	}
-	if conditionSpecificity(c1) <= conditionSpecificity(c2) {
-		t.Errorf("3-position condition (%d) should be more specific than SC count (%d)",
-			conditionSpecificity(c1), conditionSpecificity(c2))
+
+	// Match within tolerance (+/- 1)
+	cond := &BookCondition{BorderPressure: 2}
+	score, _ := scoreCondition(cond, gs, diplomacy.France, m, &cfg)
+	if score <= 0 {
+		t.Errorf("border pressure exact match: score=%v, want > 0", score)
+	}
+
+	cond2 := &BookCondition{BorderPressure: 3}
+	score2, _ := scoreCondition(cond2, gs, diplomacy.France, m, &cfg)
+	if score2 <= 0 {
+		t.Errorf("border pressure +1 tolerance: score=%v, want > 0", score2)
+	}
+
+	cond3 := &BookCondition{BorderPressure: 10}
+	score3, _ := scoreCondition(cond3, gs, diplomacy.France, m, &cfg)
+	if score3 > 0 {
+		t.Errorf("border pressure far off: score=%v, want 0", score3)
 	}
 }
 
-// TestTheaterMatchCondition verifies theater-based condition matching.
-func TestTheaterMatchCondition(t *testing.T) {
+// TestScoreConditionTheaters verifies theater-based scoring.
+func TestScoreConditionTheaters(t *testing.T) {
 	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
 
-	// England starts with all units in west theater
+	// England starts with all 3 units in west
 	cond := &BookCondition{
 		Theaters: map[string]int{"west": 3},
 	}
-	if !matchCondition(cond, gs, diplomacy.England) {
-		t.Error("expected theater condition to match for England (3 units in west)")
+	score, maxScore := scoreCondition(cond, gs, diplomacy.England, m, &cfg)
+	if score != maxScore || score <= 0 {
+		t.Errorf("theater match: score=%v, max=%v", score, maxScore)
 	}
 
-	// Wrong theater count should fail
+	// Wrong count
 	cond2 := &BookCondition{
 		Theaters: map[string]int{"west": 1},
 	}
-	if matchCondition(cond2, gs, diplomacy.England) {
-		t.Error("expected theater condition to NOT match for wrong count")
+	score2, _ := scoreCondition(cond2, gs, diplomacy.England, m, &cfg)
+	if score2 > 0 {
+		t.Errorf("theater mismatch: score=%v, want 0", score2)
+	}
+}
+
+// TestScoreConditionFleetArmyCounts verifies fleet/army count scoring.
+func TestScoreConditionFleetArmyCounts(t *testing.T) {
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
+
+	// England: 2 fleets, 1 army
+	cond := &BookCondition{FleetCount: 2, ArmyCount: 1}
+	score, maxScore := scoreCondition(cond, gs, diplomacy.England, m, &cfg)
+	if score != maxScore || score <= 0 {
+		t.Errorf("fleet/army match: score=%v, max=%v", score, maxScore)
+	}
+
+	// Wrong counts
+	condWrong := &BookCondition{FleetCount: 1, ArmyCount: 2}
+	score2, _ := scoreCondition(condWrong, gs, diplomacy.England, m, &cfg)
+	if score2 > 0 {
+		t.Errorf("fleet/army mismatch: score=%v, want 0", score2)
+	}
+}
+
+// TestMatchModeExactBackwardCompat verifies that exact mode preserves 1901 behavior.
+func TestMatchModeExactBackwardCompat(t *testing.T) {
+	saved := bookMatchMode
+	defer func() { bookMatchMode = saved }()
+	SetBookMatchMode(MatchExact)
+
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+
+	for _, power := range diplomacy.AllPowers() {
+		orders := LookupOpening(gs, power, m)
+		if orders == nil {
+			t.Errorf("%s: exact mode returned nil for spring 1901", power)
+		}
+	}
+}
+
+// TestMatchModeNeighbor verifies neighbor mode behavior.
+func TestMatchModeNeighbor(t *testing.T) {
+	saved := bookMatchMode
+	defer func() { bookMatchMode = saved }()
+	SetBookMatchMode(MatchNeighbor)
+
+	// In neighbor mode, 1901 position entries should still match because
+	// there are no neighbor_stance conditions to fail on.
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+
+	for _, power := range diplomacy.AllPowers() {
+		orders := LookupOpening(gs, power, m)
+		if orders == nil {
+			t.Errorf("%s: neighbor mode returned nil for spring 1901", power)
+		}
+	}
+}
+
+// TestMatchModeSCBased verifies sc_based mode behavior.
+func TestMatchModeSCBased(t *testing.T) {
+	saved := bookMatchMode
+	defer func() { bookMatchMode = saved }()
+	SetBookMatchMode(MatchSCBased)
+
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+
+	for _, power := range diplomacy.AllPowers() {
+		orders := LookupOpening(gs, power, m)
+		if orders == nil {
+			t.Errorf("%s: sc_based mode returned nil for spring 1901", power)
+		}
+	}
+}
+
+// TestMatchModeHybrid verifies hybrid mode behavior (default).
+func TestMatchModeHybrid(t *testing.T) {
+	saved := bookMatchMode
+	defer func() { bookMatchMode = saved }()
+	SetBookMatchMode(MatchHybrid)
+
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+
+	for _, power := range diplomacy.AllPowers() {
+		orders := LookupOpening(gs, power, m)
+		if orders == nil {
+			t.Errorf("%s: hybrid mode returned nil for spring 1901", power)
+		}
+	}
+}
+
+// TestSetBookMatchConfig verifies full config replacement.
+func TestSetBookMatchConfig(t *testing.T) {
+	saved := bookMatchMode
+	defer func() { bookMatchMode = saved }()
+
+	cfg := DefaultBookConfig()
+	cfg.Mode = MatchNeighbor
+	cfg.MinScore = 0.5
+	cfg.NeighborWeight = 20.0
+	SetBookMatchConfig(cfg)
+
+	got := GetBookMatchConfig()
+	if got.Mode != MatchNeighbor {
+		t.Errorf("mode = %v, want neighbor", got.Mode)
+	}
+	if got.NeighborWeight != 20.0 {
+		t.Errorf("neighbor weight = %v, want 20.0", got.NeighborWeight)
+	}
+}
+
+// TestHigherScoreWins verifies that when multiple entries match,
+// the higher-scored one is preferred.
+func TestHigherScoreWins(t *testing.T) {
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+	cfg := DefaultBookConfig()
+
+	// Entry with more specific conditions should score higher
+	condBroad := &BookCondition{
+		SCCountMin: 3,
+	}
+	condSpecific := &BookCondition{
+		Positions: map[string]string{"lon": "fleet", "edi": "fleet", "lvp": "army"},
+		OwnedSCs:  []string{"lon", "lvp", "edi"},
+	}
+
+	sBroad, _ := scoreCondition(condBroad, gs, diplomacy.England, m, &cfg)
+	sSpecific, _ := scoreCondition(condSpecific, gs, diplomacy.England, m, &cfg)
+
+	if sSpecific <= sBroad {
+		t.Errorf("specific entry (score=%v) should beat broad entry (score=%v)", sSpecific, sBroad)
 	}
 }
 
@@ -406,20 +614,39 @@ func TestTheaterMatchCondition(t *testing.T) {
 func TestValidateBuildOrders(t *testing.T) {
 	m := diplomacy.StandardMap()
 
-	// Create a build phase state where England has 4 SCs but 3 units
 	gs := diplomacy.NewInitialState()
 	gs.Phase = diplomacy.PhaseBuild
 	gs.Season = diplomacy.Fall
 	gs.SupplyCenters["nwy"] = diplomacy.England
 
-	// Valid build
+	// Building on occupied province should fail
 	orders := []OrderInput{
 		{UnitType: "fleet", Location: "lon", OrderType: "build"},
 	}
-	// This should fail because lon already has a unit
 	result := validateBuildOrders(orders, gs, diplomacy.England, m)
 	if result != nil {
 		t.Error("expected nil for building on occupied province")
+	}
+}
+
+// TestBorderPressure verifies the border pressure helper.
+func TestBorderPressure(t *testing.T) {
+	m := diplomacy.StandardMap()
+
+	// No enemy units at all
+	gs := &diplomacy.GameState{
+		Year:   1901,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseMovement,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "par"},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"par": diplomacy.France,
+		},
+	}
+	if bp := borderPressure(gs, diplomacy.France, m); bp != 0 {
+		t.Errorf("border pressure with no enemies: got %d, want 0", bp)
 	}
 }
 
@@ -438,5 +665,22 @@ func TestParsePowerStr(t *testing.T) {
 		if got := parsePowerStr(s); got != expected {
 			t.Errorf("parsePowerStr(%q) = %v, want %v", s, got, expected)
 		}
+	}
+}
+
+// TestDefaultConfigValues verifies the default config has reasonable values.
+func TestDefaultConfigValues(t *testing.T) {
+	cfg := DefaultBookConfig()
+	if cfg.Mode != MatchHybrid {
+		t.Errorf("default mode = %v, want hybrid", cfg.Mode)
+	}
+	if cfg.MinScore <= 0 {
+		t.Error("default MinScore should be > 0")
+	}
+	if cfg.NeighborWeight <= cfg.SCCountWeight {
+		t.Error("neighbor weight should be higher than SC count weight")
+	}
+	if cfg.PositionWeight <= cfg.NeighborWeight {
+		t.Error("position weight should be highest (exact match is most specific)")
 	}
 }
