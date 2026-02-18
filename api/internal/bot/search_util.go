@@ -787,25 +787,6 @@ func simulatePhase(gs *diplomacy.GameState, m *diplomacy.DiplomacyMap, power dip
 	return clone
 }
 
-// simulateAhead chains N simulatePhase calls with deadline checks.
-// Returns the state after simulating the requested number of phases, or
-// fewer if the deadline is exceeded.
-func simulateAhead(gs *diplomacy.GameState, m *diplomacy.DiplomacyMap, power diplomacy.Power, currentOrders []diplomacy.Order, phases int, deadline time.Time) *diplomacy.GameState {
-	state := gs
-	for i := range phases {
-		if time.Now().After(deadline) {
-			break
-		}
-		// Only use provided orders for the first phase
-		var orders []diplomacy.Order
-		if i == 0 {
-			orders = currentOrders
-		}
-		state = simulatePhase(state, m, power, orders)
-	}
-	return state
-}
-
 // searchBestOrders enumerates the Cartesian product of per-unit order options,
 // resolves each combination, and returns the best order set with its score.
 // Checks deadline every 1000 iterations and bails out if exceeded.
