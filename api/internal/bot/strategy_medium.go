@@ -2,6 +2,7 @@ package bot
 
 import (
 	"sort"
+	"time"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
@@ -13,24 +14,39 @@ type TacticalStrategy struct{}
 
 func (TacticalStrategy) Name() string { return "medium" }
 
-// ShouldVoteDraw always accepts a draw (same as easy).
-func (TacticalStrategy) ShouldVoteDraw(_ *diplomacy.GameState, _ diplomacy.Power) bool {
-	return true
+// ShouldVoteDraw rejects draws when in the lead, only accepting when
+// significantly behind the leader.
+func (TacticalStrategy) ShouldVoteDraw(gs *diplomacy.GameState, power diplomacy.Power) bool {
+	ownSCs := gs.SupplyCenterCount(power)
+	maxSCs := 0
+	for _, p := range diplomacy.AllPowers() {
+		if p == power {
+			continue
+		}
+		if sc := gs.SupplyCenterCount(p); sc > maxSCs {
+			maxSCs = sc
+		}
+	}
+	return ownSCs+3 <= maxSCs
 }
 
-// GenerateMovementOrders checks the opening book first, then generates 16
-// candidate order sets using the easy bot (which has built-in randomness)
-// and picks the one that produces the best evaluated position after
-// 1-ply resolution.
-func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
-	if opening := LookupOpening(gs, power, m); opening != nil {
-		return opening
+// GenerateMovementOrders uses opening book for known positions, then
+// combines Cartesian search over pruned per-unit options with heuristic
+// sampling, picking the best candidate via 1-ply lookahead.
+func (s TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
+	units := gs.UnitsOf(power)
+	if len(units) == 0 {
+		return nil
 	}
 
-	const numCandidates = 16
-	easy := HeuristicStrategy{}
+	// Use opening book for 1901
+	if gs.Year == 1901 {
+		if opening := LookupOpening(gs, power, m); opening != nil {
+			return opening
+		}
+	}
 
-	// Generate opponent orders once (predicted via easy heuristic).
+	// Generate opponent orders once for all evaluations.
 	var opponentOrders []diplomacy.Order
 	for _, p := range diplomacy.AllPowers() {
 		if p == power || !gs.PowerIsAlive(p) {
@@ -39,22 +55,91 @@ func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 		opponentOrders = append(opponentOrders, GenerateOpponentOrders(gs, p, m)...)
 	}
 
-	// Generate N candidate order sets and evaluate each via lookahead.
+	// Phase 1: Search-based candidate using top-K pruned Cartesian product.
+	deadline := time.Now().Add(200 * time.Millisecond)
+	searchCandidate := s.searchOrders(gs, power, m, units, opponentOrders, deadline)
+
+	// Phase 2: Heuristic sampling candidates from the easy bot.
+	const numSamples = 12
+	candidates := make([][]OrderInput, 0, numSamples+1)
+	if searchCandidate != nil {
+		candidates = append(candidates, searchCandidate)
+	}
+	for range numSamples {
+		candidates = append(candidates, HeuristicStrategy{}.GenerateMovementOrders(gs, power, m))
+	}
+
+	return s.pickBestCandidate(gs, power, m, candidates, opponentOrders)
+}
+
+// searchOrders uses the existing search infrastructure to find the best
+// order combination via Cartesian product search over pruned per-unit options.
+func (s TacticalStrategy) searchOrders(
+	gs *diplomacy.GameState,
+	power diplomacy.Power,
+	m *diplomacy.DiplomacyMap,
+	units []diplomacy.Unit,
+	opponentOrders []diplomacy.Order,
+	deadline time.Time,
+) []OrderInput {
+	maxCombos := 50000
+	k := adaptiveK(len(units), maxCombos)
+	if k < 3 {
+		k = 3
+	}
+
+	var unitOrders [][]diplomacy.Order
+	for _, u := range units {
+		legal := LegalOrdersForUnit(u, gs, m)
+		topK := TopKOrders(legal, k, gs, power, m)
+		if len(topK) == 0 {
+			topK = []diplomacy.Order{{
+				UnitType: u.Type,
+				Power:    power,
+				Location: u.Province,
+				Coast:    u.Coast,
+				Type:     diplomacy.OrderHold,
+			}}
+		}
+		unitOrders = append(unitOrders, topK)
+	}
+
+	bestOrders, _ := searchBestOrders(gs, power, m, unitOrders, opponentOrders, deadline)
+	if bestOrders == nil {
+		return nil
+	}
+
+	bestOrders = deduplicateMoveTargets(bestOrders, units)
+	return OrdersToOrderInputs(bestOrders)
+}
+
+// pickBestCandidate resolves each candidate order set via 1-ply lookahead
+// against predicted opponent moves, and returns the best-scoring one.
+func (s TacticalStrategy) pickBestCandidate(
+	gs *diplomacy.GameState,
+	power diplomacy.Power,
+	m *diplomacy.DiplomacyMap,
+	candidates [][]OrderInput,
+	opponentOrders []diplomacy.Order,
+) []OrderInput {
+	if len(candidates) == 0 {
+		return nil
+	}
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+
+	bestScore := float64(-1e9)
+	bestIdx := 0
+
 	rv := diplomacy.NewResolver(34)
 	clone := gs.Clone()
 	orderBuf := make([]diplomacy.Order, 0, 34)
-
-	bestScore := -1e9
-	var bestOrders []OrderInput
-
-	for range numCandidates {
-		candidate := easy.GenerateMovementOrders(gs, power, m)
-		myOrders := OrderInputsToOrders(candidate, power)
-
+	for i, cand := range candidates {
+		myOrders := OrderInputsToOrders(cand, power)
 		orderBuf = orderBuf[:0]
 		orderBuf = append(orderBuf, myOrders...)
 		orderBuf = append(orderBuf, opponentOrders...)
-
 		rv.Resolve(orderBuf, gs, m)
 		gs.CloneInto(clone)
 		rv.Apply(clone, m)
@@ -62,11 +147,11 @@ func (TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 
 		if score > bestScore {
 			bestScore = score
-			bestOrders = candidate
+			bestIdx = i
 		}
 	}
 
-	return bestOrders
+	return candidates[bestIdx]
 }
 
 // GenerateRetreatOrders delegates to the easy bot's retreat logic.
