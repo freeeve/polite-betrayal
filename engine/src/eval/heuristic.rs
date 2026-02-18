@@ -11,7 +11,7 @@
 use std::collections::VecDeque;
 use std::sync::LazyLock;
 
-use crate::board::adjacency::{adj_from, ADJACENCIES};
+use crate::board::adjacency::adj_from;
 use crate::board::province::{
     Coast, Power, Province, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT, SUPPLY_CENTER_COUNT,
 };
