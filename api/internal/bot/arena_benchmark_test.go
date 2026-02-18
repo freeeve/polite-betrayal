@@ -582,3 +582,32 @@ func TestBenchmark_RustVsHard(t *testing.T) {
 	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 3, "france=external,*=hard", 1905)
 	logBenchmarkResults(t, r)
 }
+
+// TestBenchmark_RustVsEasyAllPowers runs the Rust engine as each of the 7 powers against 6 easy Go bots.
+func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
+	if os.Getenv("REALPOLITIK_PATH") == "" {
+		t.Skip("REALPOLITIK_PATH not set")
+	}
+
+	bin := enginePath(t)
+	origPath := ExternalEnginePath
+	ExternalEnginePath = bin
+	defer func() { ExternalEnginePath = origPath }()
+
+	numGames := benchNumGames(100)
+	maxYear := 1930
+
+	for _, power := range diplomacy.AllPowers() {
+		power := power
+		t.Run(string(power), func(t *testing.T) {
+			r := runTimelineBenchmark(t, power, "external", "easy", numGames, maxYear)
+			label := fmt.Sprintf("%s (Rust) vs 6 Easy", strings.Title(string(power)))
+			logTimelineResultsLabeled(t, r, label)
+
+			winRate := float64(r.Wins) / float64(r.NumGames) * 100
+			if winRate < 80 {
+				t.Logf("WARNING: %s win rate %.0f%% below 80%% target vs easy bots", power, winRate)
+			}
+		})
+	}
+}

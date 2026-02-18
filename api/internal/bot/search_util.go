@@ -528,7 +528,12 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 	}
 	score += 2.0 * float64(unitCount)
 
-	// Vulnerability of owned SCs (reduced weight only when close to winning)
+	// Vulnerability of owned SCs: penalize undefended SCs more heavily
+	// when the empire is small (existential threat) vs large (manageable).
+	basePenalty := 4.0
+	if ownSCs <= 4 {
+		basePenalty = 6.0 // small empires can't afford SC losses
+	}
 	for prov, owner := range gs.SupplyCenters {
 		if owner != power {
 			continue
@@ -536,7 +541,7 @@ func EvaluatePosition(gs *diplomacy.GameState, power diplomacy.Power, m *diploma
 		threat := ProvinceThreat(prov, power, gs, m)
 		defense := ProvinceDefense(prov, power, gs, m)
 		if threat > defense {
-			penalty := 2.0 * float64(threat-defense)
+			penalty := basePenalty * float64(threat-defense)
 			if ownSCs >= 16 {
 				penalty *= 0.2 // almost ignore defense when 2 from winning
 			} else if ownSCs >= 14 {
