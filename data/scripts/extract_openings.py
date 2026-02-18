@@ -52,7 +52,7 @@ for _yr in range(1901, 1908):
     if _yr < 1907:
         TARGET_PHASES.append(f"W{_yr}A")
 
-MIN_ABS_COUNT = 50
+MIN_ABS_COUNT = 10
 
 def get_cond_threshold(year):
     """Conditional frequency threshold within a position cluster."""
@@ -61,9 +61,9 @@ def get_cond_threshold(year):
     elif year <= 1902:
         return 0.08
     elif year <= 1904:
-        return 0.06
+        return 0.02
     else:
-        return 0.05
+        return 0.01
 
 def get_min_pos_games(year):
     """Minimum games for a position cluster to qualify."""
@@ -72,9 +72,9 @@ def get_min_pos_games(year):
     elif year <= 1902:
         return 300
     elif year <= 1904:
-        return 100
+        return 20
     else:
-        return 50
+        return 10
 
 # ---------------------------------------------------------------------------
 # Province / theater / adjacency data
