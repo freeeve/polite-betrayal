@@ -353,6 +353,131 @@ func logTimelineResults(t *testing.T, r *TimelineBenchmarkResult) {
 	t.Log(sb.String())
 }
 
+// runTimelineBenchmark runs numGames where testPower uses testDiff and all others use opponentDiff.
+func runTimelineBenchmark(t *testing.T, testPower diplomacy.Power, testDiff, opponentDiff string, numGames, maxYear int) *TimelineBenchmarkResult {
+	t.Helper()
+
+	powerStr := string(testPower)
+	result := &TimelineBenchmarkResult{
+		Power:    powerStr,
+		NumGames: numGames,
+		SCByYear: make(map[int][]int),
+	}
+
+	ctx := context.Background()
+
+	for i := range numGames {
+		pc := make(map[diplomacy.Power]string)
+		for _, p := range diplomacy.AllPowers() {
+			if p == testPower {
+				pc[p] = testDiff
+			} else {
+				pc[p] = opponentDiff
+			}
+		}
+
+		cfg := ArenaConfig{
+			GameName:    fmt.Sprintf("bench-%s-%s-vs-%s", testDiff, powerStr, opponentDiff),
+			PowerConfig: pc,
+			MaxYear:     maxYear,
+			Seed:        int64(i + 1),
+			DryRun:      true,
+		}
+
+		start := time.Now()
+		gameResult, err := RunGame(ctx, cfg, nil, nil, nil)
+		elapsed := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("game %d failed: %v", i+1, err)
+		}
+
+		result.Durations = append(result.Durations, elapsed)
+
+		testSCs := gameResult.SCCounts[powerStr]
+		result.TotalSCs += testSCs
+
+		if gameResult.Winner == powerStr {
+			result.Wins++
+			result.VictoryYears = append(result.VictoryYears, gameResult.FinalYear)
+		} else if gameResult.Winner == "" {
+			result.Draws++
+		} else {
+			result.Losses++
+		}
+
+		// Collect SC timeline for the test power
+		for idx, year := range gameResult.TimelineYears {
+			scSlice := gameResult.SCTimeline[powerStr]
+			if idx < len(scSlice) {
+				result.SCByYear[year] = append(result.SCByYear[year], scSlice[idx])
+			}
+		}
+
+		t.Logf("Game %d/%d: winner=%q year=%d %s_SCs=%d elapsed=%s",
+			i+1, numGames, gameResult.Winner, gameResult.FinalYear, powerStr, testSCs, elapsed.Round(time.Millisecond))
+	}
+
+	return result
+}
+
+// logTimelineResultsLabeled logs summary stats with a custom label.
+func logTimelineResultsLabeled(t *testing.T, r *TimelineBenchmarkResult, label string) {
+	t.Helper()
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("\n=== %s — %d games ===\n", label, r.NumGames))
+
+	winRate := float64(r.Wins) / float64(r.NumGames) * 100
+	avgSCs := float64(r.TotalSCs) / float64(r.NumGames)
+	sb.WriteString(fmt.Sprintf("Win: %d/%d (%.0f%%), Draw: %d, Loss: %d\n", r.Wins, r.NumGames, winRate, r.Draws, r.Losses))
+	sb.WriteString(fmt.Sprintf("Avg Final SCs: %.1f\n", avgSCs))
+
+	if len(r.VictoryYears) > 0 {
+		sum := 0
+		for _, y := range r.VictoryYears {
+			sum += y
+		}
+		sb.WriteString(fmt.Sprintf("Avg Victory Year: %.1f\n", float64(sum)/float64(len(r.VictoryYears))))
+	}
+
+	var years []int
+	for y := range r.SCByYear {
+		years = append(years, y)
+	}
+	sort.Ints(years)
+
+	if len(years) > 0 {
+		sb.WriteString("\nYear | Avg  | Min | P25 | P50 | P75 | P95 | Max | N\n")
+		sb.WriteString("-----|------|-----|-----|-----|-----|-----|-----|---\n")
+		for _, year := range years {
+			counts := r.SCByYear[year]
+			sorted := make([]int, len(counts))
+			copy(sorted, counts)
+			sort.Ints(sorted)
+
+			sum := 0
+			for _, c := range sorted {
+				sum += c
+			}
+			avg := float64(sum) / float64(len(sorted))
+
+			sb.WriteString(fmt.Sprintf("%d | %4.1f | %3d | %3d | %3d | %3d | %3d | %3d | %d\n",
+				year, avg,
+				sorted[0],
+				percentile(sorted, 25),
+				percentile(sorted, 50),
+				percentile(sorted, 75),
+				percentile(sorted, 95),
+				sorted[len(sorted)-1],
+				len(sorted),
+			))
+		}
+	}
+
+	t.Log(sb.String())
+}
+
 // TestBenchmark_EasyVsRandom runs each of the 7 powers as Easy against 6 Random, 20 games each.
 func TestBenchmark_EasyVsRandom(t *testing.T) {
 	numGames := 20
@@ -363,6 +488,21 @@ func TestBenchmark_EasyVsRandom(t *testing.T) {
 		t.Run(string(power), func(t *testing.T) {
 			r := runEasyVsRandomBenchmark(t, power, numGames, maxYear)
 			logTimelineResults(t, r)
+		})
+	}
+}
+
+// TestBenchmark_MediumVsEasy runs France and Turkey as Medium against 6 Easy, 20 games each.
+func TestBenchmark_MediumVsEasy(t *testing.T) {
+	numGames := 20
+	maxYear := 1930
+
+	for _, power := range []diplomacy.Power{diplomacy.France, diplomacy.Turkey} {
+		power := power
+		t.Run(string(power), func(t *testing.T) {
+			r := runTimelineBenchmark(t, power, "medium", "easy", numGames, maxYear)
+			label := fmt.Sprintf("%s (Medium) vs 6 Easy", strings.Title(string(power)))
+			logTimelineResultsLabeled(t, r, label)
 		})
 	}
 }
