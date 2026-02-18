@@ -5,9 +5,9 @@ Converts parsed game data (from parse.py output) into training-ready
 numpy arrays. Produces board state tensors, order labels, value labels,
 and a GNN adjacency matrix.
 
-Board state tensor layout: [81, 36] per position
+Board state tensor layout: [81, 47] per position
   81 areas = 75 provinces + 6 bicoastal variants (spa/nc, spa/sc, stp/nc, stp/sc, bul/ec, bul/sc)
-  36 features per area (see FEATURE_SPEC below)
+  47 features per area (see FEATURE_SPEC below)
 
 Usage:
     python3 scripts/features.py [--input processed/games.jsonl] [--output-dir processed/features]
@@ -58,7 +58,7 @@ SEA_PROVINCES = {
     "ska", "tys", "wes",
 }
 
-# ---- Feature layout (36 features per area) ----
+# ---- Feature layout (47 features per area) ----
 # [0:3]   Unit present: [army, fleet, empty]
 # [3:11]  Unit owner: [A, E, F, G, I, R, T, none]
 # [11:20] SC owner: [A, E, F, G, I, R, T, neutral, none]
@@ -67,7 +67,9 @@ SEA_PROVINCES = {
 # [22:25] Dislodged unit: [army, fleet, none]
 # [25:33] Dislodged owner: [A, E, F, G, I, R, T, none]
 # [33:36] Province type: [land, sea, coast]
-NUM_FEATURES = 36
+# [36:39] Prev unit present: [army, fleet, empty]
+# [39:47] Prev unit owner: [A, E, F, G, I, R, T, none]
+NUM_FEATURES = 47
 
 FEAT_UNIT_TYPE = 0        # 3 slots
 FEAT_UNIT_OWNER = 3       # 8 slots
@@ -77,6 +79,8 @@ FEAT_CAN_DISBAND = 21     # 1 slot
 FEAT_DISLODGED_TYPE = 22  # 3 slots
 FEAT_DISLODGED_OWNER = 25 # 8 slots
 FEAT_PROVINCE_TYPE = 33   # 3 slots
+FEAT_PREV_UNIT_TYPE = 36  # 3 slots
+FEAT_PREV_UNIT_OWNER = 39 # 8 slots
 
 # ---- Adjacency data (ported from map_data.go) ----
 # Each tuple is (from, to) indicating bidirectional adjacency.
@@ -236,14 +240,17 @@ def _parse_unit_string(unit_str: str) -> tuple[str, str, str]:
 
 
 def encode_board_state(phase: dict, prev_phase: dict | None = None) -> np.ndarray:
-    """Encode a single game phase into an [81, 36] feature tensor.
+    """Encode a single game phase into an [81, 47] feature tensor.
 
     Args:
         phase: A phase dict from the parsed game data.
-        prev_phase: The previous phase (unused for now, reserved for previous-order features).
+        prev_phase: The previous phase. When provided, channels 36..47
+            encode the previous turn's unit positions (type + owner).
+            When None (e.g. first turn), those channels are zero-filled
+            with "empty" markers.
 
     Returns:
-        np.ndarray of shape (81, 36) with float32 values.
+        np.ndarray of shape (81, 47) with float32 values.
     """
     tensor = np.zeros((NUM_AREAS, NUM_FEATURES), dtype=np.float32)
 
@@ -321,6 +328,9 @@ def encode_board_state(phase: dict, prev_phase: dict | None = None) -> np.ndarra
     results = phase.get("results", {})
     _encode_dislodged(tensor, results, units)
 
+    # Previous-state unit features (channels 36..47)
+    _encode_prev_state(tensor, prev_phase)
+
     return tensor
 
 
@@ -331,6 +341,48 @@ def _set_unit_features(tensor: np.ndarray, area_idx: int, utype: str, power_idx:
     elif utype == "F":
         tensor[area_idx, FEAT_UNIT_TYPE + 1] = 1.0
     tensor[area_idx, FEAT_UNIT_OWNER + power_idx] = 1.0
+
+
+def _set_prev_unit_features(tensor: np.ndarray, area_idx: int, utype: str, power_idx: int):
+    """Set previous-turn unit type and owner features for an area."""
+    if utype == "A":
+        tensor[area_idx, FEAT_PREV_UNIT_TYPE] = 1.0
+    elif utype == "F":
+        tensor[area_idx, FEAT_PREV_UNIT_TYPE + 1] = 1.0
+    tensor[area_idx, FEAT_PREV_UNIT_OWNER + power_idx] = 1.0
+
+
+def _encode_prev_state(tensor: np.ndarray, prev_phase: dict | None):
+    """Encode previous-turn unit positions into channels 36..47.
+
+    When prev_phase is None (first turn), marks all areas as empty.
+    """
+    if prev_phase is not None:
+        prev_units = prev_phase.get("units", {})
+        for power, unit_list in prev_units.items():
+            power_idx = POWER_INDEX.get(power)
+            if power_idx is None:
+                continue
+            for unit_str in unit_list:
+                utype, prov, coast = _parse_unit_string(unit_str)
+                if not prov or prov not in PROVINCE_SET:
+                    continue
+                area_idx = AREA_INDEX.get(prov)
+                if area_idx is None:
+                    continue
+                _set_prev_unit_features(tensor, area_idx, utype, power_idx)
+                # Also set on coast variant if applicable
+                if coast:
+                    variant = f"{prov}/{coast}"
+                    var_idx = AREA_INDEX.get(variant)
+                    if var_idx is not None:
+                        _set_prev_unit_features(tensor, var_idx, utype, power_idx)
+
+    # Mark empty areas in previous-state channels
+    for idx in range(NUM_AREAS):
+        if tensor[idx, FEAT_PREV_UNIT_TYPE] == 0 and tensor[idx, FEAT_PREV_UNIT_TYPE + 1] == 0:
+            tensor[idx, FEAT_PREV_UNIT_TYPE + 2] = 1.0  # empty
+            tensor[idx, FEAT_PREV_UNIT_OWNER + NUM_POWERS] = 1.0  # owner = none
 
 
 def _get_all_supply_centers() -> frozenset:
@@ -566,7 +618,7 @@ def extract_game_samples(game: dict) -> list[dict]:
 
     Each movement phase produces one sample per power that has orders.
     Returns a list of sample dicts with keys:
-      board: np.ndarray [81, 36]
+      board: np.ndarray [81, 47]
       orders: list[np.ndarray] (order label vectors)
       value: np.ndarray [4]
       power: str
@@ -648,7 +700,7 @@ def save_dataset(samples: list[dict], output_path: Path):
     """Save a list of samples to a compressed .npz file.
 
     Saves:
-      boards: [N, 81, 36]
+      boards: [N, 81, 47]
       order_types: [N, max_orders, 169] (padded)
       values: [N, 4]
       power_indices: [N]

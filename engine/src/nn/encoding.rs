@@ -1,12 +1,12 @@
 //! Board state -> tensor encoding for neural network inference.
 //!
-//! Produces an [81, 36] f32 tensor matching the Python feature extraction
+//! Produces an [81, 47] f32 tensor matching the Python feature extraction
 //! format in `data/scripts/features.py`. The 81 "areas" are the 75 map
 //! provinces (sorted alphabetically by abbreviation, matching Province enum
 //! ordinals 0..74) followed by 6 bicoastal variants in order:
 //!   75: bul/ec, 76: bul/sc, 77: spa/nc, 78: spa/sc, 79: stp/nc, 80: stp/sc
 //!
-//! Feature layout per area (36 channels):
+//! Feature layout per area (47 channels):
 //!   [0:3]   unit present: [army, fleet, empty]
 //!   [3:11]  unit owner:   [A, E, F, G, I, R, T, none]
 //!   [11:20] SC owner:     [A, E, F, G, I, R, T, neutral, none]
@@ -15,6 +15,8 @@
 //!   [22:25] dislodged:    [army, fleet, none]
 //!   [25:33] disl. owner:  [A, E, F, G, I, R, T, none]
 //!   [33:36] province type: [land, sea, coast]
+//!   [36:39] prev unit present: [army, fleet, empty]
+//!   [39:47] prev unit owner:   [A, E, F, G, I, R, T, none]
 
 use crate::board::province::{
     Coast, Power, Province, ProvinceType, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT,
@@ -26,7 +28,7 @@ use crate::board::unit::UnitType;
 pub const NUM_AREAS: usize = 81;
 
 /// Number of features per area.
-pub const NUM_FEATURES: usize = 36;
+pub const NUM_FEATURES: usize = 47;
 
 /// Number of powers.
 const NUM_POWERS: usize = 7;
@@ -40,6 +42,10 @@ const FEAT_CAN_DISBAND: usize = 21;
 const FEAT_DISLODGED_TYPE: usize = 22;
 const FEAT_DISLODGED_OWNER: usize = 25;
 const FEAT_PROVINCE_TYPE: usize = 33;
+
+/// Previous-state feature offset constants (11 features: 3 unit type + 8 unit owner).
+const FEAT_PREV_UNIT_TYPE: usize = 36;
+const FEAT_PREV_UNIT_OWNER: usize = 39;
 
 /// Bicoastal variant indices (appended after the 75 provinces).
 /// These match the Python AREAS list sorted order:
@@ -107,10 +113,25 @@ fn is_supply_center(prov_idx: usize) -> bool {
     }
 }
 
-/// Encodes a `BoardState` into an [81 * 36] flat f32 array (row-major).
+/// Encodes a `BoardState` into an [81 * 47] flat f32 array (row-major).
 ///
 /// The tensor layout matches Python `features.encode_board_state()`.
+/// Previous-state features (channels 36..47) are zero-filled.
+/// Use `encode_board_state_with_prev` to include previous-turn features.
 pub fn encode_board_state(state: &BoardState) -> [f32; NUM_AREAS * NUM_FEATURES] {
+    encode_board_state_with_prev(state, None)
+}
+
+/// Encodes a `BoardState` into an [81 * 47] flat f32 array (row-major),
+/// with optional previous-state features.
+///
+/// When `prev_state` is Some, channels 36..47 encode the previous turn's
+/// unit positions (type + owner). When None (e.g. first turn), those
+/// channels are zero-filled.
+pub fn encode_board_state_with_prev(
+    state: &BoardState,
+    prev_state: Option<&BoardState>,
+) -> [f32; NUM_AREAS * NUM_FEATURES] {
     let mut tensor = [0.0f32; NUM_AREAS * NUM_FEATURES];
 
     // Static province type features.
@@ -219,6 +240,18 @@ pub fn encode_board_state(state: &BoardState) -> [f32; NUM_AREAS * NUM_FEATURES]
         }
     }
 
+    // Previous-state unit features (channels 36..47).
+    if let Some(prev) = prev_state {
+        encode_prev_state(&mut tensor, prev);
+    } else {
+        // No previous state: mark all areas as "empty" in previous-turn channels.
+        for area in 0..NUM_AREAS {
+            let base = area * NUM_FEATURES;
+            tensor[base + FEAT_PREV_UNIT_TYPE + 2] = 1.0; // empty
+            tensor[base + FEAT_PREV_UNIT_OWNER + NUM_POWERS] = 1.0; // owner = none
+        }
+    }
+
     tensor
 }
 
@@ -230,6 +263,45 @@ fn set_unit_features(tensor: &mut [f32], area: usize, unit_type: UnitType, power
         UnitType::Fleet => tensor[base + FEAT_UNIT_TYPE + 1] = 1.0,
     }
     tensor[base + FEAT_UNIT_OWNER + power_idx] = 1.0;
+}
+
+/// Sets previous-turn unit type and owner features for an area.
+fn set_prev_unit_features(tensor: &mut [f32], area: usize, unit_type: UnitType, power_idx: usize) {
+    let base = area * NUM_FEATURES;
+    match unit_type {
+        UnitType::Army => tensor[base + FEAT_PREV_UNIT_TYPE] = 1.0,
+        UnitType::Fleet => tensor[base + FEAT_PREV_UNIT_TYPE + 1] = 1.0,
+    }
+    tensor[base + FEAT_PREV_UNIT_OWNER + power_idx] = 1.0;
+}
+
+/// Encodes previous-state unit positions into channels 36..47.
+fn encode_prev_state(tensor: &mut [f32], prev: &BoardState) {
+    // Unit positions from previous state.
+    for i in 0..PROVINCE_COUNT {
+        if let Some((power, unit_type)) = prev.units[i] {
+            let pi = power_index(power);
+            set_prev_unit_features(tensor, i, unit_type, pi);
+
+            // Also set on the bicoastal variant if the unit has a coast.
+            if let Some(coast) = prev.fleet_coast[i] {
+                if let Some(var_idx) = bicoastal_index(ALL_PROVINCES[i], coast) {
+                    set_prev_unit_features(tensor, var_idx, unit_type, pi);
+                }
+            }
+        }
+    }
+
+    // Mark empty areas in previous-state channels.
+    for area in 0..NUM_AREAS {
+        let base = area * NUM_FEATURES;
+        if tensor[base + FEAT_PREV_UNIT_TYPE] == 0.0
+            && tensor[base + FEAT_PREV_UNIT_TYPE + 1] == 0.0
+        {
+            tensor[base + FEAT_PREV_UNIT_TYPE + 2] = 1.0; // empty
+            tensor[base + FEAT_PREV_UNIT_OWNER + NUM_POWERS] = 1.0; // owner = none
+        }
+    }
 }
 
 /// Encodes build/disband flags during adjustment phases.
@@ -652,5 +724,128 @@ mod tests {
             1.0,
             "Tri should be buildable"
         );
+    }
+
+    #[test]
+    fn no_prev_state_fills_empty() {
+        let state = initial_state();
+        let tensor = encode_board_state(&state);
+
+        // With no previous state, all prev-unit channels should be "empty".
+        for area in 0..NUM_AREAS {
+            let base = area * NUM_FEATURES;
+            assert_eq!(
+                tensor[base + FEAT_PREV_UNIT_TYPE + 2],
+                1.0,
+                "Area {} prev should be empty",
+                area
+            );
+            assert_eq!(
+                tensor[base + FEAT_PREV_UNIT_OWNER + NUM_POWERS],
+                1.0,
+                "Area {} prev owner should be none",
+                area
+            );
+        }
+    }
+
+    #[test]
+    fn prev_state_encodes_units() {
+        // Current state: army on Ser.
+        let mut current = BoardState::empty(1901, Season::Fall, Phase::Movement);
+        current.place_unit(Province::Ser, Power::Austria, UnitType::Army, Coast::None);
+
+        // Previous state: army on Bud.
+        let mut prev = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        prev.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+
+        let tensor = encode_board_state_with_prev(&current, Some(&prev));
+
+        // Current: Ser has army, Bud is empty.
+        let ser_base = Province::Ser as usize * NUM_FEATURES;
+        assert_eq!(
+            tensor[ser_base + FEAT_UNIT_TYPE],
+            1.0,
+            "Ser has current army"
+        );
+
+        let bud_base = Province::Bud as usize * NUM_FEATURES;
+        assert_eq!(
+            tensor[bud_base + FEAT_UNIT_TYPE + 2],
+            1.0,
+            "Bud is currently empty"
+        );
+
+        // Previous: Bud had army, Ser was empty.
+        assert_eq!(
+            tensor[bud_base + FEAT_PREV_UNIT_TYPE],
+            1.0,
+            "Bud had prev army"
+        );
+        assert_eq!(
+            tensor[bud_base + FEAT_PREV_UNIT_OWNER],
+            1.0,
+            "Bud prev army was Austrian"
+        );
+        assert_eq!(
+            tensor[ser_base + FEAT_PREV_UNIT_TYPE + 2],
+            1.0,
+            "Ser was empty in prev state"
+        );
+    }
+
+    #[test]
+    fn prev_state_bicoastal_fleet() {
+        // Previous state: Russian fleet on stp/sc.
+        let mut prev = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        prev.place_unit(Province::Stp, Power::Russia, UnitType::Fleet, Coast::South);
+
+        let current = BoardState::empty(1901, Season::Fall, Phase::Movement);
+        let tensor = encode_board_state_with_prev(&current, Some(&prev));
+
+        // Base province stp should have prev fleet.
+        let stp_base = Province::Stp as usize * NUM_FEATURES;
+        assert_eq!(
+            tensor[stp_base + FEAT_PREV_UNIT_TYPE + 1],
+            1.0,
+            "Stp had prev fleet"
+        );
+        assert_eq!(
+            tensor[stp_base + FEAT_PREV_UNIT_OWNER + 5],
+            1.0,
+            "Stp prev fleet was Russian"
+        );
+
+        // Variant stp/sc should also have prev fleet.
+        let stp_sc_base = STP_SC * NUM_FEATURES;
+        assert_eq!(
+            tensor[stp_sc_base + FEAT_PREV_UNIT_TYPE + 1],
+            1.0,
+            "Stp/sc had prev fleet"
+        );
+        assert_eq!(
+            tensor[stp_sc_base + FEAT_PREV_UNIT_OWNER + 5],
+            1.0,
+            "Stp/sc prev fleet was Russian"
+        );
+
+        // Stp/nc should be empty in prev state.
+        let stp_nc_base = STP_NC * NUM_FEATURES;
+        assert_eq!(
+            tensor[stp_nc_base + FEAT_PREV_UNIT_TYPE + 2],
+            1.0,
+            "Stp/nc was empty in prev"
+        );
+    }
+
+    #[test]
+    fn with_prev_all_values_binary() {
+        let state = initial_state();
+        let prev = initial_state();
+        let tensor = encode_board_state_with_prev(&state, Some(&prev));
+
+        for &v in tensor.iter() {
+            assert!(v == 0.0 || v == 1.0, "Unexpected value: {}", v);
+        }
     }
 }

@@ -24,7 +24,7 @@ from train_policy import (
 )
 
 NUM_AREAS = 81
-NUM_FEATURES = 36
+NUM_FEATURES = 47
 NUM_POWERS = 7
 
 
@@ -108,8 +108,8 @@ class TestGATLayer:
     """Test the GAT attention layer."""
 
     def test_output_shape(self):
-        layer = GATLayer(in_dim=36, out_dim=64, num_heads=4)
-        x = torch.randn(2, NUM_AREAS, 36)
+        layer = GATLayer(in_dim=NUM_FEATURES, out_dim=64, num_heads=4)
+        x = torch.randn(2, NUM_AREAS, NUM_FEATURES)
         adj = _make_dummy_adj()
         out = layer(x, adj)
         assert out.shape == (2, NUM_AREAS, 64), f"Expected (2, 81, 64), got {out.shape}"
@@ -123,15 +123,15 @@ class TestGATLayer:
             assert out.shape == (1, NUM_AREAS, 64)
 
     def test_batched_adjacency(self):
-        layer = GATLayer(in_dim=36, out_dim=64, num_heads=4)
-        x = torch.randn(3, NUM_AREAS, 36)
+        layer = GATLayer(in_dim=NUM_FEATURES, out_dim=64, num_heads=4)
+        x = torch.randn(3, NUM_AREAS, NUM_FEATURES)
         adj = _make_dummy_adj().unsqueeze(0).expand(3, -1, -1)
         out = layer(x, adj)
         assert out.shape == (3, NUM_AREAS, 64)
 
     def test_gradient_flows(self):
-        layer = GATLayer(in_dim=36, out_dim=64, num_heads=4)
-        x = torch.randn(1, NUM_AREAS, 36, requires_grad=True)
+        layer = GATLayer(in_dim=NUM_FEATURES, out_dim=64, num_heads=4)
+        x = torch.randn(1, NUM_AREAS, NUM_FEATURES, requires_grad=True)
         adj = _make_dummy_adj()
         out = layer(x, adj)
         loss = out.sum()

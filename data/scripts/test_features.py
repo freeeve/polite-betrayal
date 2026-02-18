@@ -19,6 +19,8 @@ from features import (
     FEAT_CAN_DISBAND,
     FEAT_DISLODGED_OWNER,
     FEAT_DISLODGED_TYPE,
+    FEAT_PREV_UNIT_OWNER,
+    FEAT_PREV_UNIT_TYPE,
     FEAT_PROVINCE_TYPE,
     FEAT_SC_OWNER,
     FEAT_UNIT_OWNER,
@@ -157,7 +159,7 @@ class TestAreaIndex:
         assert indices == list(range(NUM_AREAS))
 
     def test_feature_count(self):
-        assert NUM_FEATURES == 36, f"Expected 36 features, got {NUM_FEATURES}"
+        assert NUM_FEATURES == 47, f"Expected 47 features, got {NUM_FEATURES}"
 
 
 class TestBoardStateEncoding:
@@ -166,7 +168,7 @@ class TestBoardStateEncoding:
     def test_output_shape(self):
         phase = _make_s1901m_phase()
         tensor = encode_board_state(phase)
-        assert tensor.shape == (81, 36), f"Expected (81, 36), got {tensor.shape}"
+        assert tensor.shape == (81, 47), f"Expected (81, 47), got {tensor.shape}"
 
     def test_dtype(self):
         phase = _make_s1901m_phase()
@@ -465,7 +467,7 @@ class TestGameSampleExtraction:
         assert "value" in s
         assert "power" in s
         assert "game_id" in s
-        assert s["board"].shape == (81, 36)
+        assert s["board"].shape == (81, 47)
         assert s["value"].shape == (4,)
 
     def test_all_powers_with_orders_get_samples(self):
@@ -565,9 +567,82 @@ class TestSaveLoad:
             assert "years" in data
 
             n = len(samples)
-            assert data["boards"].shape == (n, 81, 36)
+            assert data["boards"].shape == (n, 81, 47)
             assert data["values"].shape == (n, 4)
             assert data["power_indices"].shape == (n,)
+
+
+class TestPreviousStateEncoding:
+    """Verify previous-state feature encoding (channels 36..47)."""
+
+    def test_no_prev_phase_fills_empty(self):
+        """Without a previous phase, all prev channels should be 'empty'."""
+        phase = _make_s1901m_phase()
+        tensor = encode_board_state(phase, prev_phase=None)
+
+        for idx in range(NUM_AREAS):
+            assert tensor[idx, FEAT_PREV_UNIT_TYPE + 2] == 1.0, \
+                f"Area {idx} prev should be empty"
+            assert tensor[idx, FEAT_PREV_UNIT_OWNER + NUM_POWERS] == 1.0, \
+                f"Area {idx} prev owner should be none"
+
+    def test_prev_phase_encodes_units(self):
+        """Previous phase units should appear in prev channels."""
+        phase1 = _make_s1901m_phase()
+        # Phase 2: Austria moved Vie -> Tri, so Tri has army now
+        phase2 = {
+            "name": "F1901M",
+            "season": "fall",
+            "year": 1901,
+            "type": "movement",
+            "units": {
+                "austria": ["A tri", "A ser", "F alb"],
+            },
+            "centers": {
+                "austria": ["vie", "bud", "tri"],
+            },
+            "orders": {},
+            "results": {},
+        }
+
+        tensor = encode_board_state(phase2, prev_phase=phase1)
+
+        # Previous phase had Austrian army in Vie
+        vie_idx = AREA_INDEX["vie"]
+        assert tensor[vie_idx, FEAT_PREV_UNIT_TYPE] == 1.0, "Vie had prev army"
+        assert tensor[vie_idx, FEAT_PREV_UNIT_OWNER + 0] == 1.0, "Vie prev army was Austrian"
+
+        # Alb was empty in previous phase
+        alb_idx = AREA_INDEX["alb"]
+        assert tensor[alb_idx, FEAT_PREV_UNIT_TYPE + 2] == 1.0, "Alb was empty in prev"
+
+    def test_prev_stp_coast_variant(self):
+        """Previous phase Russian fleet on stp/sc should appear on variant."""
+        phase1 = _make_s1901m_phase()
+        phase2 = {
+            "name": "F1901M",
+            "type": "movement",
+            "units": {},
+            "centers": {},
+            "orders": {},
+            "results": {},
+        }
+
+        tensor = encode_board_state(phase2, prev_phase=phase1)
+
+        # stp/sc had Russian fleet in previous phase
+        stp_sc_idx = AREA_INDEX["stp/sc"]
+        assert tensor[stp_sc_idx, FEAT_PREV_UNIT_TYPE + 1] == 1.0, "stp/sc had prev fleet"
+        assert tensor[stp_sc_idx, FEAT_PREV_UNIT_OWNER + 5] == 1.0, "stp/sc prev fleet was Russian"
+
+    def test_prev_values_binary(self):
+        """All tensor values should be 0.0 or 1.0 with prev phase."""
+        phase1 = _make_s1901m_phase()
+        phase2 = _make_s1901m_phase()
+        tensor = encode_board_state(phase2, prev_phase=phase1)
+        unique_vals = np.unique(tensor)
+        for v in unique_vals:
+            assert v in (0.0, 1.0), f"Unexpected value {v} in tensor"
 
 
 def run_all_tests():
@@ -581,6 +656,7 @@ def run_all_tests():
         TestGameSampleExtraction,
         TestDatasetSplit,
         TestSaveLoad,
+        TestPreviousStateEncoding,
     ]
 
     total = 0

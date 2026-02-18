@@ -25,7 +25,7 @@ from train_value import (
 )
 
 NUM_AREAS = 81
-NUM_FEATURES = 36
+NUM_FEATURES = 47
 NUM_POWERS = 7
 
 

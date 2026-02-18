@@ -1,7 +1,7 @@
 """Graph Attention Network (GAT) policy model for Diplomacy move prediction.
 
 Architecture:
-  1. Linear input projection: 36 -> 256 per province node
+  1. Linear input projection: 47 -> 256 per province node
   2. 3x GAT message-passing layers with residual connections + LayerNorm
   3. Per-unit order decoder: attention over province embeddings -> order logits
 
@@ -120,7 +120,7 @@ class GATBlock(nn.Module):
 class DiplomacyPolicyNet(nn.Module):
     """GNN-based policy network for Diplomacy order prediction.
 
-    Takes a board state tensor [B, 81, 36] and adjacency matrix [81, 81],
+    Takes a board state tensor [B, 81, 47] and adjacency matrix [81, 81],
     encodes province embeddings via GAT layers, then decodes per-unit
     order predictions.
 
@@ -131,7 +131,7 @@ class DiplomacyPolicyNet(nn.Module):
     def __init__(
         self,
         num_areas: int = 81,
-        num_features: int = 36,
+        num_features: int = 47,
         hidden_dim: int = 256,
         num_gat_layers: int = 3,
         num_heads: int = 4,
@@ -178,7 +178,7 @@ class DiplomacyPolicyNet(nn.Module):
         """Encode board state into province embeddings.
 
         Args:
-            board: [B, 81, 36] board state tensor
+            board: [B, 81, 47] board state tensor
             adj: [81, 81] adjacency matrix
 
         Returns:
@@ -245,7 +245,7 @@ class DiplomacyPolicyNet(nn.Module):
         """Full forward pass: encode board, decode orders.
 
         Args:
-            board: [B, 81, 36]
+            board: [B, 81, 47]
             adj: [81, 81]
             unit_indices: [B, max_units] province indices of active units
             power_indices: [B] active power index

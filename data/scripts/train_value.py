@@ -37,7 +37,7 @@ PROCESSED_DIR = Path(__file__).resolve().parent.parent / "processed" / "features
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 
 NUM_AREAS = 81
-NUM_FEATURES = 36
+NUM_FEATURES = 47
 NUM_POWERS = 7
 VALUE_DIM = 4  # [sc_share, win, draw, survival]
 
@@ -46,7 +46,7 @@ class ValueDataset(Dataset):
     """PyTorch dataset for value network training.
 
     Each sample contains:
-      - board: [81, 36] board state tensor
+      - board: [81, 47] board state tensor
       - power_index: int, the power to evaluate
       - value: [4] target value label
     """
@@ -54,7 +54,7 @@ class ValueDataset(Dataset):
     def __init__(self, npz_path: Path):
         log.info("Loading dataset from %s", npz_path)
         data = np.load(npz_path)
-        self.boards = data["boards"]              # [N, 81, 36]
+        self.boards = data["boards"]              # [N, 81, 47]
         self.power_indices = data["power_indices"] # [N]
         self.values = data["values"]               # [N, 4]
         self.n_samples = self.boards.shape[0]

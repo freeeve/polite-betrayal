@@ -31,7 +31,7 @@ from gnn import DiplomacyPolicyNet
 from value_net import DiplomacyValueNet
 
 NUM_AREAS = 81
-NUM_FEATURES = 36
+NUM_FEATURES = 47
 NUM_POWERS = 7
 ORDER_VOCAB_SIZE = 169
 OPSET_VERSION = 17

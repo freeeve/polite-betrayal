@@ -38,7 +38,7 @@ CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 
 # Feature extraction constants (must match features.py)
 NUM_AREAS = 81
-NUM_FEATURES = 36
+NUM_FEATURES = 47
 NUM_POWERS = 7
 ORDER_TYPES = 7
 ORDER_VOCAB_SIZE = ORDER_TYPES + NUM_AREAS + NUM_AREAS  # 169
@@ -48,7 +48,7 @@ class DiplomacyDataset(Dataset):
     """PyTorch dataset wrapping extracted .npz feature files.
 
     Each sample contains:
-      - board: [81, 36] board state tensor
+      - board: [81, 47] board state tensor
       - order_labels: [max_orders, 169] one-hot order vectors
       - order_mask: [max_orders] binary mask for valid orders
       - power_index: int, active power
@@ -58,7 +58,7 @@ class DiplomacyDataset(Dataset):
     def __init__(self, npz_path: Path):
         log.info("Loading dataset from %s", npz_path)
         data = np.load(npz_path)
-        self.boards = data["boards"]            # [N, 81, 36]
+        self.boards = data["boards"]            # [N, 81, 47]
         self.order_labels = data["order_labels"] # [N, max_orders, 169]
         self.order_masks = data["order_masks"]   # [N, max_orders]
         self.power_indices = data["power_indices"] # [N]
@@ -72,7 +72,7 @@ class DiplomacyDataset(Dataset):
         return self.n_samples
 
     def __getitem__(self, idx: int) -> dict:
-        board = torch.from_numpy(self.boards[idx])          # [81, 36]
+        board = torch.from_numpy(self.boards[idx])          # [81, 47]
         order_labels = torch.from_numpy(self.order_labels[idx])  # [max_orders, 169]
         order_mask = torch.from_numpy(self.order_masks[idx])     # [max_orders]
         power_idx = int(self.power_indices[idx])
