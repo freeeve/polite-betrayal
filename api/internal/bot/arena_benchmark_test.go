@@ -8,12 +8,28 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
 )
+
+// benchNumGames returns BENCH_GAMES env var as int, or the provided default.
+func benchNumGames(defaultN int) int {
+	if s := os.Getenv("BENCH_GAMES"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultN
+}
+
+// benchVerbose returns true when BENCH_VERBOSE=1, enabling per-game logging.
+func benchVerbose() bool {
+	return os.Getenv("BENCH_VERBOSE") == "1"
+}
 
 // BenchmarkResult holds aggregate metrics from a series of arena games.
 type BenchmarkResult struct {
@@ -157,8 +173,10 @@ func runBenchmarkSuite(t *testing.T, matchup string, numGames int, powerConfig s
 			result.SCCounts[power] = append(result.SCCounts[power], sc)
 		}
 
-		t.Logf("Game %d/%d: winner=%q year=%d phases=%d france_SCs=%d elapsed=%s",
-			i+1, numGames, gameResult.Winner, gameResult.FinalYear, gameResult.TotalPhases, franceSCs, elapsed.Round(time.Millisecond))
+		if benchVerbose() {
+			t.Logf("Game %d/%d: winner=%q year=%d phases=%d france_SCs=%d elapsed=%s",
+				i+1, numGames, gameResult.Winner, gameResult.FinalYear, gameResult.TotalPhases, franceSCs, elapsed.Round(time.Millisecond))
+		}
 	}
 
 	return result
@@ -414,8 +432,10 @@ func runTimelineBenchmark(t *testing.T, testPower diplomacy.Power, testDiff, opp
 			}
 		}
 
-		t.Logf("Game %d/%d: winner=%q year=%d %s_SCs=%d elapsed=%s",
-			i+1, numGames, gameResult.Winner, gameResult.FinalYear, powerStr, testSCs, elapsed.Round(time.Millisecond))
+		if benchVerbose() {
+			t.Logf("Game %d/%d: winner=%q year=%d %s_SCs=%d elapsed=%s",
+				i+1, numGames, gameResult.Winner, gameResult.FinalYear, powerStr, testSCs, elapsed.Round(time.Millisecond))
+		}
 	}
 
 	return result
@@ -480,7 +500,7 @@ func logTimelineResultsLabeled(t *testing.T, r *TimelineBenchmarkResult, label s
 
 // TestBenchmark_EasyVsRandom runs each of the 7 powers as Easy against 6 Random, 20 games each.
 func TestBenchmark_EasyVsRandom(t *testing.T) {
-	numGames := 20
+	numGames := benchNumGames(20)
 	maxYear := 1930
 
 	for _, power := range diplomacy.AllPowers() {
@@ -494,7 +514,7 @@ func TestBenchmark_EasyVsRandom(t *testing.T) {
 
 // TestBenchmark_MediumVsEasy runs France and Turkey as Medium against 6 Easy, 20 games each.
 func TestBenchmark_MediumVsEasy(t *testing.T) {
-	numGames := 20
+	numGames := benchNumGames(20)
 	maxYear := 1930
 
 	for _, power := range []diplomacy.Power{diplomacy.France, diplomacy.Turkey} {
@@ -509,7 +529,7 @@ func TestBenchmark_MediumVsEasy(t *testing.T) {
 
 // TestBenchmark_MediumVsEasyAllPowers runs all 7 powers as Medium against 6 Easy, 100 games each.
 func TestBenchmark_MediumVsEasyAllPowers(t *testing.T) {
-	numGames := 100
+	numGames := benchNumGames(100)
 	maxYear := 1930
 
 	for _, power := range diplomacy.AllPowers() {
