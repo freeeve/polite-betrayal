@@ -583,9 +583,9 @@ func GenerateOpponentOrders(gs *diplomacy.GameState, opponentPower diplomacy.Pow
 
 // OrderInputsToOrders converts bot OrderInputs to engine Orders.
 func OrderInputsToOrders(inputs []OrderInput, power diplomacy.Power) []diplomacy.Order {
-	var orders []diplomacy.Order
-	for _, in := range inputs {
-		o := diplomacy.Order{
+	orders := make([]diplomacy.Order, len(inputs))
+	for i, in := range inputs {
+		orders[i] = diplomacy.Order{
 			UnitType:    parseUnitTypeStr(in.UnitType),
 			Power:       power,
 			Location:    in.Location,
@@ -597,7 +597,6 @@ func OrderInputsToOrders(inputs []OrderInput, power diplomacy.Power) []diplomacy
 			AuxTarget:   in.AuxTarget,
 			AuxUnitType: parseUnitTypeStr(in.AuxUnitType),
 		}
-		orders = append(orders, o)
 	}
 	return orders
 }

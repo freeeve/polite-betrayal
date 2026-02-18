@@ -233,12 +233,12 @@ func TestBenchmark_RustVsMedium(t *testing.T) {
 }
 
 // TestBenchmark_RustVsHard runs the Rust RM+ engine as France against 6 hard Go bots.
-// Uses MaxYear 1908 and only 5 games because Go hard bots are very slow (~2s/power/phase).
+// Uses MaxYear 1905 and only 3 games because Go hard bots are very slow (~6min/game).
 func TestBenchmark_RustVsHard(t *testing.T) {
 	if os.Getenv("REALPOLITIK_PATH") == "" {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 5, "france=external,*=hard", 1908)
+	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 3, "france=external,*=hard", 1905)
 	logBenchmarkResults(t, r)
 }

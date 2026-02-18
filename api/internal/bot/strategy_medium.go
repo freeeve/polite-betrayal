@@ -1635,15 +1635,17 @@ func (s TacticalStrategy) pickBestCandidate(gs *diplomacy.GameState, power diplo
 	bestScore := float64(-1e9)
 	bestIdx := 0
 
+	rv := diplomacy.NewResolver(34)
 	clone := gs.Clone()
+	orderBuf := make([]diplomacy.Order, 0, 34)
 	for i, cand := range candidates {
 		myOrders := OrderInputsToOrders(cand, power)
-		allOrders := make([]diplomacy.Order, 0, len(myOrders)+len(opponentOrders))
-		allOrders = append(allOrders, myOrders...)
-		allOrders = append(allOrders, opponentOrders...)
-		results, dislodged := diplomacy.ResolveOrders(allOrders, gs, m)
+		orderBuf = orderBuf[:0]
+		orderBuf = append(orderBuf, myOrders...)
+		orderBuf = append(orderBuf, opponentOrders...)
+		rv.Resolve(orderBuf, gs, m)
 		gs.CloneInto(clone)
-		diplomacy.ApplyResolution(clone, m, results, dislodged)
+		rv.Apply(clone, m)
 		score := EvaluatePosition(clone, power, m)
 
 		if score > bestScore {

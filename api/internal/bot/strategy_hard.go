@@ -690,12 +690,27 @@ func (s HardStrategy) regretMatchSelect(
 	resolver := diplomacy.NewResolver(34)
 	scratch := gs.Clone()
 
+	// Pre-allocate a reusable order buffer for combining candidate + opponent orders.
+	maxCand := 0
+	for _, co := range candOrders {
+		if len(co) > maxCand {
+			maxCand = len(co)
+		}
+	}
+	maxOp := 0
+	for _, op := range opSamples {
+		if len(op) > maxOp {
+			maxOp = len(op)
+		}
+	}
+	orderBuf := make([]diplomacy.Order, 0, maxCand+maxOp)
+
 	// Warm-start: seed regrets with quick 1-ply heuristic evaluation
 	for i := range k {
-		allOrders := make([]diplomacy.Order, len(candOrders[i]), len(candOrders[i])+len(opSamples[0]))
-		copy(allOrders, candOrders[i])
-		allOrders = append(allOrders, opSamples[0]...)
-		resolver.Resolve(allOrders, gs, m)
+		orderBuf = orderBuf[:len(candOrders[i])]
+		copy(orderBuf, candOrders[i])
+		orderBuf = append(orderBuf, opSamples[0]...)
+		resolver.Resolve(orderBuf, gs, m)
 		gs.CloneInto(scratch)
 		resolver.Apply(scratch, m)
 		score := hardEvaluatePosition(scratch, power, m) - coopPenalties[i]
@@ -729,11 +744,11 @@ func (s HardStrategy) regretMatchSelect(
 		// Sample opponent prediction
 		opOrders := opSamples[iter%len(opSamples)]
 
-		// Evaluate sampled candidate (copy to avoid corrupting candOrders)
-		allOrders := make([]diplomacy.Order, len(candOrders[sampled]), len(candOrders[sampled])+len(opOrders))
-		copy(allOrders, candOrders[sampled])
-		allOrders = append(allOrders, opOrders...)
-		resolver.Resolve(allOrders, gs, m)
+		// Evaluate sampled candidate using reusable buffer
+		orderBuf = orderBuf[:len(candOrders[sampled])]
+		copy(orderBuf, candOrders[sampled])
+		orderBuf = append(orderBuf, opOrders...)
+		resolver.Resolve(orderBuf, gs, m)
 		gs.CloneInto(scratch)
 		resolver.Apply(scratch, m)
 		diplomacy.AdvanceState(scratch, len(scratch.Dislodged) > 0)
@@ -747,10 +762,10 @@ func (s HardStrategy) regretMatchSelect(
 			if j == sampled {
 				continue
 			}
-			altAll := make([]diplomacy.Order, len(candOrders[j]), len(candOrders[j])+len(opOrders))
-			copy(altAll, candOrders[j])
-			altAll = append(altAll, opOrders...)
-			resolver.Resolve(altAll, gs, m)
+			orderBuf = orderBuf[:len(candOrders[j])]
+			copy(orderBuf, candOrders[j])
+			orderBuf = append(orderBuf, opOrders...)
+			resolver.Resolve(orderBuf, gs, m)
 			gs.CloneInto(scratch)
 			resolver.Apply(scratch, m)
 			diplomacy.AdvanceState(scratch, len(scratch.Dislodged) > 0)
@@ -796,7 +811,10 @@ func weightedSample(probs []float64, rng *rand.Rand) int {
 // cooperationPenalty implements simplified piKL human regularization:
 // penalizes candidates that attack multiple distinct enemy powers simultaneously.
 func cooperationPenalty(candidate []OrderInput, gs *diplomacy.GameState, power diplomacy.Power) float64 {
-	attacked := make(map[diplomacy.Power]bool)
+	// Use a fixed-size array indexed by power to avoid map allocation.
+	// There are only 7 powers.
+	var attacked [7]bool
+	n := 0
 	for _, o := range candidate {
 		if o.OrderType != "move" {
 			continue
@@ -804,35 +822,66 @@ func cooperationPenalty(candidate []OrderInput, gs *diplomacy.GameState, power d
 		// SC ownership attack
 		owner := gs.SupplyCenters[o.Target]
 		if owner != "" && owner != power && owner != diplomacy.Neutral {
-			attacked[owner] = true
+			idx := powerIndex(owner)
+			if idx >= 0 && !attacked[idx] {
+				attacked[idx] = true
+				n++
+			}
 		}
 		// Unit dislodge attempt
 		if u := gs.UnitAt(o.Target); u != nil && u.Power != power {
-			attacked[u.Power] = true
+			idx := powerIndex(u.Power)
+			if idx >= 0 && !attacked[idx] {
+				attacked[idx] = true
+				n++
+			}
 		}
 	}
-	n := len(attacked)
 	if n <= 1 {
 		return 0
 	}
 	return 2.0 * float64(n-1)
 }
 
+// powerIndex returns a fixed 0-6 index for each power, or -1 for unknown.
+func powerIndex(p diplomacy.Power) int {
+	switch p {
+	case diplomacy.Austria:
+		return 0
+	case diplomacy.England:
+		return 1
+	case diplomacy.France:
+		return 2
+	case diplomacy.Germany:
+		return 3
+	case diplomacy.Italy:
+		return 4
+	case diplomacy.Russia:
+		return 5
+	case diplomacy.Turkey:
+		return 6
+	default:
+		return -1
+	}
+}
+
 // simulateHardPhase_N chains N phase simulations forward.
 func simulateHardPhase_N(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap, phases int, startYear int) *diplomacy.GameState {
 	state := gs
+	rv := diplomacy.NewResolver(34)
 	for range phases {
 		if state.Year > startYear+2 {
 			break
 		}
-		state = simulateHardPhase(state, power, m)
+		state = simulateHardPhase(state, power, m, rv)
 	}
 	return state
 }
 
 // simulateHardPhase simulates one phase forward: medium-level for our power,
-// easy-level for opponents.
-func simulateHardPhase(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) *diplomacy.GameState {
+// easy-level for opponents. Uses the provided reusable Resolver to minimize
+// allocations.
+func simulateHardPhase(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap, rv *diplomacy.Resolver) *diplomacy.GameState {
 	clone := gs.Clone()
 	medium := TacticalStrategy{}
 	easy := HeuristicStrategy{}
@@ -848,9 +897,9 @@ func simulateHardPhase(gs *diplomacy.GameState, power diplomacy.Power, m *diplom
 			}
 			allOrders = append(allOrders, GenerateOpponentOrders(clone, p, m)...)
 		}
-		results, dislodged := diplomacy.ResolveOrders(allOrders, clone, m)
-		diplomacy.ApplyResolution(clone, m, results, dislodged)
-		diplomacy.AdvanceState(clone, len(dislodged) > 0)
+		rv.Resolve(allOrders, clone, m)
+		rv.Apply(clone, m)
+		diplomacy.AdvanceState(clone, rv.HasDislodged())
 
 	case diplomacy.PhaseRetreat:
 		var allRetreats []diplomacy.RetreatOrder
