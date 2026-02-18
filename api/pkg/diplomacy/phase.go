@@ -63,7 +63,7 @@ func AdvanceState(gs *GameState, hasDislodgements bool) {
 
 	// After Fall movement or Fall retreat, update SC ownership
 	if gs.Season == Fall && (gs.Phase == PhaseMovement || gs.Phase == PhaseRetreat) {
-		updateSupplyCenterOwnership(gs)
+		UpdateSupplyCenterOwnership(gs)
 	}
 
 	if nextSeason == Spring && nextPhase == PhaseMovement {
@@ -76,8 +76,11 @@ func AdvanceState(gs *GameState, hasDislodgements bool) {
 	}
 }
 
-// updateSupplyCenterOwnership assigns SCs to the power whose unit occupies them.
-func updateSupplyCenterOwnership(gs *GameState) {
+// UpdateSupplyCenterOwnership assigns SCs to the power whose unit occupies them.
+// This is called automatically by AdvanceState after Fall movement/retreat phases.
+// It is also safe to call explicitly (idempotent) when the caller needs updated
+// SC ownership before AdvanceState runs (e.g. to store the final state_after).
+func UpdateSupplyCenterOwnership(gs *GameState) {
 	stdMap := StandardMap()
 	for provID := range gs.SupplyCenters {
 		prov := stdMap.Provinces[provID]
@@ -91,14 +94,27 @@ func updateSupplyCenterOwnership(gs *GameState) {
 	}
 }
 
+// homeCentersCache stores pre-computed home centers for each power.
+// Computed once on first access since home centers never change.
+var homeCentersCache map[Power][]string
+
 // HomeCenters returns the home supply center IDs for a given power.
 func HomeCenters(power Power) []string {
+	if homeCentersCache != nil {
+		if c, ok := homeCentersCache[power]; ok {
+			return c
+		}
+	}
 	stdMap := StandardMap()
+	if homeCentersCache == nil {
+		homeCentersCache = make(map[Power][]string, 7)
+	}
 	var centers []string
 	for _, prov := range stdMap.Provinces {
 		if prov.HomePower == power && prov.IsSupplyCenter {
 			centers = append(centers, prov.ID)
 		}
 	}
+	homeCentersCache[power] = centers
 	return centers
 }

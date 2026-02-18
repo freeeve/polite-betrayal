@@ -69,9 +69,18 @@ class ReplayNotifier extends StateNotifier<ReplayState> {
   }
 
   /// Stop replay and return to the live/current view.
-  void stop() {
+  /// For finished games, navigate to the last phase instead of clearing the
+  /// view, since there is no active phase and clearing would leave no state.
+  void stop({bool isFinished = false}) {
     _cancelTimer();
-    _historyNotifier.viewCurrent();
+    if (isFinished) {
+      final historyState = _readHistoryState();
+      if (historyState.phases.isNotEmpty) {
+        _historyNotifier.viewPhase(historyState.phases.length - 1);
+      }
+    } else {
+      _historyNotifier.viewCurrent();
+    }
     state = const ReplayState();
   }
 

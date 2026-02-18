@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../game_notifier.dart';
 import '../phase_history_notifier.dart';
 import '../replay_notifier.dart';
 
@@ -14,6 +15,8 @@ class ReplayControls extends ConsumerWidget {
     final replay = ref.watch(replayProvider(gameId));
     final notifier = ref.read(replayProvider(gameId).notifier);
     final historyState = ref.watch(phaseHistoryProvider(gameId));
+    final gameState = ref.watch(gameProvider(gameId));
+    final isFinished = gameState.game?.status == 'finished';
     final theme = Theme.of(context);
 
     // Build season/phase label from the current replay phase.
@@ -78,7 +81,7 @@ class ReplayControls extends ConsumerWidget {
                   icon: const Icon(Icons.stop),
                   tooltip: 'Stop replay',
                   iconSize: 20,
-                  onPressed: () => notifier.stop(),
+                  onPressed: () => notifier.stop(isFinished: isFinished),
                 ),
                 // Play / Pause button.
                 IconButton(

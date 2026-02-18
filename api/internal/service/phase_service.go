@@ -586,6 +586,14 @@ func (s *PhaseService) advanceToNextPhase(
 	powers []string,
 	hasDislodgements bool,
 ) error {
+	// After Fall movement/retreat, update SC ownership before saving stateAfter
+	// so the resolved phase reflects the correct final SC distribution. AdvanceState
+	// also calls this, but stateAfter must include it for the UI to display correct
+	// SC counts when viewing historical phases (especially the game-ending phase).
+	if gs.Season == diplomacy.Fall && (gs.Phase == diplomacy.PhaseMovement || gs.Phase == diplomacy.PhaseRetreat) {
+		diplomacy.UpdateSupplyCenterOwnership(gs)
+	}
+
 	// Save state_after for current phase
 	stateAfterJSON, err := json.Marshal(gs)
 	if err != nil {
