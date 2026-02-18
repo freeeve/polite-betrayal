@@ -108,6 +108,8 @@ class MapPainter extends CustomPainter {
     var i = 0;
     while (i < queue.length) {
       final (prov, power) = queue[i++];
+      final sourceProv = provinces[prov];
+      if (sourceProv != null && sourceProv.isSea) continue;
       for (final neighbor in allAdjacent(prov)) {
         if (claimed.containsKey(neighbor)) continue;
         if (blockedFloodFill.contains((prov, neighbor))) continue;
