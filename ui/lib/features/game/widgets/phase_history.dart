@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../game_notifier.dart';
 import '../phase_history_notifier.dart';
 import '../replay_notifier.dart';
 import 'replay_controls.dart';
@@ -28,6 +29,8 @@ class _PhaseHistoryPanelState extends ConsumerState<PhaseHistoryPanel> {
     final state = ref.watch(phaseHistoryProvider(widget.gameId));
     final replay = ref.watch(replayProvider(widget.gameId));
     final replayActive = replay.isPlaying || replay.totalPhases > 0;
+    final gameState = ref.watch(gameProvider(widget.gameId));
+    final isFinished = gameState.game?.status == 'finished';
 
     return SafeArea(
       child: Column(
@@ -64,9 +67,14 @@ class _PhaseHistoryPanelState extends ConsumerState<PhaseHistoryPanel> {
           else
             Expanded(
               child: ListView.builder(
-                itemCount: state.phases.length + 1,
+                itemCount: isFinished
+                    ? state.phases.length
+                    : state.phases.length + 1,
                 itemBuilder: (context, i) {
-                  if (i == 0) {
+                  // Hide "Current Phase" item for finished games since
+                  // there is no active phase -- the final historical phase
+                  // is the canonical end state.
+                  if (!isFinished && i == 0) {
                     return ListTile(
                       leading: const Icon(Icons.play_arrow),
                       title: const Text('Current Phase'),
@@ -80,7 +88,7 @@ class _PhaseHistoryPanelState extends ConsumerState<PhaseHistoryPanel> {
                     );
                   }
 
-                  final idx = i - 1;
+                  final idx = isFinished ? i : i - 1;
                   final phase = state.phases[idx];
                   final season = phase.season[0].toUpperCase() +
                       phase.season.substring(1);

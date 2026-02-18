@@ -53,7 +53,7 @@ class PhaseHistoryNotifier extends StateNotifier<PhaseHistoryState> {
 
   PhaseHistoryNotifier(this._api, this.gameId) : super(const PhaseHistoryState());
 
-  Future<void> loadPhases() async {
+  Future<void> loadPhases({bool viewLast = false}) async {
     state = state.copyWith(loading: true);
     try {
       final resp = await _api.get('/games/$gameId/phases');
@@ -62,6 +62,9 @@ class PhaseHistoryNotifier extends StateNotifier<PhaseHistoryState> {
             .map((e) => Phase.fromJson(e as Map<String, dynamic>))
             .toList();
         state = state.copyWith(phases: list, loading: false);
+        if (viewLast && list.isNotEmpty) {
+          viewPhase(list.length - 1);
+        }
       } else {
         state = state.copyWith(loading: false);
       }

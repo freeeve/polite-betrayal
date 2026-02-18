@@ -41,6 +41,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   bool _gameOverShown = false;
   bool _showResults = false;
+  bool _autoViewedLastPhase = false;
   Set<String> _newUnitProvinces = {};
   Set<String>? _previousPhaseUnitProvinces;
 
@@ -358,6 +359,18 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
     // Check if viewing historical state.
     final historyState = ref.watch(phaseHistoryProvider(widget.gameId));
+
+    // Auto-navigate to the last phase for finished games so the final
+    // SC counts, territory shading, and winner highlight are correct.
+    if (isFinished && !_autoViewedLastPhase
+        && historyState.phases.isNotEmpty && historyState.viewingIndex == null) {
+      _autoViewedLastPhase = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(phaseHistoryProvider(widget.gameId).notifier)
+            .viewPhase(historyState.phases.length - 1);
+      });
+    }
     final displayState = historyState.historicalState ?? state.gameState;
 
     // Convert pending orders to map arrows.
@@ -606,7 +619,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   ),
             automaticallyImplyLeading: false,
             actions: [
-              if (isViewingHistory)
+              if (isViewingHistory && !isFinished)
                 TextButton(
                   onPressed: () => ref.read(phaseHistoryProvider(widget.gameId).notifier).viewCurrent(),
                   child: const Text('Back to Current'),
