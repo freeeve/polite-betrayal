@@ -46,5 +46,9 @@ credentials.json
 # === Rust ===
 engine/target/
 
+# === Data / ML ===
+data/processed/
+data/checkpoints/
+
 # === Misc ===
 *.log
