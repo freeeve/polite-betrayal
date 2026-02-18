@@ -495,6 +495,94 @@ func TestHardVsMediumByPower(t *testing.T) {
 	}
 }
 
+// TestEasyVsRandomAllPowers runs 100 games per power, each with 1 easy bot vs 6 random bots.
+// Reports win rate, draw rate, avg SCs, and avg victory year per power.
+// Run with: go test -run TestEasyVsRandomAllPowers -v -count=1 -timeout=600s
+func TestEasyVsRandomAllPowers(t *testing.T) {
+	powers := diplomacy.AllPowers()
+	for _, power := range powers {
+		t.Run(string(power), func(t *testing.T) {
+			ctx := context.Background()
+			numGames := 100
+
+			wins := 0
+			draws := 0
+			losses := 0
+			totalSCs := 0
+			var victoryYears []int
+			scCounts := make(map[string][]int)
+
+			for i := range numGames {
+				cfg := ArenaConfig{
+					GameName:    "easy-" + string(power) + "-vs-random",
+					PowerConfig: ParsePowerConfig(string(power) + "=easy,*=random"),
+					MaxYear:     1930,
+					Seed:        int64(i + 1),
+					DryRun:      true,
+				}
+
+				result, err := RunGame(ctx, cfg, nil, nil, nil)
+				if err != nil {
+					t.Fatalf("game %d failed: %v", i+1, err)
+				}
+
+				pSCs := result.SCCounts[string(power)]
+				totalSCs += pSCs
+
+				if result.Winner == string(power) {
+					wins++
+					victoryYears = append(victoryYears, result.FinalYear)
+				} else if result.Winner == "" {
+					draws++
+				} else {
+					losses++
+				}
+
+				for p, sc := range result.SCCounts {
+					scCounts[p] = append(scCounts[p], sc)
+				}
+			}
+
+			avgSCs := float64(totalSCs) / float64(numGames)
+			winRate := float64(wins) / float64(numGames) * 100
+			drawRate := float64(draws) / float64(numGames) * 100
+
+			avgVictoryYear := 0.0
+			if len(victoryYears) > 0 {
+				sum := 0
+				for _, y := range victoryYears {
+					sum += y
+				}
+				avgVictoryYear = float64(sum) / float64(len(victoryYears))
+			}
+
+			t.Logf("\n=== RESULTS: %s (easy) vs 6 random — %d games ===", power, numGames)
+			t.Logf("Wins: %d (%.0f%%), Draws: %d (%.0f%%), Losses: %d", wins, winRate, draws, drawRate, losses)
+			t.Logf("Avg %s SCs: %.1f", power, avgSCs)
+			if len(victoryYears) > 0 {
+				t.Logf("Avg Victory Year: %.1f", avgVictoryYear)
+			}
+
+			for _, p := range diplomacy.AllPowers() {
+				counts := scCounts[string(p)]
+				if len(counts) == 0 {
+					continue
+				}
+				sum := 0
+				survived := 0
+				for _, c := range counts {
+					sum += c
+					if c > 0 {
+						survived++
+					}
+				}
+				avg := float64(sum) / float64(len(counts))
+				t.Logf("  %s: avg=%.1f survived=%d/%d", p, avg, survived, numGames)
+			}
+		})
+	}
+}
+
 func TestRunGameContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
