@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"math/rand"
 	"sort"
 
 	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
@@ -112,7 +111,7 @@ func (s TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power 
 		}
 	}
 
-	const numCandidates = 12
+	const numCandidates = 16
 	var candidates [][]OrderInput
 
 	ownSCs := gs.SupplyCenterCount(power)
@@ -172,6 +171,25 @@ func (s TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power 
 		}
 
 		// Fill remaining with normal candidates
+		for len(candidates) < numCandidates {
+			candidates = append(candidates, s.buildCandidateOrders(gs, power, units, m))
+		}
+	} else if ownSCs >= 6 {
+		// Growing phase: start focusing attacks on a primary target
+		// while keeping diverse normal candidates for the lookahead.
+		primaryTarget := selectPrimaryTarget(gs, power, units, m)
+		if primaryTarget != "" {
+			numFocused := 2
+			if ownSCs >= 8 {
+				numFocused = 3
+			}
+			for range numFocused {
+				focused := s.buildFocusedCandidate(gs, power, units, m, primaryTarget)
+				if focused != nil {
+					candidates = append(candidates, focused)
+				}
+			}
+		}
 		for len(candidates) < numCandidates {
 			candidates = append(candidates, s.buildCandidateOrders(gs, power, units, m))
 		}
@@ -338,7 +356,7 @@ func (s TacticalStrategy) buildFocusedCandidate(gs *diplomacy.GameState, power d
 
 			// Randomness for diversity across candidates (higher to explore
 			// different attack combinations through the 1-ply evaluation)
-			score += rand.Float64() * 2.0
+			score += botFloat64() * 2.0
 
 			// Validate
 			targetCoast := ""
@@ -1092,7 +1110,7 @@ func (s TacticalStrategy) buildCandidateOrders(gs *diplomacy.GameState, power di
 
 	// Determine support cap based on game state
 	maxSupportCap := 2
-	if ownSCs >= 10 {
+	if ownSCs >= 8 {
 		maxSupportCap = 3
 	}
 	if ownSCs >= 14 {
@@ -1297,9 +1315,10 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 
 	ownSCs := gs.SupplyCenterCount(power)
 
-	// Target prioritization: identify primary target at 10+ SCs
+	// Target prioritization: identify primary target at 6+ SCs.
+	// Focusing on a single weak neighbor early helps grow faster.
 	var focusTarget diplomacy.Power
-	if ownSCs >= 10 {
+	if ownSCs >= 6 {
 		focusTarget = selectPrimaryTarget(gs, power, units, m)
 	}
 
@@ -1383,6 +1402,12 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 				switch {
 				case owner == "":
 					score += 10
+					// Extra bonus for unclaimed neutrals in early game
+					if ownSCs < 6 {
+						score += 5.0
+					} else if ownSCs < 8 {
+						score += 3.0
+					}
 				case owner != power:
 					score += 7
 					// Mild penalty for defended enemy SCs (coordination can overcome)
@@ -1401,13 +1426,15 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 							score += 4.0
 						}
 					}
-					// Late-game aggression: increase attack value when ahead
+					// Mid/late-game aggression: increase attack value as we grow
 					if ownSCs >= 14 {
 						score += 8.0
 					} else if ownSCs >= 12 {
 						score += 5.0
 					} else if ownSCs >= 10 {
 						score += 3.0
+					} else if ownSCs >= 6 {
+						score += 2.0
 					}
 				default:
 					score += 1
@@ -1513,7 +1540,8 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 			}
 
 			// Spring positioning bonus: prefer provinces adjacent to unowned SCs
-			// so units are set up for Fall captures
+			// so units are set up for Fall captures.
+			// Stronger bonus to ensure Spring moves set up Fall captures.
 			if gs.Season == diplomacy.Spring {
 				adjSCCount := 0
 				for _, a := range m.Adjacencies[target] {
@@ -1542,8 +1570,7 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 
 			// Focus target proximity bonus: moves toward the primary target
 			// get a bonus to help concentrate force on one front.
-			// Only applied at 10+ SCs to avoid premature concentration.
-			if focusTarget != "" && ownSCs >= 10 {
+			if focusTarget != "" && ownSCs >= 6 {
 				focusDM := getDistMatrix(m)
 				if isFleet {
 					focusDM = getFleetDistMatrix(m)
@@ -1568,15 +1595,19 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 				}
 			}
 
-			// Reduced randomness (0.3 vs easy's 1.5)
-			// Further reduce noise when we have a clear lead
-			noise := 0.3
-			if scLead >= 6 {
-				noise = 0.05
-			} else if scLead >= 3 {
-				noise = 0.15
+			// Noise calibration: enough randomness to generate diverse
+			// candidates for 1-ply lookahead to differentiate, but lower
+			// when behind or far ahead.
+			noise := 0.8
+			if ownSCs < 5 {
+				noise = 0.4 // tight play in early game
 			}
-			score += rand.Float64() * noise
+			if scLead >= 6 {
+				noise = 0.1
+			} else if scLead >= 3 {
+				noise = 0.3
+			}
+			score += botFloat64() * noise
 
 			// Determine target coast
 			targetCoast := ""
@@ -1587,7 +1618,7 @@ func (s TacticalStrategy) scoreMoves(gs *diplomacy.GameState, power diplomacy.Po
 				}
 				targetCoast = string(coasts[0])
 				if len(coasts) > 1 {
-					targetCoast = string(coasts[rand.Intn(len(coasts))])
+					targetCoast = string(coasts[botIntn(len(coasts))])
 				}
 			}
 
@@ -1730,7 +1761,7 @@ func (TacticalStrategy) GenerateRetreatOrders(gs *diplomacy.GameState, power dip
 			score += float64(ProvinceDefense(target, power, gs, m))
 
 			// Small random factor
-			score += rand.Float64() * 0.3
+			score += botFloat64() * 0.3
 
 			targetCoast := ""
 			if isFleet && m.HasCoasts(target) {
@@ -1893,20 +1924,20 @@ func tacticalBuilds(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy
 				// England is an island power -- needs very high fleet ratio
 				if fleetRatio < 0.75 {
 					unitType = diplomacy.Fleet
-				} else if rand.Float64() < 0.4 {
+				} else if botFloat64() < 0.4 {
 					unitType = diplomacy.Fleet
 				}
 			} else if naval {
 				// Other naval powers (Turkey) need high fleet ratios
 				if fleetRatio < 0.6 {
 					unitType = diplomacy.Fleet
-				} else if rand.Float64() < 0.4 {
+				} else if botFloat64() < 0.4 {
 					unitType = diplomacy.Fleet
 				}
 			} else if island || needsConvoys {
 				if fleetRatio < 0.5 {
 					unitType = diplomacy.Fleet
-				} else if rand.Float64() < 0.35 {
+				} else if botFloat64() < 0.35 {
 					unitType = diplomacy.Fleet
 				}
 			} else if coastalTargets > inlandTargets && fleetRatio < 0.35 {
