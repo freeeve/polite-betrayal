@@ -3,7 +3,7 @@ package bot
 import (
 	"testing"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 func TestBFSDistance_SameProvince(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/efreeman/polite-betrayal/api/internal/repository/postgres"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/repository/postgres"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // TestMediumVsEasyByPowerDB runs 100 games per power: medium bot vs 6 easy bots,

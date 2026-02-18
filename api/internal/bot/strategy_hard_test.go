@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 func TestHardStrategy_Name(t *testing.T) {

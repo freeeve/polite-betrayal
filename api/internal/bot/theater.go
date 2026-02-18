@@ -1,7 +1,7 @@
 package bot
 
 import (
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // Theater represents a strategic region of the Diplomacy map.

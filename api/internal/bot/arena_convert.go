@@ -1,8 +1,8 @@
 package bot
 
 import (
-	"github.com/efreeman/polite-betrayal/api/internal/model"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // Order conversion helpers (adapted from service layer, no service dependency)

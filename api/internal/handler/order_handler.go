@@ -8,8 +8,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/auth"
-	"github.com/efreeman/polite-betrayal/api/internal/service"
+	"github.com/freeeve/polite-betrayal/api/internal/auth"
+	"github.com/freeeve/polite-betrayal/api/internal/service"
 )
 
 // OrderHandler handles order submission and ready endpoints.

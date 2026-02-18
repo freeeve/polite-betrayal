@@ -9,9 +9,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
-	"github.com/efreeman/polite-betrayal/api/internal/repository"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // ArenaConfig configures a single bot-vs-bot game.

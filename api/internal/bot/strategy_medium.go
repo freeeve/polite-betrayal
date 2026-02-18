@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // TacticalStrategy generates orders for the "medium" difficulty bot.
@@ -63,6 +63,7 @@ func (s TacticalStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power 
 	const numSamples = 24
 	candidates := make([][]OrderInput, 0, numSamples+1)
 	if searchCandidate != nil {
+		searchCandidate = s.injectSupports(gs, power, m, units, searchCandidate)
 		candidates = append(candidates, searchCandidate)
 	}
 	for range numSamples {
@@ -111,6 +112,85 @@ func (s TacticalStrategy) searchOrders(
 
 	bestOrders = deduplicateMoveTargets(bestOrders, units)
 	return OrdersToOrderInputs(bestOrders)
+}
+
+// injectSupports scans a candidate order set for low-value holds or non-SC
+// moves and converts them into supports for high-value SC-targeting moves.
+func (s TacticalStrategy) injectSupports(
+	gs *diplomacy.GameState,
+	power diplomacy.Power,
+	m *diplomacy.DiplomacyMap,
+	units []diplomacy.Unit,
+	candidate []OrderInput,
+) []OrderInput {
+	type moveInfo struct {
+		idx    int
+		target string
+		loc    string
+	}
+	var scMoves []moveInfo
+	var convertible []int
+	for i, oi := range candidate {
+		if oi.OrderType == "move" {
+			prov := m.Provinces[oi.Target]
+			if prov != nil && prov.IsSupplyCenter && gs.SupplyCenters[oi.Target] != power {
+				scMoves = append(scMoves, moveInfo{idx: i, target: oi.Target, loc: oi.Location})
+			} else {
+				convertible = append(convertible, i)
+			}
+		} else if oi.OrderType == "hold" {
+			convertible = append(convertible, i)
+		}
+	}
+	if len(scMoves) == 0 || len(convertible) == 0 {
+		return candidate
+	}
+
+	result := make([]OrderInput, len(candidate))
+	copy(result, candidate)
+	converted := make(map[int]bool)
+
+	for _, scm := range scMoves {
+		for _, ci := range convertible {
+			if converted[ci] {
+				continue
+			}
+			supporter := result[ci]
+			supUnit := unitByProvince(units, supporter.Location)
+			if supUnit == nil {
+				continue
+			}
+			if CanSupportMove(supporter.Location, scm.loc, scm.target, *supUnit, gs, m) {
+				movingUnit := unitByProvince(units, scm.loc)
+				auxUnitType := "army"
+				if movingUnit != nil {
+					auxUnitType = movingUnit.Type.String()
+				}
+				result[ci] = OrderInput{
+					UnitType:    supporter.UnitType,
+					Location:    supporter.Location,
+					Coast:       supporter.Coast,
+					OrderType:   "support",
+					AuxLoc:      scm.loc,
+					AuxTarget:   scm.target,
+					AuxUnitType: auxUnitType,
+				}
+				converted[ci] = true
+				break
+			}
+		}
+	}
+	return result
+}
+
+// unitByProvince finds a unit by its province in a unit slice.
+func unitByProvince(units []diplomacy.Unit, prov string) *diplomacy.Unit {
+	for i := range units {
+		if units[i].Province == prov {
+			return &units[i]
+		}
+	}
+	return nil
 }
 
 // pickBestCandidate resolves each candidate order set via 1-ply lookahead

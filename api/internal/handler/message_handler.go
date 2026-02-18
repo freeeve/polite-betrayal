@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/efreeman/polite-betrayal/api/internal/auth"
-	"github.com/efreeman/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/internal/auth"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
 )
 
 // MessageHandler handles in-game messaging endpoints.

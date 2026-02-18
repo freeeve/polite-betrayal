@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // ExternalOption configures an ExternalStrategy before launch.

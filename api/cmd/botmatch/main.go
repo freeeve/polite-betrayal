@@ -15,9 +15,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/bot"
-	"github.com/efreeman/polite-betrayal/api/internal/repository/postgres"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/bot"
+	"github.com/freeeve/polite-betrayal/api/internal/repository/postgres"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 func main() {

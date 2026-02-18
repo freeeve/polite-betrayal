@@ -10,14 +10,14 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/auth"
-	"github.com/efreeman/polite-betrayal/api/internal/config"
-	"github.com/efreeman/polite-betrayal/api/internal/handler"
-	"github.com/efreeman/polite-betrayal/api/internal/logger"
-	"github.com/efreeman/polite-betrayal/api/internal/middleware"
-	"github.com/efreeman/polite-betrayal/api/internal/repository/postgres"
-	redisrepo "github.com/efreeman/polite-betrayal/api/internal/repository/redis"
-	"github.com/efreeman/polite-betrayal/api/internal/service"
+	"github.com/freeeve/polite-betrayal/api/internal/auth"
+	"github.com/freeeve/polite-betrayal/api/internal/config"
+	"github.com/freeeve/polite-betrayal/api/internal/handler"
+	"github.com/freeeve/polite-betrayal/api/internal/logger"
+	"github.com/freeeve/polite-betrayal/api/internal/middleware"
+	"github.com/freeeve/polite-betrayal/api/internal/repository/postgres"
+	redisrepo "github.com/freeeve/polite-betrayal/api/internal/repository/redis"
+	"github.com/freeeve/polite-betrayal/api/internal/service"
 )
 
 func main() {

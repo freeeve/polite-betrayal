@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/efreeman/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
 )
 
 // PhaseHandler handles phase-related endpoints.

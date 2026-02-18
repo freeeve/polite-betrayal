@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/internal/repository/postgres"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // benchNumGames returns BENCH_GAMES env var as int, or the provided default.
@@ -35,6 +37,24 @@ func benchVerbose() bool {
 // benchSave returns true when BENCH_SAVE=1, saving games to DB instead of dry run.
 func benchSave() bool {
 	return os.Getenv("BENCH_SAVE") == "1"
+}
+
+// benchRepos returns DB repositories when BENCH_SAVE=1, or nil repos for dry run.
+func benchRepos(t *testing.T) (repository.GameRepository, repository.PhaseRepository, repository.UserRepository) {
+	t.Helper()
+	if !benchSave() {
+		return nil, nil, nil
+	}
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:postgres@localhost:5432/polite_betrayal?sslmode=disable"
+	}
+	db, err := postgres.Connect(dbURL)
+	if err != nil {
+		t.Fatalf("BENCH_SAVE=1 but cannot connect to DB: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return postgres.NewGameRepo(db), postgres.NewPhaseRepo(db), postgres.NewUserRepo(db)
 }
 
 // BenchmarkResult holds aggregate metrics from a series of arena games.
@@ -151,6 +171,8 @@ func runBenchmarkSuite(t *testing.T, matchup string, numGames int, powerConfig s
 		ExternalEngineOptions = origOpts
 	}()
 
+	gameRepo, phaseRepo, userRepo := benchRepos(t)
+
 	result := &BenchmarkResult{
 		Matchup:  matchup,
 		NumGames: numGames,
@@ -169,7 +191,7 @@ func runBenchmarkSuite(t *testing.T, matchup string, numGames int, powerConfig s
 		}
 
 		start := time.Now()
-		gameResult, err := RunGame(ctx, cfg, nil, nil, nil)
+		gameResult, err := RunGame(ctx, cfg, gameRepo, phaseRepo, userRepo)
 		elapsed := time.Since(start)
 
 		if err != nil {
@@ -277,6 +299,8 @@ func percentile(sorted []int, p float64) int {
 func runEasyVsRandomBenchmark(t *testing.T, testPower diplomacy.Power, numGames, maxYear int) *TimelineBenchmarkResult {
 	t.Helper()
 
+	gameRepo, phaseRepo, userRepo := benchRepos(t)
+
 	powerStr := string(testPower)
 	result := &TimelineBenchmarkResult{
 		Power:    powerStr,
@@ -306,7 +330,7 @@ func runEasyVsRandomBenchmark(t *testing.T, testPower diplomacy.Power, numGames,
 		}
 
 		start := time.Now()
-		gameResult, err := RunGame(ctx, cfg, nil, nil, nil)
+		gameResult, err := RunGame(ctx, cfg, gameRepo, phaseRepo, userRepo)
 		elapsed := time.Since(start)
 
 		if err != nil {
@@ -401,6 +425,8 @@ func logTimelineResults(t *testing.T, r *TimelineBenchmarkResult) {
 func runTimelineBenchmark(t *testing.T, testPower diplomacy.Power, testDiff, opponentDiff string, numGames, maxYear int) *TimelineBenchmarkResult {
 	t.Helper()
 
+	gameRepo, phaseRepo, userRepo := benchRepos(t)
+
 	powerStr := string(testPower)
 	result := &TimelineBenchmarkResult{
 		Power:    powerStr,
@@ -429,7 +455,7 @@ func runTimelineBenchmark(t *testing.T, testPower diplomacy.Power, testDiff, opp
 		}
 
 		start := time.Now()
-		gameResult, err := RunGame(ctx, cfg, nil, nil, nil)
+		gameResult, err := RunGame(ctx, cfg, gameRepo, phaseRepo, userRepo)
 		elapsed := time.Since(start)
 
 		if err != nil {

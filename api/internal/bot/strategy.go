@@ -3,7 +3,7 @@ package bot
 import (
 	"log"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // Strategy generates orders for a bot player during each phase type.

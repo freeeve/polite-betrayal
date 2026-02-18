@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
-	"github.com/efreeman/polite-betrayal/api/internal/repository"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 var (

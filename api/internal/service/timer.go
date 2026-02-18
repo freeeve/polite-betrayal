@@ -8,7 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
 )
 
 // TimerListener listens for Redis keyspace notifications on expired timer keys

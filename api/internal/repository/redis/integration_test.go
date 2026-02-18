@@ -10,7 +10,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/efreeman/polite-betrayal/api/internal/testutil"
+	"github.com/freeeve/polite-betrayal/api/internal/testutil"
 )
 
 var testRDB *goredis.Client

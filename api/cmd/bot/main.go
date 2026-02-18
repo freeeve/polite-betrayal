@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/bot"
+	"github.com/freeeve/polite-betrayal/api/internal/bot"
 )
 
 func main() {

@@ -12,11 +12,11 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
-	"github.com/efreeman/polite-betrayal/api/internal/repository/postgres"
-	redisrepo "github.com/efreeman/polite-betrayal/api/internal/repository/redis"
-	"github.com/efreeman/polite-betrayal/api/internal/testutil"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/repository/postgres"
+	redisrepo "github.com/freeeve/polite-betrayal/api/internal/repository/redis"
+	"github.com/freeeve/polite-betrayal/api/internal/testutil"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // testEnv holds shared test infrastructure.

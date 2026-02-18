@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/internal/logger"
+	"github.com/freeeve/polite-betrayal/api/internal/logger"
 )
 
 // Logger logs each request with a unique request ID, method, path, status, and duration.

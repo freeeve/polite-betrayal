@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
 )
 
 // UserRepo handles user database operations.

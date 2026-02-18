@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 func TestParseUnitType(t *testing.T) {

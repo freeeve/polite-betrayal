@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // mockEngineSource is a small Go program that speaks the DUI protocol.

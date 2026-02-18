@@ -3,7 +3,7 @@ package bot
 import (
 	"sort"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // TacticalStrategy generates orders using an enhanced heuristic approach:

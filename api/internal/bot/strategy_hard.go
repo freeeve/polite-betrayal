@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 const (

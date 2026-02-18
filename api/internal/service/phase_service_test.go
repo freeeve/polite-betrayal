@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // setupActiveGame creates a game with 7 players, assigns powers, creates the initial

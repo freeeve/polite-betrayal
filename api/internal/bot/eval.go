@@ -3,7 +3,7 @@ package bot
 import (
 	"sync"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // distMatrix holds pre-computed shortest army-move distances between all

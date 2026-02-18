@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
 )
 
 type mockGameRepo struct {

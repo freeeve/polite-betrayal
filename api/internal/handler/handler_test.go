@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/internal/auth"
-	"github.com/efreeman/polite-betrayal/api/internal/model"
-	"github.com/efreeman/polite-betrayal/api/internal/service"
+	"github.com/freeeve/polite-betrayal/api/internal/auth"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/service"
 )
 
 // --- Mock Repositories ---

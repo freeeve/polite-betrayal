@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // RankedCombo holds an order combination with its evaluated score.

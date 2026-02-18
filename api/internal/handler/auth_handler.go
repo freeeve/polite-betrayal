@@ -9,8 +9,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/efreeman/polite-betrayal/api/internal/auth"
-	"github.com/efreeman/polite-betrayal/api/internal/repository"
+	"github.com/freeeve/polite-betrayal/api/internal/auth"
+	"github.com/freeeve/polite-betrayal/api/internal/repository"
 )
 
 // AuthHandler handles OAuth2 login flows and token refresh.

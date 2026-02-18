@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
 )
 
 // UserRepository defines user data operations.

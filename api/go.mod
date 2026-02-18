@@ -1,4 +1,4 @@
-module github.com/efreeman/polite-betrayal/api
+module github.com/freeeve/polite-betrayal/api
 
 go 1.25.6
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/efreeman/polite-betrayal/api/internal/model"
+	"github.com/freeeve/polite-betrayal/api/internal/model"
 )
 
 // PhaseRepo handles phase and order database operations.

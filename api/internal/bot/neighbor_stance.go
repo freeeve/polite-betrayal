@@ -1,7 +1,7 @@
 package bot
 
 import (
-	"github.com/efreeman/polite-betrayal/api/pkg/diplomacy"
+	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
 // Stance represents a neighbor power's posture toward us.
