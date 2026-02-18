@@ -19,13 +19,13 @@ use crate::board::state::{BoardState, Season};
 use crate::board::unit::UnitType;
 
 /// Pre-computed BFS distance matrix between all province pairs.
-struct DistMatrix {
+pub(crate) struct DistMatrix {
     dist: Box<[i16; PROVINCE_COUNT * PROVINCE_COUNT]>,
     sc_indices: [u8; SUPPLY_CENTER_COUNT],
 }
 
-static ARMY_DIST: LazyLock<DistMatrix> = LazyLock::new(|| build_dist_matrix(false));
-static FLEET_DIST: LazyLock<DistMatrix> = LazyLock::new(|| build_dist_matrix(true));
+pub(crate) static ARMY_DIST: LazyLock<DistMatrix> = LazyLock::new(|| build_dist_matrix(false));
+pub(crate) static FLEET_DIST: LazyLock<DistMatrix> = LazyLock::new(|| build_dist_matrix(true));
 
 /// Builds a BFS distance matrix using either army or fleet adjacencies.
 fn build_dist_matrix(fleet: bool) -> DistMatrix {
@@ -82,8 +82,8 @@ fn build_dist_matrix(fleet: bool) -> DistMatrix {
 
 impl DistMatrix {
     #[inline]
-    #[cfg(test)]
-    fn distance(&self, from: Province, to: Province) -> i16 {
+    #[allow(dead_code)]
+    pub(crate) fn distance(&self, from: Province, to: Province) -> i16 {
         self.dist[from as usize * PROVINCE_COUNT + to as usize]
     }
 }
@@ -91,7 +91,7 @@ impl DistMatrix {
 /// Returns the distance from a province to the nearest unowned SC,
 /// using the appropriate distance matrix for the unit type.
 #[inline]
-fn nearest_unowned_sc_dist(
+pub(crate) fn nearest_unowned_sc_dist(
     province: Province,
     power: Power,
     state: &BoardState,
@@ -118,7 +118,7 @@ fn nearest_unowned_sc_dist(
 
 /// Returns true if the given unit can reach the target in one move.
 #[inline]
-fn unit_can_reach(
+pub(crate) fn unit_can_reach(
     unit_prov: Province,
     unit_coast: Coast,
     unit_type: UnitType,
@@ -148,7 +148,7 @@ fn unit_can_reach(
 
 /// Counts enemy units that can reach the given province in 1 move.
 #[inline]
-fn province_threat(province: Province, power: Power, state: &BoardState) -> i32 {
+pub(crate) fn province_threat(province: Province, power: Power, state: &BoardState) -> i32 {
     let mut count = 0i32;
     for (i, unit_opt) in state.units.iter().enumerate() {
         if let Some((p, ut)) = unit_opt {
@@ -167,7 +167,7 @@ fn province_threat(province: Province, power: Power, state: &BoardState) -> i32 
 
 /// Counts own units (excluding the one already at the province) that can reach it in 1 move.
 #[inline]
-fn province_defense(province: Province, power: Power, state: &BoardState) -> i32 {
+pub(crate) fn province_defense(province: Province, power: Power, state: &BoardState) -> i32 {
     let mut count = 0i32;
     for (i, unit_opt) in state.units.iter().enumerate() {
         if let Some((p, ut)) = unit_opt {
@@ -189,7 +189,7 @@ fn province_defense(province: Province, power: Power, state: &BoardState) -> i32
 
 /// Counts how many SCs a power owns.
 #[inline]
-fn count_scs(state: &BoardState, power: Power) -> i32 {
+pub(crate) fn count_scs(state: &BoardState, power: Power) -> i32 {
     let mut count = 0i32;
     for owner in state.sc_owner.iter() {
         if *owner == Some(power) {
@@ -201,7 +201,7 @@ fn count_scs(state: &BoardState, power: Power) -> i32 {
 
 /// Returns true if a power has any units on the board.
 #[inline]
-fn power_has_units(state: &BoardState, power: Power) -> bool {
+pub(crate) fn power_has_units(state: &BoardState, power: Power) -> bool {
     state
         .units
         .iter()

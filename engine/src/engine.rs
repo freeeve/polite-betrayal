@@ -1,19 +1,24 @@
 //! Engine state management.
 //!
 //! Holds the current board position, active power, engine options, and
-//! generates placeholder orders (hold for all units) for the `go` command.
+//! runs the Cartesian product search for the `go` command.
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::time::Duration;
 
-use rand::SeedableRng;
 use rand::rngs::SmallRng;
+use rand::SeedableRng;
 
 use crate::board::province::Power;
-use crate::board::state::BoardState;
+use crate::board::state::{BoardState, Phase};
 use crate::movegen::random_orders;
 use crate::protocol::dfen::parse_dfen;
 use crate::protocol::dson::format_orders;
+use crate::search::{heuristic_build_orders, heuristic_retreat_orders, search};
+
+/// Default search time in milliseconds.
+const DEFAULT_MOVETIME_MS: u64 = 5000;
 
 /// Holds the mutable state of the engine between commands.
 pub struct Engine {
@@ -69,13 +74,31 @@ impl Engine {
         }
     }
 
+    /// Returns the configured search time from options, or the default.
+    fn movetime(&self) -> Duration {
+        let ms = self
+            .options
+            .get("SearchTime")
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(DEFAULT_MOVETIME_MS);
+        Duration::from_millis(ms)
+    }
+
     /// Handles the DUI handshake: writes id, options, protocol_version, and duiok.
     pub fn handle_dui<W: Write>(&self, out: &mut W) {
         writeln!(out, "id name realpolitik").unwrap();
         writeln!(out, "id author polite-betrayal").unwrap();
         writeln!(out, "option name Threads type spin default 4 min 1 max 64").unwrap();
-        writeln!(out, "option name SearchTime type spin default 5000 min 100 max 60000").unwrap();
-        writeln!(out, "option name Strength type spin default 100 min 1 max 100").unwrap();
+        writeln!(
+            out,
+            "option name SearchTime type spin default 5000 min 100 max 60000"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "option name Strength type spin default 100 min 1 max 100"
+        )
+        .unwrap();
         writeln!(out, "protocol_version 1").unwrap();
         writeln!(out, "duiok").unwrap();
         out.flush().unwrap();
@@ -87,7 +110,8 @@ impl Engine {
         out.flush().unwrap();
     }
 
-    /// Handles the `go` command by generating random legal orders.
+    /// Handles the `go` command using Cartesian product search for movement,
+    /// heuristic selection for retreat/build phases.
     pub fn handle_go<W: Write>(&mut self, out: &mut W) {
         let state = match &self.position {
             Some(s) => s,
@@ -105,13 +129,39 @@ impl Engine {
             }
         };
 
-        let orders = random_orders(power, state, &mut self.rng);
+        let orders = match state.phase {
+            Phase::Movement => {
+                let movetime = self.movetime();
+                let result = search(power, state, movetime, out);
+                if result.orders.is_empty() {
+                    // Fallback to random if search returns nothing
+                    random_orders(power, state, &mut self.rng)
+                } else {
+                    result.orders
+                }
+            }
+            Phase::Retreat => {
+                let orders = heuristic_retreat_orders(power, state);
+                if orders.is_empty() {
+                    random_orders(power, state, &mut self.rng)
+                } else {
+                    orders
+                }
+            }
+            Phase::Build => {
+                let orders = heuristic_build_orders(power, state);
+                if orders.is_empty() {
+                    random_orders(power, state, &mut self.rng)
+                } else {
+                    orders
+                }
+            }
+        };
 
         let dson = format_orders(&orders);
         writeln!(out, "bestorders {}", dson).unwrap();
         out.flush().unwrap();
     }
-
 }
 
 #[cfg(test)]
@@ -175,9 +225,17 @@ mod tests {
         engine.handle_go(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
-        assert!(output_str.starts_with("bestorders "));
-        // Should have 3 orders for Austria (separated by ;)
-        let orders_part = output_str.trim().strip_prefix("bestorders ").unwrap();
+        // Output may contain info lines before bestorders
+        assert!(
+            output_str.contains("bestorders "),
+            "Output should contain bestorders: {}",
+            output_str
+        );
+        let bestorders_line = output_str
+            .lines()
+            .find(|l| l.starts_with("bestorders "))
+            .unwrap();
+        let orders_part = bestorders_line.strip_prefix("bestorders ").unwrap();
         let order_count = orders_part.split(" ; ").count();
         assert_eq!(order_count, 3);
     }
@@ -192,7 +250,11 @@ mod tests {
         engine.handle_go(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
-        let orders_part = output_str.trim().strip_prefix("bestorders ").unwrap();
+        let bestorders_line = output_str
+            .lines()
+            .find(|l| l.starts_with("bestorders "))
+            .unwrap();
+        let orders_part = bestorders_line.strip_prefix("bestorders ").unwrap();
         let order_count = orders_part.split(" ; ").count();
         assert_eq!(order_count, 4);
     }

@@ -6,6 +6,6 @@
 //! Ported from `api/internal/bot/search_util.go` (EvaluatePosition) and
 //! `api/internal/bot/eval.go` (distance matrices, threat/defense helpers).
 
-mod heuristic;
+pub(crate) mod heuristic;
 
 pub use heuristic::{evaluate, evaluate_all};

@@ -3,4 +3,8 @@
 //! Explores the space of possible order sets to find strong moves,
 //! using evaluation heuristics to guide the search.
 
-// TODO: Implement search algorithm
+pub mod cartesian;
+
+pub use cartesian::{
+    heuristic_build_orders, heuristic_retreat_orders, search, SearchInfo, SearchResult,
+};
