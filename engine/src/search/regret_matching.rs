@@ -372,8 +372,16 @@ fn coordinate_candidate_supports(
                         &unit_orders,
                         unit_provinces,
                     );
-                    // If no replacement found in candidates, fall back to hold.
-                    let new_order = replacement.unwrap_or(Order::Hold { unit });
+                    // If no replacement found in candidates, prefer best move
+                    // over defaulting to hold.
+                    let new_order = replacement
+                        .or_else(|| {
+                            per_unit[ui]
+                                .iter()
+                                .find(|so| matches!(so.order, Order::Move { .. }))
+                                .map(|so| so.order)
+                        })
+                        .unwrap_or(Order::Hold { unit });
                     candidate[ci] = (new_order, power);
                     changed = true;
                     continue;
@@ -403,8 +411,16 @@ fn coordinate_candidate_supports(
                     unit_provinces,
                 );
 
-                // If no replacement found in candidates, fall back to hold.
-                let new_order = replacement.unwrap_or(Order::Hold { unit });
+                // If no replacement found in candidates, prefer best move
+                // over defaulting to hold.
+                let new_order = replacement
+                    .or_else(|| {
+                        per_unit[ui]
+                            .iter()
+                            .find(|so| matches!(so.order, Order::Move { .. }))
+                            .map(|so| so.order)
+                    })
+                    .unwrap_or(Order::Hold { unit });
                 candidate[ci] = (new_order, power);
                 changed = true;
             }
@@ -447,9 +463,20 @@ fn coordinate_candidate_supports(
         {
             let supported_prov = supported.location.province;
             let supported_is_ours = final_orders.iter().any(|(p, _)| *p == supported_prov);
+            let supporter_prov = unit.location.province;
+            let best_move = unit_provinces
+                .iter()
+                .position(|&p| p == supporter_prov)
+                .and_then(|ui| {
+                    per_unit[ui]
+                        .iter()
+                        .find(|so| matches!(so.order, Order::Move { .. }))
+                        .map(|so| so.order)
+                });
+
             if !supported_is_ours {
-                // Foreign support-move survived all passes -- force hold.
-                candidate[ci] = (Order::Hold { unit }, power);
+                // Foreign support-move survived all passes -- prefer move over hold.
+                candidate[ci] = (best_move.unwrap_or(Order::Hold { unit }), power);
                 continue;
             }
             let is_matching = final_orders.iter().any(|(p, o)| {
@@ -457,7 +484,7 @@ fn coordinate_candidate_supports(
                     && matches!(*o, Order::Move { dest: d, .. } if d.province == dest.province)
             });
             if !is_matching {
-                candidate[ci] = (Order::Hold { unit }, power);
+                candidate[ci] = (best_move.unwrap_or(Order::Hold { unit }), power);
             }
         }
     }
