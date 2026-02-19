@@ -141,10 +141,12 @@ class GameNotifier extends StateNotifier<GameViewState> {
       // Guard with _lastAnimatedPhaseId to prevent re-triggering the same
       // animation after the freeze ends (stale currentPhase would otherwise
       // cause an infinite replay loop in fast bot games).
+      final animatablePhase = state.currentPhase?.phaseType == 'movement'
+          || state.currentPhase?.phaseType == 'retreat';
       if (phase != null
           && state.currentPhase != null
           && phase.id != state.currentPhase!.id
-          && state.currentPhase!.phaseType == 'movement'
+          && animatablePhase
           && state.gameState != null
           && state.previousGameState == null
           && state.currentPhase!.id != _lastAnimatedPhaseId) {
@@ -191,7 +193,7 @@ class GameNotifier extends StateNotifier<GameViewState> {
         dev.log('phase_resolved: type=$resolvedType, phaseId=$phaseId, '
             'hasGameState=${state.gameState != null}',
             name: 'GameNotifier');
-        if (resolvedType == 'movement'
+        if ((resolvedType == 'movement' || resolvedType == 'retreat')
             && state.gameState != null
             && state.previousGameState == null
             && phaseId != _lastAnimatedPhaseId) {
