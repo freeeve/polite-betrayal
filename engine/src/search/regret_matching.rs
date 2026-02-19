@@ -290,6 +290,12 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
             if let Some((p, _)) = state.units[dst as usize] {
                 if p != power {
                     score += 3.0;
+                    // Dislodge-for-capture: supporting a move into an SC occupied by
+                    // an enemy is very high value — the support enables both the
+                    // dislodge and the SC flip.
+                    if dst.is_supply_center() && state.sc_owner[dst as usize] != Some(power) {
+                        score += 6.0;
+                    }
                 }
             }
             score
