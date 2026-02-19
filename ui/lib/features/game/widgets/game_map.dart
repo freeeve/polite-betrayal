@@ -9,7 +9,7 @@ import '../../../core/models/game_state.dart';
 import '../../../core/models/order.dart';
 import 'map_painter.dart';
 
-/// Interactive Diplomacy map: SVG background + CustomPaint overlay, wrapped in InteractiveViewer.
+/// Diplomacy map: SVG background + CustomPaint overlay, fixed to fill its container.
 class GameMap extends StatefulWidget {
   final GameState? gameState;
   final GameState? previousGameState;
@@ -59,10 +59,8 @@ class GameMap extends StatefulWidget {
 }
 
 class _GameMapState extends State<GameMap> with TickerProviderStateMixin {
-  final _transformController = TransformationController();
   late final AnimationController _animController;
   late final AnimationController _buildDisbandController;
-  Offset? _pointerDown;
 
   @override
   void initState() {
@@ -165,33 +163,18 @@ class _GameMapState extends State<GameMap> with TickerProviderStateMixin {
   void dispose() {
     _animController.dispose();
     _buildDisbandController.dispose();
-    _transformController.dispose();
     super.dispose();
   }
 
-  /// Handles tap detection via raw pointer events to avoid gesture arena
-  /// conflicts with InteractiveViewer's internal pan/scale recognizers.
-  void _onPointerDown(PointerDownEvent event) {
-    _pointerDown = event.localPosition;
-  }
-
-  void _onPointerUp(PointerUpEvent event) {
-    if (!mounted) return;
-    if (widget.onProvinceTap == null || _pointerDown == null) return;
-
-    // Only treat as a tap if the pointer didn't move much (not a drag).
-    final distance = (event.localPosition - _pointerDown!).distance;
-    if (distance > 10) return;
-
-    // Convert screen position through InteractiveViewer transform to SVG space.
-    final matrix = _transformController.value;
-    final inverse = Matrix4.inverted(matrix);
-    final transformed = MatrixUtils.transformPoint(inverse, event.localPosition);
+  /// Converts a tap position to SVG coordinates and triggers province selection.
+  void _handleTapUp(TapUpDetails details) {
+    if (widget.onProvinceTap == null) return;
 
     final renderBox = context.findRenderObject() as RenderBox;
+    final local = renderBox.globalToLocal(details.globalPosition);
     final size = renderBox.size;
-    final svgX = transformed.dx * svgViewBoxWidth / size.width;
-    final svgY = transformed.dy * svgViewBoxHeight / size.height;
+    final svgX = local.dx * svgViewBoxWidth / size.width;
+    final svgY = local.dy * svgViewBoxHeight / size.height;
 
     final province = hitTestProvince(Offset(svgX, svgY));
     if (province != null) {
@@ -201,56 +184,49 @@ class _GameMapState extends State<GameMap> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: _onPointerDown,
-      onPointerUp: _onPointerUp,
-      child: InteractiveViewer(
-        transformationController: _transformController,
-        minScale: 0.5,
-        maxScale: 4.0,
-        boundaryMargin: const EdgeInsets.all(100),
-        child: AspectRatio(
-          aspectRatio: svgViewBoxWidth / svgViewBoxHeight,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                children: [
-                  // SVG background
-                  SvgPicture.asset(
-                    'assets/map/diplomacy_map_hq.svg',
-                    width: constraints.maxWidth,
-                    height: constraints.maxHeight,
-                    fit: BoxFit.contain,
+    return GestureDetector(
+      onTapUp: _handleTapUp,
+      child: AspectRatio(
+        aspectRatio: svgViewBoxWidth / svgViewBoxHeight,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
+              children: [
+                // SVG background
+                SvgPicture.asset(
+                  'assets/map/diplomacy_map_hq.svg',
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  fit: BoxFit.contain,
+                ),
+                // Dynamic overlay
+                CustomPaint(
+                  size: Size(constraints.maxWidth, constraints.maxHeight),
+                  painter: MapPainter(
+                    gameState: widget.gameState,
+                    previousGameState: _animController.isAnimating
+                        ? widget.previousGameState : null,
+                    animationProgress: _animController.isAnimating
+                        ? _animController.value : null,
+                    selectedProvince: widget.selectedProvince,
+                    validTargets: widget.validTargets,
+                    pendingOrders: widget.pendingOrders,
+                    resolvedOrders: widget.resolvedOrders,
+                    myPower: widget.myPower,
+                    newUnitProvinces: widget.newUnitProvinces,
+                    buildProvinces: _buildDisbandController.isAnimating
+                        ? widget.buildProvinces : const {},
+                    disbandProvinces: _buildDisbandController.isAnimating
+                        ? widget.disbandProvinces : const {},
+                    disbandUnits: _buildDisbandController.isAnimating
+                        ? widget.disbandUnits : const [],
+                    buildDisbandProgress: _buildDisbandController.isAnimating
+                        ? _buildDisbandController.value : null,
                   ),
-                  // Dynamic overlay
-                  CustomPaint(
-                    size: Size(constraints.maxWidth, constraints.maxHeight),
-                    painter: MapPainter(
-                      gameState: widget.gameState,
-                      previousGameState: _animController.isAnimating
-                          ? widget.previousGameState : null,
-                      animationProgress: _animController.isAnimating
-                          ? _animController.value : null,
-                      selectedProvince: widget.selectedProvince,
-                      validTargets: widget.validTargets,
-                      pendingOrders: widget.pendingOrders,
-                      resolvedOrders: widget.resolvedOrders,
-                      myPower: widget.myPower,
-                      newUnitProvinces: widget.newUnitProvinces,
-                      buildProvinces: _buildDisbandController.isAnimating
-                          ? widget.buildProvinces : const {},
-                      disbandProvinces: _buildDisbandController.isAnimating
-                          ? widget.disbandProvinces : const {},
-                      disbandUnits: _buildDisbandController.isAnimating
-                          ? widget.disbandUnits : const [],
-                      buildDisbandProgress: _buildDisbandController.isAnimating
-                          ? _buildDisbandController.value : null,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
