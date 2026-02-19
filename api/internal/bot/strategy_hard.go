@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
@@ -15,6 +16,7 @@ const (
 	hardLookaheadDepth = 4
 	hardOpSamples      = 3
 	hardRegretDiscount = 0.95
+	hardTimeBudget     = 5 * time.Second
 )
 
 // chokepoints are strategically critical sea provinces that control access
@@ -79,16 +81,18 @@ func (s HardStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power dipl
 		}
 	}
 
+	deadline := time.Now().Add(hardTimeBudget)
+
 	candidates := s.generateCandidates(gs, power, units, m)
 	if len(candidates) == 0 {
 		return TacticalStrategy{}.GenerateMovementOrders(gs, power, m)
 	}
 
 	// Generate medium-level opponent prediction samples
-	opSamples := s.sampleOpponentPredictions(gs, power, m)
+	opSamples := s.sampleOpponentPredictions(gs, power, m, deadline)
 
 	// Regret matching selects the equilibrium candidate
-	bestIdx := s.regretMatchSelect(gs, power, m, candidates, opSamples)
+	bestIdx := s.regretMatchSelect(gs, power, m, candidates, opSamples, deadline)
 	return candidates[bestIdx]
 }
 
@@ -637,10 +641,11 @@ func focusedAttack(gs *diplomacy.GameState, power diplomacy.Power, units []diplo
 }
 
 // sampleOpponentPredictions generates multiple stochastic medium-level
-// predictions for all opponents.
-func (s HardStrategy) sampleOpponentPredictions(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) [][]diplomacy.Order {
+// predictions for all opponents. Stops early if the deadline is exceeded
+// after at least 1 sample.
+func (s HardStrategy) sampleOpponentPredictions(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap, deadline time.Time) [][]diplomacy.Order {
 	medium := TacticalStrategy{}
-	samples := make([][]diplomacy.Order, hardOpSamples)
+	samples := make([][]diplomacy.Order, 0, hardOpSamples)
 	for i := range hardOpSamples {
 		var opOrders []diplomacy.Order
 		for _, p := range diplomacy.AllPowers() {
@@ -650,20 +655,25 @@ func (s HardStrategy) sampleOpponentPredictions(gs *diplomacy.GameState, power d
 			inputs := medium.GenerateMovementOrders(gs, p, m)
 			opOrders = append(opOrders, OrderInputsToOrders(inputs, p)...)
 		}
-		samples[i] = opOrders
+		samples = append(samples, opOrders)
+		if i > 0 && time.Now().After(deadline) {
+			break
+		}
 	}
 	return samples
 }
 
 // regretMatchSelect runs RM+ over candidate order sets. Each iteration samples
 // a candidate and opponent prediction, evaluates with lookahead, and updates
-// regrets. Returns the index of the best candidate after convergence.
+// regrets. Returns the index of the best candidate after convergence or when
+// the time budget is exceeded (after at least 1 full iteration).
 func (s HardStrategy) regretMatchSelect(
 	gs *diplomacy.GameState,
 	power diplomacy.Power,
 	m *diplomacy.DiplomacyMap,
 	candidates [][]OrderInput,
 	opSamples [][]diplomacy.Order,
+	deadline time.Time,
 ) int {
 	k := len(candidates)
 	if k == 1 {
@@ -718,6 +728,10 @@ func (s HardStrategy) regretMatchSelect(
 	}
 
 	for iter := range hardRMIterations {
+		if iter > 0 && time.Now().After(deadline) {
+			break
+		}
+
 		// Discount older regrets so RM+ forgets early bad estimates faster
 		for j := range k {
 			cumRegret[j] *= hardRegretDiscount
