@@ -197,6 +197,9 @@ class MapPainter extends CustomPainter {
     for (final u in gameState!.units) {
       s.add(u.province);
     }
+    for (final d in gameState!.dislodged) {
+      s.add(d.unit.province);
+    }
     return s;
   }
 
@@ -324,10 +327,33 @@ class MapPainter extends CustomPainter {
         _drawDisbandX(canvas, center, buildDisbandProgress!);
       }
     }
+
+    // Draw dislodged units (retreat phase) with a pulsing red outline.
+    for (final dislodged in gameState!.dislodged) {
+      final unit = dislodged.unit;
+      final prov = provinces[unit.province];
+      if (prov == null) continue;
+
+      final color = PowerColors.forPower(unit.power);
+      final center = _unitCenterAt(unit.province, unit.type);
+
+      if (unit.type == UnitType.army) {
+        _drawArtillery(canvas, center, color);
+      } else {
+        _drawBattleship(canvas, center, color);
+      }
+
+      // Red ring to indicate dislodged status.
+      canvas.drawCircle(center, 18, Paint()
+        ..color = const Color(0xCCFF0000)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5);
+    }
   }
 
   /// Draws units at interpolated positions during movement animation.
   /// Units follow the same quadratic Bezier curve that the order arrows use.
+  /// Also handles dislodged units during retreat phase animations.
   void _drawAnimatedUnits(Canvas canvas) {
     final orderMap = <String, Order>{};
     if (resolvedOrders != null) {
@@ -384,6 +410,63 @@ class MapPainter extends CustomPainter {
       // Draw shield overlay for hold orders during animation.
       if (order != null && order.orderType == 'hold' && animationProgress != null) {
         _drawHoldShield(canvas, center, animationProgress!, color);
+      }
+    }
+
+    // Animate dislodged units during retreat phase resolution.
+    for (final dislodged in previousGameState!.dislodged) {
+      final unit = dislodged.unit;
+      if (provinces[unit.province] == null) continue;
+
+      final color = PowerColors.forPower(unit.power);
+      final from = _unitCenterAt(unit.province, unit.type);
+
+      final order = orderMap['${unit.power}:${unit.province}'];
+      Offset center;
+
+      if (order != null
+          && order.orderType == 'retreat_move'
+          && order.target != null) {
+        final to = _unitCenterAt(order.target!, unit.type);
+        final ctrl = _arrowControlPoint(from, to);
+        if (order.result == 'succeeds') {
+          final eased = Curves.easeInOut.transform(animationProgress!);
+          center = _bezierPoint(from, ctrl, to, eased);
+        } else {
+          final t = math.sin(animationProgress! * math.pi) * 0.4;
+          center = _bezierPoint(from, ctrl, to, t);
+        }
+      } else if (order != null && order.orderType == 'retreat_disband') {
+        center = from;
+        final opacity = 1.0 - Curves.easeIn.transform(animationProgress!);
+        canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, opacity));
+        if (unit.type == UnitType.army) {
+          _drawArtillery(canvas, center, color);
+        } else {
+          _drawBattleship(canvas, center, color);
+        }
+        canvas.restore();
+        _drawDisbandX(canvas, center, animationProgress!);
+        continue;
+      } else {
+        // Default disband for dislodged units with no explicit order.
+        center = from;
+        final opacity = 1.0 - Curves.easeIn.transform(animationProgress!);
+        canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, opacity));
+        if (unit.type == UnitType.army) {
+          _drawArtillery(canvas, center, color);
+        } else {
+          _drawBattleship(canvas, center, color);
+        }
+        canvas.restore();
+        _drawDisbandX(canvas, center, animationProgress!);
+        continue;
+      }
+
+      if (unit.type == UnitType.army) {
+        _drawArtillery(canvas, center, color);
+      } else {
+        _drawBattleship(canvas, center, color);
       }
     }
   }
