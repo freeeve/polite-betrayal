@@ -103,6 +103,9 @@ class MapPainter extends CustomPainter {
       ('sev', 'ukr'), ('ukr', 'sev'),
       ('war', 'ukr'), ('ukr', 'war'),
       ('mos', 'ukr'), ('ukr', 'mos'),
+      ('lon', 'wal'), ('wal', 'lon'),
+      ('lvp', 'cly'), ('cly', 'lvp'),
+      ('edi', 'cly'), ('cly', 'edi'),
     };
 
     var i = 0;
