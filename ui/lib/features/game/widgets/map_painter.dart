@@ -106,6 +106,7 @@ class MapPainter extends CustomPainter {
       ('lon', 'wal'), ('wal', 'lon'),
       ('lvp', 'cly'), ('cly', 'lvp'),
       ('edi', 'cly'), ('cly', 'edi'),
+      ('lvn', 'pru'), ('pru', 'lvn'),
     };
 
     var i = 0;
