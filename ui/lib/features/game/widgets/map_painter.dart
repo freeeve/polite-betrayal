@@ -380,6 +380,11 @@ class MapPainter extends CustomPainter {
       } else {
         _drawBattleship(canvas, center, color);
       }
+
+      // Draw shield overlay for hold orders during animation.
+      if (order != null && order.orderType == 'hold' && animationProgress != null) {
+        _drawHoldShield(canvas, center, animationProgress!, color);
+      }
     }
   }
 
@@ -631,6 +636,59 @@ class MapPainter extends CustomPainter {
       ..strokeWidth = 1.4);
   }
 
+  /// Draws a shield icon overlay for hold orders during animation.
+  /// The shield pops up (scales from 0 to full size) with a slight fade-in.
+  void _drawHoldShield(Canvas canvas, Offset center, double progress, Color powerColor) {
+    final scale = Curves.elasticOut.transform(math.min(progress * 1.8, 1.0));
+    final opacity = Curves.easeOut.transform(math.min(progress * 2.5, 1.0));
+    if (scale < 0.01 || opacity < 0.01) return;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy - 16);
+    canvas.scale(scale);
+
+    // Shield shape: pointed bottom, flat top with rounded shoulders.
+    final shield = Path()
+      ..moveTo(0, 10)        // bottom point
+      ..lineTo(-8, 2)        // lower-left
+      ..lineTo(-8, -6)       // upper-left
+      ..lineTo(-5, -9)       // top-left shoulder
+      ..lineTo(5, -9)        // top-right shoulder
+      ..lineTo(8, -6)        // upper-right
+      ..lineTo(8, 2)         // lower-right
+      ..close();
+
+    // Dark outline behind for contrast.
+    canvas.drawPath(shield, Paint()
+      ..color = Colors.black.withValues(alpha: opacity * 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0);
+
+    // Filled shield in a muted version of the power color.
+    final fillColor = Color.lerp(powerColor, Colors.white, 0.3)!;
+    canvas.drawPath(shield, Paint()
+      ..color = fillColor.withValues(alpha: opacity * 0.7)
+      ..style = PaintingStyle.fill);
+
+    // Shield border in darker power color.
+    final borderColor = Color.lerp(powerColor, Colors.black, 0.2)!;
+    canvas.drawPath(shield, Paint()
+      ..color = borderColor.withValues(alpha: opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5);
+
+    // Small cross/plus on the shield face for detail.
+    final detailPaint = Paint()
+      ..color = Colors.white.withValues(alpha: opacity * 0.8)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(const Offset(0, -5), const Offset(0, 3), detailPaint);
+    canvas.drawLine(const Offset(-4, -1), const Offset(4, -1), detailPaint);
+
+    canvas.restore();
+  }
+
   /// Draws an animated X overlay for disband animation: fades in red X over the unit.
   void _drawDisbandX(Canvas canvas, Offset center, double progress) {
     final opacity = Curves.easeIn.transform(math.min(progress * 1.5, 1.0));
@@ -770,6 +828,15 @@ class MapPainter extends CustomPainter {
       if (from == null) continue;
 
       final succeeded = order.result == 'succeeds';
+
+      if (order.orderType == 'hold') {
+        // Draw a fully visible shield for hold orders (no animation when static).
+        final color = PowerColors.forPower(order.power);
+        final unitType = order.unitType == 'fleet' ? UnitType.fleet : UnitType.army;
+        final unitCenter = _unitCenterAt(order.location, unitType);
+        _drawHoldShield(canvas, unitCenter, 1.0, color);
+        continue;
+      }
 
       if (order.orderType == 'support' && order.auxLoc != null && order.auxTarget != null) {
         // Support: always yellow dotted
