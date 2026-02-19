@@ -84,6 +84,10 @@ class GameNotifier extends StateNotifier<GameViewState> {
   int _loadGeneration = 0;
   String? _lastAnimatedPhaseId;
 
+  /// Phase ID of a retreat that resolved while a movement animation was playing.
+  /// Checked in clearPreviousGameState() to chain the retreat animation.
+  String? _pendingRetreatPhaseId;
+
   GameNotifier(this._api, this._ws, this.gameId) : super(const GameViewState()) {
     _ws.subscribe(gameId);
     _wsSub = _ws.events.where((e) => e.gameId == gameId).listen(_onEvent);
@@ -195,15 +199,23 @@ class GameNotifier extends StateNotifier<GameViewState> {
             name: 'GameNotifier');
         if ((resolvedType == 'movement' || resolvedType == 'retreat')
             && state.gameState != null
-            && state.previousGameState == null
             && phaseId != _lastAnimatedPhaseId) {
-          _lastAnimatedPhaseId = phaseId;
-          state = state.copyWith(
-            previousGameState: state.gameState,
-            resolvedOrders: [],
-          );
-          dev.log('animation snapshot set (${state.gameState!.units.length} units)',
-              name: 'GameNotifier');
+          if (state.previousGameState == null) {
+            _lastAnimatedPhaseId = phaseId;
+            _pendingRetreatPhaseId = null;
+            state = state.copyWith(
+              previousGameState: state.gameState,
+              resolvedOrders: [],
+            );
+            dev.log('animation snapshot set (${state.gameState!.units.length} units)',
+                name: 'GameNotifier');
+          } else if (resolvedType == 'retreat') {
+            // Retreat resolved while movement animation is still playing.
+            // Queue it so clearPreviousGameState() can chain the retreat animation.
+            _pendingRetreatPhaseId = phaseId;
+            dev.log('retreat animation queued (movement animation in progress)',
+                name: 'GameNotifier');
+          }
         }
         if (phaseId != null) _fetchResolvedOrders(phaseId);
         state = state.copyWith(readyCount: 0);
@@ -275,8 +287,53 @@ class GameNotifier extends StateNotifier<GameViewState> {
     }
   }
 
-  /// Clears the animation snapshot after the movement animation completes.
+  /// Clears the animation snapshot after the animation completes.
+  /// If a retreat phase resolved during the movement animation, chains
+  /// into the retreat animation instead of returning to the live state.
   void clearPreviousGameState() {
+    final pendingRetreat = _pendingRetreatPhaseId;
+    if (pendingRetreat != null) {
+      _pendingRetreatPhaseId = null;
+      _lastAnimatedPhaseId = pendingRetreat;
+      dev.log('chaining retreat animation for phase $pendingRetreat',
+          name: 'GameNotifier');
+      // Fetch the retreat phase to get its stateBefore (which has dislodged units).
+      _loadRetreatPhaseForAnimation(pendingRetreat);
+      return;
+    }
+    state = state.copyWith(clearPreviousGameState: true);
+  }
+
+  /// Loads a retreat phase's stateBefore and resolved orders to start the
+  /// retreat animation after a movement animation completes.
+  Future<void> _loadRetreatPhaseForAnimation(String phaseId) async {
+    try {
+      final resp = await _api.get('/games/$gameId/phases');
+      if (resp.statusCode == 200) {
+        final phases = (jsonDecode(resp.body) as List<dynamic>)
+            .map((e) => Phase.fromJson(e as Map<String, dynamic>))
+            .toList();
+        final retreatPhase = phases.where((p) => p.id == phaseId).firstOrNull;
+        if (retreatPhase != null) {
+          final retreatState = GameState.fromJson(retreatPhase.stateBefore);
+          state = state.copyWith(
+            previousGameState: retreatState,
+            gameState: retreatState,
+            currentPhase: retreatPhase,
+            resolvedOrders: [],
+          );
+          _fetchResolvedOrders(phaseId);
+          dev.log('retreat phase loaded for animation '
+              '(${retreatState.dislodged.length} dislodged units)',
+              name: 'GameNotifier');
+          return;
+        }
+      }
+    } catch (e) {
+      dev.log('failed to load retreat phase for animation: $e',
+          name: 'GameNotifier');
+    }
+    // Fallback: if we can't load the retreat phase, just clear the animation.
     state = state.copyWith(clearPreviousGameState: true);
   }
 
