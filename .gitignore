@@ -17,6 +17,7 @@ api/server
 api/bot
 api/botmatch
 api/bot.test
+api/import_selfplay
 api/tmp/
 api/.air.toml
 *.exe
@@ -50,5 +51,9 @@ engine/target/
 data/processed/
 data/checkpoints/
 
+# === Self-play data ===
+data/selfplay/
+
 # === Misc ===
 *.log
+Request
