@@ -410,3 +410,99 @@ func TestMapProvincesCoverAllBaseAreas(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// encodeBuildDisband tests
+// ---------------------------------------------------------------------------
+
+func TestEncodeBuildDisband_CanBuild(t *testing.T) {
+	m := diplomacy.StandardMap()
+	// Austria has 4 SCs but only 1 unit -> needs 3 builds.
+	gs := &diplomacy.GameState{
+		Year:   1901,
+		Season: diplomacy.Fall,
+		Phase:  diplomacy.PhaseBuild,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "ser"},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"vie": diplomacy.Austria, "bud": diplomacy.Austria,
+			"tri": diplomacy.Austria, "ser": diplomacy.Austria,
+		},
+	}
+
+	tensor := EncodeBoard(gs, m, nil)
+
+	// Vienna, Budapest, Trieste are home centers with no unit -> can build.
+	for _, prov := range []string{"vie", "bud", "tri"} {
+		base := AreaIndex(prov) * NumFeatures
+		if tensor[base+FeatCanBuild] != 1 {
+			t.Errorf("expected FeatCanBuild=1 for %s", prov)
+		}
+	}
+
+	// Ser has a unit, so it should not be marked can-build.
+	serBase := AreaIndex("ser") * NumFeatures
+	if tensor[serBase+FeatCanBuild] != 0 {
+		t.Errorf("Ser (occupied) should not be marked can-build")
+	}
+}
+
+func TestEncodeBuildDisband_MustDisband(t *testing.T) {
+	m := diplomacy.StandardMap()
+	// Austria has 1 SC but 3 units -> needs 2 disbands.
+	gs := &diplomacy.GameState{
+		Year:   1902,
+		Season: diplomacy.Fall,
+		Phase:  diplomacy.PhaseBuild,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "vie"},
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "bud"},
+			{Type: diplomacy.Fleet, Power: diplomacy.Austria, Province: "tri"},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"vie": diplomacy.Austria,
+		},
+	}
+
+	tensor := EncodeBoard(gs, m, nil)
+
+	// All Austrian units should be marked can-disband.
+	for _, prov := range []string{"vie", "bud", "tri"} {
+		base := AreaIndex(prov) * NumFeatures
+		if tensor[base+FeatCanDisband] != 1 {
+			t.Errorf("expected FeatCanDisband=1 for %s", prov)
+		}
+	}
+}
+
+func TestEncodeBuildDisband_Balanced(t *testing.T) {
+	m := diplomacy.StandardMap()
+	// Austria has 3 SCs and 3 units -> no builds or disbands.
+	gs := &diplomacy.GameState{
+		Year:   1901,
+		Season: diplomacy.Fall,
+		Phase:  diplomacy.PhaseBuild,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "vie"},
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "bud"},
+			{Type: diplomacy.Fleet, Power: diplomacy.Austria, Province: "tri"},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"vie": diplomacy.Austria, "bud": diplomacy.Austria, "tri": diplomacy.Austria,
+		},
+	}
+
+	tensor := EncodeBoard(gs, m, nil)
+
+	// No can-build or can-disband flags.
+	for _, prov := range []string{"vie", "bud", "tri"} {
+		base := AreaIndex(prov) * NumFeatures
+		if tensor[base+FeatCanBuild] != 0 {
+			t.Errorf("%s should not have FeatCanBuild", prov)
+		}
+		if tensor[base+FeatCanDisband] != 0 {
+			t.Errorf("%s should not have FeatCanDisband", prov)
+		}
+	}
+}

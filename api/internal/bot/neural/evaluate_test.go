@@ -728,3 +728,93 @@ func TestEvalUnitCanReach(t *testing.T) {
 		t.Error("Fleet in Lon should reach Eng")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// scoreHold: threatened own SC path
+// ---------------------------------------------------------------------------
+
+func TestScoreOrder_HoldOnThreatenedOwnSC(t *testing.T) {
+	m := diplomacy.StandardMap()
+	gs := &diplomacy.GameState{
+		Year:   1903,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseMovement,
+		SupplyCenters: map[string]diplomacy.Power{
+			"vie": diplomacy.Austria, "bud": diplomacy.Austria,
+		},
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "vie"},
+			// Enemy adjacent to vie => threat > 0
+			{Type: diplomacy.Army, Power: diplomacy.Russia, Province: "boh"},
+		},
+	}
+
+	hold := diplomacy.Order{
+		UnitType: diplomacy.Army,
+		Power:    diplomacy.Austria,
+		Location: "vie",
+		Type:     diplomacy.OrderHold,
+	}
+	score := ScoreOrder(hold, gs, diplomacy.Austria, m)
+	// 3.0 + threat(>=1) - 1.0 should be > 0
+	if score <= 0 {
+		t.Errorf("hold on threatened own SC should be positive, got %.1f", score)
+	}
+}
+
+func TestScoreOrder_HoldFallPenalty(t *testing.T) {
+	m := diplomacy.StandardMap()
+	// Fall: holding on a home SC when builds are pending blocks construction.
+	gs := &diplomacy.GameState{
+		Year:   1902,
+		Season: diplomacy.Fall,
+		Phase:  diplomacy.PhaseMovement,
+		SupplyCenters: map[string]diplomacy.Power{
+			"vie": diplomacy.Austria, "bud": diplomacy.Austria,
+			"tri": diplomacy.Austria, "ser": diplomacy.Austria,
+		},
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "vie"},
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "bud"},
+			{Type: diplomacy.Fleet, Power: diplomacy.Austria, Province: "tri"},
+		},
+	}
+
+	// 4 SCs, 3 units => 1 pending build.
+	// Home SCs: vie, bud, tri. All occupied => 0 free homes < 1 pending build.
+	holdOnHome := diplomacy.Order{
+		UnitType: diplomacy.Army,
+		Power:    diplomacy.Austria,
+		Location: "vie",
+		Type:     diplomacy.OrderHold,
+	}
+	score := ScoreOrder(holdOnHome, gs, diplomacy.Austria, m)
+	// Should get -8.0 fall penalty + -1.0 base
+	if score >= -2.0 {
+		t.Errorf("hold on home SC with pending builds should be heavily penalized, got %.1f", score)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// unoccupiedHomeSCCount test
+// ---------------------------------------------------------------------------
+
+func TestUnoccupiedHomeSCCount(t *testing.T) {
+	m := diplomacy.StandardMap()
+	gs := &diplomacy.GameState{
+		Year:   1901,
+		Season: diplomacy.Fall,
+		Phase:  diplomacy.PhaseMovement,
+		SupplyCenters: map[string]diplomacy.Power{
+			"vie": diplomacy.Austria, "bud": diplomacy.Austria, "tri": diplomacy.Austria,
+		},
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.Austria, Province: "vie"},
+		},
+	}
+	// Only vie occupied, bud and tri are free home SCs.
+	count := unoccupiedHomeSCCount(diplomacy.Austria, gs, m)
+	if count != 2 {
+		t.Errorf("expected 2 unoccupied home SCs, got %d", count)
+	}
+}

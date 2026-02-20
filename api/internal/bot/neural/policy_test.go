@@ -243,3 +243,149 @@ func parseUnitType(s string) diplomacy.UnitType {
 	}
 	return diplomacy.Army
 }
+
+// ---------------------------------------------------------------------------
+// DecodeRetreatLogits tests
+// ---------------------------------------------------------------------------
+
+func TestDecodeRetreatLogits_BasicRetreat(t *testing.T) {
+	m := diplomacy.StandardMap()
+	gs := &diplomacy.GameState{
+		Year:   1901,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseRetreat,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "bur"},
+		},
+		Dislodged: []diplomacy.DislodgedUnit{
+			{
+				Unit:          diplomacy.Unit{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "bur"},
+				DislodgedFrom: "bur",
+				AttackerFrom:  "par",
+			},
+		},
+		SupplyCenters: map[string]diplomacy.Power{
+			"par": diplomacy.France,
+			"mun": diplomacy.Germany,
+		},
+	}
+
+	logits := make([]float32, MaxUnits*OrderVocabSize)
+	// Boost retreat type and destination mun
+	logits[OrderTypeRetreat] = 10.0
+	logits[SrcOffset+AreaIndex("bur")] = 2.0
+	logits[DstOffset+AreaIndex("mun")] = 8.0
+
+	orders := DecodeRetreatLogits(logits, gs, diplomacy.Germany, m)
+	if len(orders) != 1 {
+		t.Fatalf("expected 1 retreat order, got %d", len(orders))
+	}
+	if orders[0].OrderType != "retreat_move" {
+		t.Errorf("expected retreat_move, got %s", orders[0].OrderType)
+	}
+}
+
+func TestDecodeRetreatLogits_NoRetreatOptions(t *testing.T) {
+	m := diplomacy.StandardMap()
+	// All retreat options blocked by units
+	gs := &diplomacy.GameState{
+		Year:   1901,
+		Season: diplomacy.Spring,
+		Phase:  diplomacy.PhaseRetreat,
+		Units: []diplomacy.Unit{
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "bur"},
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "ruh"},
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "bel"},
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "pic"},
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "mar"},
+			{Type: diplomacy.Army, Power: diplomacy.France, Province: "gas"},
+			{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "mun"},
+		},
+		Dislodged: []diplomacy.DislodgedUnit{
+			{
+				Unit:          diplomacy.Unit{Type: diplomacy.Army, Power: diplomacy.Germany, Province: "bur"},
+				DislodgedFrom: "bur",
+				AttackerFrom:  "par",
+			},
+		},
+		SupplyCenters: map[string]diplomacy.Power{},
+	}
+
+	logits := make([]float32, MaxUnits*OrderVocabSize)
+	orders := DecodeRetreatLogits(logits, gs, diplomacy.Germany, m)
+	if len(orders) != 1 {
+		t.Fatalf("expected 1 retreat order, got %d", len(orders))
+	}
+	// With no valid retreat targets, should get a disband
+	if orders[0].OrderType != "retreat_disband" {
+		t.Errorf("expected retreat_disband, got %s", orders[0].OrderType)
+	}
+}
+
+func TestDecodeRetreatLogits_NoDislodgedUnits(t *testing.T) {
+	m := diplomacy.StandardMap()
+	gs := &diplomacy.GameState{
+		Year:          1901,
+		Season:        diplomacy.Spring,
+		Phase:         diplomacy.PhaseRetreat,
+		Units:         nil,
+		Dislodged:     nil,
+		SupplyCenters: map[string]diplomacy.Power{},
+	}
+
+	logits := make([]float32, MaxUnits*OrderVocabSize)
+	orders := DecodeRetreatLogits(logits, gs, diplomacy.Austria, m)
+	if len(orders) != 0 {
+		t.Errorf("expected 0 orders for power with no dislodged units, got %d", len(orders))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// areaForTarget tests
+// ---------------------------------------------------------------------------
+
+func TestAreaForTarget_Bicoastal(t *testing.T) {
+	idx := areaForTarget("bul", "ec")
+	if idx != BulEC {
+		t.Errorf("expected BulEC (%d), got %d", BulEC, idx)
+	}
+
+	idx = areaForTarget("spa", "nc")
+	if idx != SpaNC {
+		t.Errorf("expected SpaNC (%d), got %d", SpaNC, idx)
+	}
+}
+
+func TestAreaForTarget_NoCoast(t *testing.T) {
+	idx := areaForTarget("vie", "")
+	expected := AreaIndex("vie")
+	if idx != expected {
+		t.Errorf("expected %d, got %d", expected, idx)
+	}
+}
+
+func TestAreaForTarget_InvalidCoast(t *testing.T) {
+	// Non-bicoastal province with a coast falls through to AreaIndex
+	idx := areaForTarget("lon", "nc")
+	expected := AreaIndex("lon")
+	if idx != expected {
+		t.Errorf("expected %d, got %d", expected, idx)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SoftmaxWeights edge case
+// ---------------------------------------------------------------------------
+
+func TestSoftmaxWeightsIdentical(t *testing.T) {
+	weights := SoftmaxWeights([]float32{5, 5, 5})
+	if len(weights) != 3 {
+		t.Fatalf("expected 3 weights, got %d", len(weights))
+	}
+	// All identical => uniform
+	for i, w := range weights {
+		if math.Abs(w-1.0/3.0) > 0.001 {
+			t.Errorf("weight[%d] = %f, want ~0.333", i, w)
+		}
+	}
+}

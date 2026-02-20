@@ -442,3 +442,212 @@ func TestDedupGreedyOrders_NoCollision(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// pickNonCollidingExclude tests
+// ---------------------------------------------------------------------------
+
+func TestPickNonCollidingExclude_SkipsExcluded(t *testing.T) {
+	power := diplomacy.Austria
+	cands := []scoredCandidate{
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "ser"}, score: 10},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "rum"}, score: 8},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderHold}, score: 5},
+	}
+
+	excluded := map[string]bool{"ser": true}
+	picked := pickNonCollidingExclude(cands, excluded)
+	if picked.Type != diplomacy.OrderMove || picked.Target != "rum" {
+		t.Errorf("expected move to rum, got %s to %s", picked.Type.String(), picked.Target)
+	}
+}
+
+func TestPickNonCollidingExclude_FallsBackToHold(t *testing.T) {
+	power := diplomacy.Austria
+	cands := []scoredCandidate{
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "ser"}, score: 10},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderHold}, score: 5},
+	}
+
+	excluded := map[string]bool{"ser": true}
+	picked := pickNonCollidingExclude(cands, excluded)
+	if picked.Type != diplomacy.OrderHold {
+		t.Errorf("expected hold, got %s", picked.Type.String())
+	}
+}
+
+func TestPickNonCollidingExclude_AllExcludedReturnsHold(t *testing.T) {
+	power := diplomacy.Austria
+	cands := []scoredCandidate{
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "ser"}, score: 10},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderSupport, AuxLoc: "vie"}, score: 5},
+	}
+
+	excluded := map[string]bool{"ser": true}
+	picked := pickNonCollidingExclude(cands, excluded)
+	if picked.Type != diplomacy.OrderHold {
+		t.Errorf("expected fallback hold, got %s", picked.Type.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// scoreOrderNeural additional coverage
+// ---------------------------------------------------------------------------
+
+func TestScoreOrderNeural_SupportHold(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	logits[OrderTypeSupport] = 2.0
+	logits[SrcOffset+AreaIndex("vie")] = 1.0
+	logits[DstOffset+AreaIndex("bud")] = 4.0
+
+	order := diplomacy.Order{
+		UnitType: diplomacy.Army, Power: diplomacy.Austria,
+		Location: "vie", Type: diplomacy.OrderSupport,
+		AuxLoc: "bud", AuxUnitType: diplomacy.Army,
+	}
+
+	score := scoreOrderNeural(order, logits)
+	expected := float32(7.0) // 2 + 1 + 4
+	if score != expected {
+		t.Errorf("expected %.1f, got %.1f", expected, score)
+	}
+}
+
+func TestScoreOrderNeural_Convoy(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	logits[OrderTypeConvoy] = 3.0
+	logits[SrcOffset+AreaIndex("nth")] = 2.0
+	logits[DstOffset+AreaIndex("nwy")] = 4.0
+
+	order := diplomacy.Order{
+		UnitType: diplomacy.Fleet, Power: diplomacy.England,
+		Location: "nth", Type: diplomacy.OrderConvoy,
+		AuxLoc: "lon", AuxTarget: "nwy", AuxUnitType: diplomacy.Army,
+	}
+
+	score := scoreOrderNeural(order, logits)
+	expected := float32(9.0)
+	if score != expected {
+		t.Errorf("expected %.1f, got %.1f", expected, score)
+	}
+}
+
+func TestScoreOrderNeural_ShortLogits(t *testing.T) {
+	logits := make([]float32, 10) // too short
+	order := diplomacy.Order{
+		UnitType: diplomacy.Army, Power: diplomacy.Austria,
+		Location: "vie", Type: diplomacy.OrderHold,
+	}
+	score := scoreOrderNeural(order, logits)
+	if score != 0 {
+		t.Errorf("expected 0 for short logits, got %.1f", score)
+	}
+}
+
+func TestScoreOrderNeural_UnknownSrc(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	order := diplomacy.Order{
+		UnitType: diplomacy.Army, Power: diplomacy.Austria,
+		Location: "nonexistent", Type: diplomacy.OrderHold,
+	}
+	score := scoreOrderNeural(order, logits)
+	if score != 0 {
+		t.Errorf("expected 0 for unknown location, got %.1f", score)
+	}
+}
+
+func TestScoreOrderNeural_MoveUnknownDst(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	logits[OrderTypeMove] = 5.0
+	logits[SrcOffset+AreaIndex("vie")] = 2.0
+
+	order := diplomacy.Order{
+		UnitType: diplomacy.Army, Power: diplomacy.Austria,
+		Location: "vie", Type: diplomacy.OrderMove,
+		Target: "nonexistent",
+	}
+	score := scoreOrderNeural(order, logits)
+	if score != 0 {
+		t.Errorf("expected 0 for unknown target, got %.1f", score)
+	}
+}
+
+func TestScoreOrderNeural_ConvoyUnknownDst(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	order := diplomacy.Order{
+		UnitType: diplomacy.Fleet, Power: diplomacy.England,
+		Location: "nth", Type: diplomacy.OrderConvoy,
+		AuxLoc: "lon", AuxTarget: "nonexistent",
+	}
+	score := scoreOrderNeural(order, logits)
+	if score != 0 {
+		t.Errorf("expected 0 for unknown convoy target, got %.1f", score)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// areaForOrder tests
+// ---------------------------------------------------------------------------
+
+func TestAreaForOrder_BicoastalTarget(t *testing.T) {
+	idx := areaForOrder("bul", diplomacy.EastCoast)
+	if idx != BulEC {
+		t.Errorf("expected BulEC (%d), got %d", BulEC, idx)
+	}
+
+	idx = areaForOrder("stp", diplomacy.SouthCoast)
+	if idx != StpSC {
+		t.Errorf("expected StpSC (%d), got %d", StpSC, idx)
+	}
+}
+
+func TestAreaForOrder_NoCoast(t *testing.T) {
+	idx := areaForOrder("vie", diplomacy.NoCoast)
+	expected := AreaIndex("vie")
+	if idx != expected {
+		t.Errorf("expected %d, got %d", expected, idx)
+	}
+}
+
+func TestAreaForOrder_NonBicoastalCoast(t *testing.T) {
+	// Province with a coast but not bicoastal should fall through to AreaIndex.
+	idx := areaForOrder("lon", diplomacy.NorthCoast)
+	expected := AreaIndex("lon")
+	if idx != expected {
+		t.Errorf("expected %d, got %d", expected, idx)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// pickNonColliding additional tests
+// ---------------------------------------------------------------------------
+
+func TestPickNonColliding_PicksAlternateMove(t *testing.T) {
+	power := diplomacy.Austria
+	cands := []scoredCandidate{
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "ser"}, score: 10},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "rum"}, score: 8},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderSupport, AuxLoc: "vie"}, score: 5},
+	}
+
+	claimed := map[string]bool{"ser": true}
+	picked := pickNonColliding(cands, claimed)
+	if picked.Type != diplomacy.OrderMove || picked.Target != "rum" {
+		t.Errorf("expected move to rum, got %s to %s", picked.Type.String(), picked.Target)
+	}
+}
+
+func TestPickNonColliding_FallsBackToHold(t *testing.T) {
+	power := diplomacy.Austria
+	cands := []scoredCandidate{
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderMove, Target: "ser"}, score: 10},
+		{order: diplomacy.Order{UnitType: diplomacy.Army, Power: power, Location: "bud", Type: diplomacy.OrderSupport, AuxLoc: "vie"}, score: 5},
+	}
+
+	claimed := map[string]bool{"ser": true}
+	picked := pickNonColliding(cands, claimed)
+	// All moves are claimed, only non-move is support, falls through to default hold.
+	if picked.Type != diplomacy.OrderHold {
+		t.Errorf("expected hold fallback, got %s", picked.Type.String())
+	}
+}

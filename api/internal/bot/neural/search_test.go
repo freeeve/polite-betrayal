@@ -182,6 +182,70 @@ func TestScoreOrderWithLogits_UnknownProvince(t *testing.T) {
 	}
 }
 
+func TestScoreOrderWithLogits_Convoy(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	logits[OrderTypeConvoy] = 3.0
+	nthArea := AreaIndex("nth")
+	nwyArea := AreaIndex("nwy")
+	logits[SrcOffset+nthArea] = 2.0
+	logits[DstOffset+nwyArea] = 4.0
+
+	order := diplomacy.Order{
+		Type:        diplomacy.OrderConvoy,
+		Location:    "nth",
+		AuxLoc:      "lon",
+		AuxTarget:   "nwy",
+		AuxUnitType: diplomacy.Army,
+		Power:       diplomacy.England,
+	}
+	score := scoreOrderWithLogits(order, logits)
+	if math.Abs(float64(score)-9.0) > 0.001 {
+		t.Errorf("expected 9.0, got %f", score)
+	}
+}
+
+func TestScoreOrderWithLogits_ConvoyUnknownDst(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	logits[OrderTypeConvoy] = 3.0
+	nthArea := AreaIndex("nth")
+	logits[SrcOffset+nthArea] = 2.0
+
+	order := diplomacy.Order{
+		Type:      diplomacy.OrderConvoy,
+		Location:  "nth",
+		AuxLoc:    "lon",
+		AuxTarget: "nonexistent",
+		Power:     diplomacy.England,
+	}
+	score := scoreOrderWithLogits(order, logits)
+	// Unknown AuxTarget => only type + src
+	expected := float32(5.0) // 3.0 + 2.0
+	if math.Abs(float64(score-expected)) > 0.001 {
+		t.Errorf("expected %f, got %f", expected, score)
+	}
+}
+
+func TestScoreOrderWithLogits_MoveWithCoast(t *testing.T) {
+	logits := make([]float32, OrderVocabSize)
+	logits[OrderTypeMove] = 4.0
+	conArea := AreaIndex("con")
+	logits[SrcOffset+conArea] = 2.0
+	logits[DstOffset+BulSC] = 6.0
+
+	order := diplomacy.Order{
+		Type:        diplomacy.OrderMove,
+		Location:    "con",
+		Target:      "bul",
+		TargetCoast: diplomacy.SouthCoast,
+		Power:       diplomacy.Turkey,
+	}
+	score := scoreOrderWithLogits(order, logits)
+	expected := float32(12.0) // 4 + 2 + 6
+	if math.Abs(float64(score-expected)) > 0.001 {
+		t.Errorf("expected %f, got %f", expected, score)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // evaluateBlended tests
 // ---------------------------------------------------------------------------
