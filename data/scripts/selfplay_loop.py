@@ -20,6 +20,7 @@ See --help for all options.
 import argparse
 import json
 import logging
+import os
 import signal as signal_mod
 import shutil
 import subprocess
@@ -93,22 +94,32 @@ def start_follow_importer(args, root: Path, iter_dir: Path, iteration: int) -> s
         log.info("[iter %d follow-importer] (dry run, skipping)", iteration)
         return None
 
-    proc = subprocess.Popen(cmd, cwd=str(root / "api"))
+    proc = subprocess.Popen(cmd, cwd=str(root / "api"), start_new_session=True)
     log.info("[iter %d follow-importer] started (pid %d)", iteration, proc.pid)
     return proc
 
 
 def stop_follow_importer(proc: subprocess.Popen | None, iteration: int):
-    """Send SIGINT to the follow importer and wait for it to exit."""
+    """Kill the follow importer process group and wait for it to exit.
+
+    Uses os.killpg to kill the entire process group because `go run` spawns
+    a child process that doesn't receive SIGINT when only the parent is signaled.
+    """
     if proc is None:
         return
     log.info("[iter %d follow-importer] stopping (pid %d)", iteration, proc.pid)
-    proc.send_signal(signal_mod.SIGINT)
     try:
-        proc.wait(timeout=15)
+        os.killpg(os.getpgid(proc.pid), signal_mod.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
         log.warning("[iter %d follow-importer] did not exit in time, killing", iteration)
-        proc.kill()
+        try:
+            os.killpg(os.getpgid(proc.pid), signal_mod.SIGKILL)
+        except ProcessLookupError:
+            pass
         proc.wait()
     log.info("[iter %d follow-importer] stopped", iteration)
 
