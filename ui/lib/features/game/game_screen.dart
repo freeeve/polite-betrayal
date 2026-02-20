@@ -115,16 +115,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           final nowSpring = gameViewState.currentPhase?.season == 'spring';
           final buildPhaseOccurred = wasBuildPhase || (unitsChanged && nowSpring);
 
-          if (buildPhaseOccurred) {
+          if (buildPhaseOccurred && wasBuildPhase) {
+            // Directly observed build phase: diff is accurate
             final added = newProvinces.difference(_previousPhaseUnitProvinces!);
             _newUnitProvinces = added.isNotEmpty ? added : {};
+            if (!_isInitialLoad) {
+              _computeBuildDisbandAnimation(newState, _previousPhaseUnitProvinces!);
+            }
           } else {
+            // Inferred build (phases skipped) or no build: skip animation
+            // since we can't distinguish moved units from built/disbanded ones
             _newUnitProvinces = {};
-          }
-
-          // Compute build/disband animation sets.
-          if (!_isInitialLoad && buildPhaseOccurred) {
-            _computeBuildDisbandAnimation(newState, _previousPhaseUnitProvinces!);
           }
         } else {
           _newUnitProvinces = {};
