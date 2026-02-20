@@ -30,6 +30,7 @@ func newGonnxOrFallback() Strategy {
 // and decodes policy logits into scored legal orders.
 type GonnxStrategy struct {
 	policy *gonnx.Model
+	value  *gonnx.Model
 	adj    []float32
 	mu     sync.Mutex
 }
@@ -47,11 +48,18 @@ func newGonnxStrategy() (*GonnxStrategy, error) {
 		return nil, err
 	}
 
+	valuePath := path + "/value_v2.onnx"
+	value, err := gonnx.NewModelFromFile(valuePath)
+	if err != nil {
+		log.Printf("bot/gonnx: value model not found at %s: %v (value eval disabled)", valuePath, err)
+	}
+
 	m := diplomacy.StandardMap()
 	adj := neural.BuildAdjacencyMatrix(m)
 
 	return &GonnxStrategy{
 		policy: policy,
+		value:  value,
 		adj:    adj,
 	}, nil
 }
