@@ -81,7 +81,7 @@ def start_follow_importer(args, root: Path, iter_dir: Path, iteration: int) -> s
 
     games_file = iter_dir / "games.jsonl"
     cmd = [
-        "go", "run", str(root / "api" / "cmd" / "import_selfplay"),
+        "go", "run", "./cmd/import_selfplay",
         "--input", str(games_file),
         "--db", args.db_url,
         "--name-prefix", f"selfplay-iter{iteration:03d}",
@@ -93,7 +93,7 @@ def start_follow_importer(args, root: Path, iter_dir: Path, iteration: int) -> s
         log.info("[iter %d follow-importer] (dry run, skipping)", iteration)
         return None
 
-    proc = subprocess.Popen(cmd, cwd=str(root))
+    proc = subprocess.Popen(cmd, cwd=str(root / "api"))
     log.info("[iter %d follow-importer] started (pid %d)", iteration, proc.pid)
     return proc
 
