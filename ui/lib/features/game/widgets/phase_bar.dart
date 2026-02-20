@@ -7,8 +7,9 @@ import 'countdown_timer.dart';
 class PhaseBar extends StatelessWidget {
   final Phase? phase;
   final int readyCount;
+  final VoidCallback? onUrgent;
 
-  const PhaseBar({super.key, this.phase, this.readyCount = 0});
+  const PhaseBar({super.key, this.phase, this.readyCount = 0, this.onUrgent});
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +57,7 @@ class PhaseBar extends StatelessWidget {
             const SizedBox(width: 4),
             Text('Ready $readyCount/7'),
             const SizedBox(width: 16),
-            CountdownTimer(deadline: p.deadline),
+            CountdownTimer(deadline: p.deadline, onUrgent: onUrgent),
           ] else
             const Text('Resolved', style: TextStyle(color: Colors.grey)),
         ],

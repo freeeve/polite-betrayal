@@ -521,7 +521,25 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
         final phaseHeader = isFinished
             ? _GameOverBanner(winner: game.winner)
-            : PhaseBar(phase: state.currentPhase, readyCount: state.readyCount);
+            : PhaseBar(
+                phase: state.currentPhase,
+                readyCount: state.readyCount,
+                onUrgent: myPower != null ? () {
+                  if (_orderState.ready) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Time is running out! Submit your orders.'),
+                      backgroundColor: Colors.amber.shade700,
+                      duration: const Duration(seconds: 6),
+                      action: SnackBarAction(
+                        label: 'Dismiss',
+                        textColor: Colors.white,
+                        onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+                      ),
+                    ),
+                  );
+                } : null,
+              );
 
         final phaseResultsOverlay = _showResults && state.resolvedOrders.isNotEmpty && !isViewingHistory
             ? PhaseResults(
