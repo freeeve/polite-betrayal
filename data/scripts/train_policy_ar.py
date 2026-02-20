@@ -83,6 +83,16 @@ class DiplomacyDataset(Dataset):
         has_src = src_section.sum(dim=-1) > 0
         unit_indices[~has_src] = -1
 
+        # Sort valid orders by source province index (ascending) for
+        # deterministic autoregressive decoding order. Padding stays at end.
+        n_valid = has_src.sum().item()
+        if n_valid > 1:
+            valid_idx = unit_indices[:n_valid]
+            sort_perm = valid_idx.argsort()
+            order_labels[:n_valid] = order_labels[:n_valid][sort_perm]
+            order_mask[:n_valid] = order_mask[:n_valid][sort_perm]
+            unit_indices[:n_valid] = unit_indices[:n_valid][sort_perm]
+
         return {
             "board": board,
             "order_labels": order_labels,
@@ -330,6 +340,7 @@ def train(args):
     history = []
     best_val_loss = float("inf")
     best_epoch = 0
+    patience_counter = 0
     global_step = 0
 
     log.info(
@@ -406,6 +417,7 @@ def train(args):
         if val_metrics["loss"] < best_val_loss:
             best_val_loss = val_metrics["loss"]
             best_epoch = epoch
+            patience_counter = 0
             ckpt_path = ckpt_dir / "best_policy_ar.pt"
             torch.save({
                 "epoch": epoch,
@@ -417,6 +429,11 @@ def train(args):
                 "args": vars(args),
             }, ckpt_path)
             log.info("  Saved best checkpoint (val_loss=%.4f) to %s", best_val_loss, ckpt_path)
+        else:
+            patience_counter += 1
+            if args.patience > 0 and patience_counter >= args.patience:
+                log.info("Early stopping at epoch %d (no improvement for %d epochs)", epoch, args.patience)
+                break
 
         if epoch % args.save_every == 0:
             ckpt_path = ckpt_dir / f"policy_ar_epoch{epoch:03d}.pt"
@@ -486,6 +503,7 @@ def main():
     parser.add_argument("--decoder-layers", type=int, default=2, help="Decoder layers")
     parser.add_argument("--decoder-heads", type=int, default=4, help="Decoder attention heads")
     parser.add_argument("--dropout", type=float, default=0.15)
+    parser.add_argument("--patience", type=int, default=10, help="Early stopping patience (0 to disable)")
     parser.add_argument("--log-interval", type=int, default=50)
     parser.add_argument("--save-every", type=int, default=10)
 

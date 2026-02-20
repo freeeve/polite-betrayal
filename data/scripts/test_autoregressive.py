@@ -563,6 +563,49 @@ class TestEndToEnd:
             assert logits.shape[0] == 4
             assert logits.shape[2] == ORDER_VOCAB_SIZE
 
+    def test_dataset_orders_sorted_by_province(self):
+        """Verify dataset sorts orders by source province index."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create data where orders are intentionally unsorted
+            n_samples = 5
+            max_orders = 4
+            boards = np.random.randn(n_samples, NUM_AREAS, NUM_FEATURES).astype(np.float32)
+            order_labels = np.zeros((n_samples, max_orders, ORDER_VOCAB_SIZE), dtype=np.float32)
+            order_masks = np.zeros((n_samples, max_orders), dtype=np.float32)
+            power_indices = np.zeros(n_samples, dtype=np.int32)
+            values = np.zeros((n_samples, 4), dtype=np.float32)
+
+            # Sample 0: provinces [30, 10, 20] (unsorted)
+            for j, src in enumerate([30, 10, 20]):
+                order_labels[0, j, 0] = 1.0  # hold
+                order_labels[0, j, 7 + src] = 1.0
+                order_masks[0, j] = 1.0
+
+            path = Path(tmpdir) / "test.npz"
+            np.savez_compressed(
+                path, boards=boards, order_labels=order_labels,
+                order_masks=order_masks, power_indices=power_indices,
+                values=values, years=np.full(n_samples, 1901, dtype=np.int32),
+            )
+
+            ds = DiplomacyDataset(path)
+            sample = ds[0]
+            unit_idx = sample["unit_indices"]
+            valid = unit_idx[:3]
+
+            # Should be sorted: [10, 20, 30]
+            assert valid[0].item() == 10, f"Expected 10, got {valid[0].item()}"
+            assert valid[1].item() == 20, f"Expected 20, got {valid[1].item()}"
+            assert valid[2].item() == 30, f"Expected 30, got {valid[2].item()}"
+
+            # Order labels should be reordered to match
+            src_10 = sample["order_labels"][0, 7 + 10].item()
+            src_20 = sample["order_labels"][1, 7 + 20].item()
+            src_30 = sample["order_labels"][2, 7 + 30].item()
+            assert src_10 == 1.0, "First order should have src=10"
+            assert src_20 == 1.0, "Second order should have src=20"
+            assert src_30 == 1.0, "Third order should have src=30"
+
 
 def run_all_tests():
     """Run all test classes and report results."""
