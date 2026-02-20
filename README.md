@@ -148,11 +148,12 @@ Results are saved to `benchmarks/` as dated markdown files.
 | Bot | Engine | Description |
 |-----|--------|-------------|
 | Random | Go | Random valid moves |
-| Easy | Go | Rule-based heuristics with opening book |
-| Medium | Go | Minimax search with evaluation function |
-| Hard | Rust | Neural network policy + value nets with regret matching search |
+| Easy | Go | Score-based greedy heuristics with opportunistic supports |
+| Medium | Go | Opening book + candidate generation with 1-ply lookahead |
+| Hard | Go | Cicero-inspired candidate postures with regret matching (4-ply) |
+| Realpolitik | Rust | Neural network policy/value nets with regret matching search |
 
-The Hard bot connects to the Rust engine via `REALPOLITIK_PATH`. It uses the opening book through 1907, then switches to neural network search.
+The Realpolitik bot connects to the Rust engine via `REALPOLITIK_PATH`. It uses the opening book through 1907, then switches to neural network search.
 
 ## Development
 
