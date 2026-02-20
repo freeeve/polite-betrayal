@@ -7,8 +7,8 @@ Arena benchmark results for Polite Betrayal Diplomacy bots. Each matchup pits on
 | Matchup | Best Win Rate | Games | Date | Notes | Link |
 |---------|--------------|-------|------|-------|------|
 | Easy vs Random | 100% | 700 | 2026-02-18 | All 7 powers, 100 games each | [link](easy-vs-random/2026-02-18-all-powers-post-perf.md) |
-| Medium vs Easy | 35% (best power: Turkey 65%) | 700 | 2026-02-18 | Exp F blend (best config); overall 35% | [link](experiments/2026-02-18-ply-experiment-f.md) |
-| Rust vs Easy | 22.5% (partial, 4/7 powers) | 40 | 2026-02-18 | Post-phantom-fix; France/Germany 40% | [link](rust-vs-medium/2026-02-18-post-phantom-fix.md) |
+| Medium vs Easy | 35% (best power: Turkey 65%) | 700 | 2026-02-18 | Exp F blend (best config); overall 35% | [link](experiments/2026-02-18-06-ply-experiment-f.md) |
+| Rust vs Easy | 22.5% (partial, 4/7 powers) | 40 | 2026-02-18 | Post-phantom-fix; France/Germany 40% | [link](rust-vs-medium/2026-02-18-05-post-phantom-fix.md) |
 | Rust vs Medium | 20% | 70 | 2026-02-19 | Pre-new-model baseline; France 60% | [link](rust-vs-medium/2026-02-19-pre-newmodel.md) |
 | Hard vs Medium | 15.7% | 70 | 2026-02-19 | Turkey 40% best power | [link](hard-vs-medium/2026-02-18-baseline-s7.md) |
 | Rust vs Hard | 20% vs 14.3% | 70 each | 2026-02-19 | Rust outperforms Hard vs Medium opponents | [link](rust-vs-hard/2026-02-19-comparison.md) |
@@ -34,11 +34,11 @@ Medium bot (1) vs Easy bots (6). Target: ~100% win rate.
 
 | Run | Date | Games | Overall Win% | Best Power | Notes | Link |
 |-----|------|-------|-------------|------------|-------|------|
-| France+Turkey only | 2026-02-17 | 40 | France 35%, Turkey 25% | France 35% | Initial 2-power probe | [link](medium-vs-easy/2026-02-17.md) |
-| With opening book | 2026-02-17 | 40 | France 40%, Turkey 25% | France 40% | Marginal book improvement | [link](medium-vs-easy/2026-02-17-with-book.md) |
-| All powers | 2026-02-17 | 700 | 13% | France 33%, Turkey 31% | First full all-powers run | [link](medium-vs-easy/2026-02-17-all-powers.md) |
-| Pre-support baseline | 2026-02-18 | 700 | 23% | Turkey 51%, France 44% | Post-neural integration | [link](medium-vs-easy/2026-02-18-all-powers-pre-support.md) |
-| Post-support | 2026-02-18 | 700 | 21.4% | Turkey 45%, France 40% | Support changes: Russia +7pp, Austria -5pp | [link](medium-vs-easy/2026-02-18-all-powers-post-support.md) |
+| France+Turkey only | 2026-02-17 | 40 | France 35%, Turkey 25% | France 35% | Initial 2-power probe | [link](medium-vs-easy/2026-02-17-01-france-turkey.md) |
+| With opening book | 2026-02-17 | 40 | France 40%, Turkey 25% | France 40% | Marginal book improvement | [link](medium-vs-easy/2026-02-17-02-with-book.md) |
+| All powers | 2026-02-17 | 700 | 13% | France 33%, Turkey 31% | First full all-powers run | [link](medium-vs-easy/2026-02-17-03-all-powers.md) |
+| Pre-support baseline | 2026-02-18 | 700 | 23% | Turkey 51%, France 44% | Post-neural integration | [link](medium-vs-easy/2026-02-18-01-all-powers-pre-support.md) |
+| Post-support | 2026-02-18 | 700 | 21.4% | Turkey 45%, France 40% | Support changes: Russia +7pp, Austria -5pp | [link](medium-vs-easy/2026-02-18-02-all-powers-post-support.md) |
 
 **Best configuration from experiments**: Experiment F (3-ply blend 0.5/0.2/0.3) achieved **35.3%** overall win rate with France 63%, Turkey 67%, England 41%. See [Experiments](#experiments) section.
 
@@ -56,10 +56,10 @@ Rust engine (1) vs Easy bots (6). Target: >80% win rate.
 
 | Run | Date | Games | Overall Win% | Best Power | Notes | Link |
 |-----|------|-------|-------------|------------|-------|------|
-| Phase 2 (France only) | 2026-02-18 | 10 | 30% | France 30% | Initial RM+ baseline, France only | [link](rust-vs-medium/2026-02-18-phase2-vs-go.md) |
-| Pre-improvement baseline | 2026-02-18 | 21 | 10% | France/Turkey 33% | All powers, 3 games each | [link](rust-vs-easy/2026-02-18-all-powers.md) |
-| Post-improvements | 2026-02-18 | 21 | 10% | France 67% | All engine improvements stacked | [link](rust-vs-easy/2026-02-18-all-powers-post-improvements.md) |
-| Post-phantom-fix | 2026-02-18 | 40 | 22.5% | France/Germany 40% | 10 games/power, 4 of 7 powers complete | [link](rust-vs-medium/2026-02-18-post-phantom-fix.md) |
+| Phase 2 (France only) | 2026-02-18 | 10 | 30% | France 30% | Initial RM+ baseline, France only | [link](rust-vs-medium/2026-02-18-01-phase2-vs-go.md) |
+| Pre-improvement baseline | 2026-02-18 | 21 | 10% | France/Turkey 33% | All powers, 3 games each | [link](rust-vs-easy/2026-02-18-01-all-powers.md) |
+| Post-improvements | 2026-02-18 | 21 | 10% | France 67% | All engine improvements stacked | [link](rust-vs-easy/2026-02-18-02-all-powers-post-improvements.md) |
+| Post-phantom-fix | 2026-02-18 | 40 | 22.5% | France/Germany 40% | 10 games/power, 4 of 7 powers complete | [link](rust-vs-medium/2026-02-18-05-post-phantom-fix.md) |
 
 **Status**: Still far below 80% target. France is the only consistently competitive power. England builds large empires (11+ SCs) but cannot close out victories.
 
@@ -71,13 +71,13 @@ Rust engine (1) vs Medium bots (6).
 
 | Run | Date | Games | Overall Win% | Best Power | Notes | Link |
 |-----|------|-------|-------------|------------|-------|------|
-| Phase 2 (France only) | 2026-02-18 | 10 | 10% | France 10% | Initial RM+ baseline | [link](rust-vs-medium/2026-02-18-phase2-vs-go.md) |
-| Base (pre-fix) | 2026-02-18 | 70 | 15.7% | France 40% | All powers, 10 games each | [link](rust-vs-medium/2026-02-18-base.md) |
-| First support fix | 2026-02-18 | 70 | 17.1% | France 50% | Cross-power phantom fix | [link](rust-vs-medium/2026-02-18-first-support-fix.md) |
-| Second support fix | 2026-02-18 | 70 | 20.0% | France 70% | Hold fallback phantom fix | [link](rust-vs-medium/2026-02-18-second-support-fix.md) |
-| All powers (neural) | 2026-02-18 | 70 | 17% | France 40% | Full neural eval mode | [link](rust-vs-medium/2026-02-18-all-powers.md) |
-| Value net blend | 2026-02-18 | 21 | 14% | France/Italy/Turkey 33% | Marginal improvement, shifted win distribution | [link](rust-vs-medium/2026-02-18-value-net-blend.md) |
-| Progression summary | 2026-02-18 | 210 | 15.7% to 20.0% | France 40% to 70% | Tracks 3 builds | [link](rust-vs-medium/2026-02-18-progression.md) |
+| Phase 2 (France only) | 2026-02-18 | 10 | 10% | France 10% | Initial RM+ baseline | [link](rust-vs-medium/2026-02-18-01-phase2-vs-go.md) |
+| Base (pre-fix) | 2026-02-18 | 70 | 15.7% | France 40% | All powers, 10 games each | [link](rust-vs-medium/2026-02-18-02-base.md) |
+| First support fix | 2026-02-18 | 70 | 17.1% | France 50% | Cross-power phantom fix | [link](rust-vs-medium/2026-02-18-03-first-support-fix.md) |
+| Second support fix | 2026-02-18 | 70 | 20.0% | France 70% | Hold fallback phantom fix | [link](rust-vs-medium/2026-02-18-04-second-support-fix.md) |
+| All powers (neural) | 2026-02-18 | 70 | 17% | France 40% | Full neural eval mode | [link](rust-vs-medium/2026-02-18-07-all-powers.md) |
+| Value net blend | 2026-02-18 | 21 | 14% | France/Italy/Turkey 33% | Marginal improvement, shifted win distribution | [link](rust-vs-medium/2026-02-18-08-value-net-blend.md) |
+| Progression summary | 2026-02-18 | 210 | 15.7% to 20.0% | France 40% to 70% | Tracks 3 builds | [link](rust-vs-medium/2026-02-18-06-progression.md) |
 | Pre-new-model baseline | 2026-02-19 | 70 | 20% | France 60% | Old smaller neural model | [link](rust-vs-medium/2026-02-19-pre-newmodel.md) |
 
 **Key findings**:
@@ -127,23 +127,23 @@ Medium bot configuration experiments, all testing 100 games per power (700 total
 
 | Experiment | Date | Overall Win% | Key Result | Link |
 |------------|------|-------------|------------|------|
-| Exp A: Cohesion bonus | 2026-02-18 | 21% | Slight regression vs 23% baseline; France -8pp | [link](experiments/2026-02-18-experiment-a-cohesion-bonus.md) |
-| Exp B: Inject supports | 2026-02-18 | 26% | +3pp vs baseline; England +15pp, Turkey +8pp | [link](experiments/2026-02-18-experiment-b-inject-supports.md) |
-| Exp C: Build orders | 2026-02-18 | 28% | +5pp vs baseline; best single-change improvement | [link](experiments/2026-02-18-experiment-c-buildorders.md) |
-| Exp D: Pure 3-ply | 2026-02-18 | 27% | Turkey/England +16pp each, France -13pp | [link](experiments/2026-02-18-ply-experiment-d.md) |
-| Exp E: Blend ply-1+3 | 2026-02-18 | 32.6% | All powers improved; France +13pp, England +20pp | [link](experiments/2026-02-18-ply-experiment-e.md) |
-| **Exp F: Blend all 3 plies** | **2026-02-18** | **35.3%** | **WINNER: +7.3pp vs baseline; all powers improved** | [link](experiments/2026-02-18-ply-experiment-f.md) |
-| Exp F (all powers detail) | 2026-02-18 | 34.7% | Detailed SC timelines for Exp F variant | [link](experiments/2026-02-18-ply-experiment-f-blend-all.md) |
-| Extended opening book | 2026-02-18 | 23.4% | Book extension hurt performance vs Exp F (-12pp) | [link](experiments/2026-02-18-opening-book-extended.md) |
-| Austria regression (task 083) | 2026-02-18 | — | Austria dropped 9% to 4% after support changes | [link](experiments/2026-02-18-austria-regression-task083.md) |
+| Exp A: Cohesion bonus | 2026-02-18 | 21% | Slight regression vs 23% baseline; France -8pp | [link](experiments/2026-02-18-01-experiment-a-cohesion-bonus.md) |
+| Exp B: Inject supports | 2026-02-18 | 26% | +3pp vs baseline; England +15pp, Turkey +8pp | [link](experiments/2026-02-18-02-experiment-b-inject-supports.md) |
+| Exp C: Build orders | 2026-02-18 | 28% | +5pp vs baseline; best single-change improvement | [link](experiments/2026-02-18-03-experiment-c-buildorders.md) |
+| Exp D: Pure 3-ply | 2026-02-18 | 27% | Turkey/England +16pp each, France -13pp | [link](experiments/2026-02-18-04-ply-experiment-d.md) |
+| Exp E: Blend ply-1+3 | 2026-02-18 | 32.6% | All powers improved; France +13pp, England +20pp | [link](experiments/2026-02-18-05-ply-experiment-e.md) |
+| **Exp F: Blend all 3 plies** | **2026-02-18** | **35.3%** | **WINNER: +7.3pp vs baseline; all powers improved** | [link](experiments/2026-02-18-06-ply-experiment-f.md) |
+| Exp F (all powers detail) | 2026-02-18 | 34.7% | Detailed SC timelines for Exp F variant | [link](experiments/2026-02-18-07-ply-experiment-f-blend-all.md) |
+| Extended opening book | 2026-02-18 | 23.4% | Book extension hurt performance vs Exp F (-12pp) | [link](experiments/2026-02-18-08-opening-book-extended.md) |
+| Austria regression (task 083) | 2026-02-18 | — | Austria dropped 9% to 4% after support changes | [link](experiments/2026-02-18-09-austria-regression-task083.md) |
 
 ### Rust Engine Performance Experiments
 
 | Experiment | Date | Key Result | Link |
 |------------|------|------------|------|
-| Engine profile (pre-opt) | 2026-02-18 | ~5K-6K nodes/sec, 2-ply lookahead is bottleneck | [link](experiments/2026-02-18-engine-profile.md) |
-| Engine profile (post-opt) | 2026-02-18 | ~65K nodes/sec, 12x improvement via caching | [link](experiments/2026-02-18-engine-profile-post-opt.md) |
-| Optimization round 2 | 2026-02-18 | K=16 candidates, budget rebalance, parallel warm-start | [link](experiments/2026-02-18-engine-opt-round2.md) |
+| Engine profile (pre-opt) | 2026-02-18 | ~5K-6K nodes/sec, 2-ply lookahead is bottleneck | [link](experiments/2026-02-18-10-engine-profile.md) |
+| Engine profile (post-opt) | 2026-02-18 | ~65K nodes/sec, 12x improvement via caching | [link](experiments/2026-02-18-11-engine-profile-post-opt.md) |
+| Optimization round 2 | 2026-02-18 | K=16 candidates, budget rebalance, parallel warm-start | [link](experiments/2026-02-18-12-engine-opt-round2.md) |
 
 ---
 
