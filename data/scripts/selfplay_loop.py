@@ -301,7 +301,14 @@ def deploy_to_engine(args, root: Path, iter_dir: Path, iteration: int) -> bool:
         src = models_dir / name
         dst = engine_models / name
         if src.exists():
-            log.info("Copying %s -> %s", src, dst)
+            # Back up existing model before overwriting
+            if dst.exists() and not args.dry_run:
+                stem = dst.stem  # e.g. "policy_v2"
+                backup = engine_models / f"{stem}_iter{iteration - 1:03d}{dst.suffix}"
+                if not backup.exists():
+                    log.info("Backing up %s -> %s", dst.name, backup.name)
+                    shutil.copy2(dst, backup)
+            log.info("Deploying %s -> %s", src, dst)
             if not args.dry_run:
                 shutil.copy2(src, dst)
         else:
