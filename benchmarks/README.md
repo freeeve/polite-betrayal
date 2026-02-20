@@ -9,9 +9,10 @@ Arena benchmark results for Polite Betrayal Diplomacy bots. Each matchup pits on
 | Easy vs Random | 100% | 700 | 2026-02-18 | All 7 powers, 100 games each | [link](easy-vs-random/2026-02-18-all-powers-post-perf.md) |
 | Medium vs Easy | 35% (best power: Turkey 65%) | 700 | 2026-02-18 | Exp F blend (best config); overall 35% | [link](experiments/2026-02-18-06-ply-experiment-f.md) |
 | Rust vs Easy | 22.5% (partial, 4/7 powers) | 40 | 2026-02-18 | Post-phantom-fix; France/Germany 40% | [link](rust-vs-medium/2026-02-18-05-post-phantom-fix.md) |
-| Rust vs Medium | 20% | 70 | 2026-02-19 | Pre-new-model baseline; France 60% | [link](rust-vs-medium/2026-02-19-pre-newmodel.md) |
+| Rust vs Medium | 15.7% | 700 | 2026-02-19 | New 15.4M model; Turkey 36%, France 32% | [link](rust-vs-medium/2026-02-19-01-new-model-700.md) |
 | Hard vs Medium | 15.7% | 70 | 2026-02-19 | Turkey 40% best power | [link](hard-vs-medium/2026-02-18-baseline-s7.md) |
 | Rust vs Hard | 20% vs 14.3% | 70 each | 2026-02-19 | Rust outperforms Hard vs Medium opponents | [link](rust-vs-hard/2026-02-19-comparison.md) |
+| Gonnx vs Medium | 0% | 70 | 2026-02-20 | Raw policy network, no search; 8 draws | [link](gonnx-vs-medium/2026-02-20-01-baseline.md) |
 
 ---
 
@@ -79,6 +80,7 @@ Rust engine (1) vs Medium bots (6).
 | Value net blend | 2026-02-18 | 21 | 14% | France/Italy/Turkey 33% | Marginal improvement, shifted win distribution | [link](rust-vs-medium/2026-02-18-08-value-net-blend.md) |
 | Progression summary | 2026-02-18 | 210 | 15.7% to 20.0% | France 40% to 70% | Tracks 3 builds | [link](rust-vs-medium/2026-02-18-06-progression.md) |
 | Pre-new-model baseline | 2026-02-19 | 70 | 20% | France 60% | Old smaller neural model | [link](rust-vs-medium/2026-02-19-pre-newmodel.md) |
+| New model (15.4M) | 2026-02-19 | 700 | 15.7% | Turkey 36%, France 32% | 100 games/power; England paradox (10.3 avg SCs, 2% win) | [link](rust-vs-medium/2026-02-19-01-new-model-700.md) |
 
 **Key findings**:
 - France is consistently the strongest power for the Rust engine (40-70%)

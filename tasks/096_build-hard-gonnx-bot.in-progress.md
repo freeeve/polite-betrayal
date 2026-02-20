@@ -30,4 +30,13 @@ Build a new Diplomacy bot ("hard-gonnx") that uses the gonnx pure-Go ONNX runtim
 
 ## Status
 
-**In progress** -- go-dev agent working on it
+**In progress** -- basic greedy decode implemented (tasks 1-6 complete). Expanding to full RM+ search — see tasks 098-103.
+
+## Related Tasks
+
+- 098: Heuristic evaluation (parallel)
+- 099: Greedy lookahead (parallel)
+- 100: Value network inference (parallel)
+- 101: Candidate generation (depends on 098)
+- 102: RM+ search loop (depends on 098, 099, 100, 101)
+- 103: Integration + benchmark (depends on 102)
