@@ -392,22 +392,39 @@ fn power_has_units(state: &BoardState, power: Power) -> bool {
 ///
 /// When `config.threads > 1`, games are played concurrently using rayon.
 pub fn run_self_play(config: &SelfPlayConfig) -> Vec<GameRecord> {
+    let mut games = Vec::with_capacity(config.num_games);
+    run_self_play_with_callback(config, |game| {
+        games.push(game);
+    });
+    games
+}
+
+/// Runs self-play generation, calling `on_game` with each completed game record.
+///
+/// This allows the caller to process games incrementally (e.g. write to disk)
+/// rather than waiting for all games to finish.
+pub fn run_self_play_with_callback<F>(config: &SelfPlayConfig, on_game: F)
+where
+    F: FnMut(GameRecord) + Send,
+{
     if config.threads > 1 {
-        run_self_play_parallel(config)
+        run_self_play_parallel(config, on_game);
     } else {
-        run_self_play_sequential(config)
+        run_self_play_sequential(config, on_game);
     }
 }
 
 /// Sequential self-play: plays games one at a time.
-fn run_self_play_sequential(config: &SelfPlayConfig) -> Vec<GameRecord> {
+fn run_self_play_sequential<F>(config: &SelfPlayConfig, mut on_game: F)
+where
+    F: FnMut(GameRecord),
+{
     let mut rng = if config.seed != 0 {
         SmallRng::seed_from_u64(config.seed)
     } else {
         SmallRng::from_entropy()
     };
 
-    let mut games: Vec<GameRecord> = Vec::with_capacity(config.num_games);
     for i in 0..config.num_games {
         let game_start = Instant::now();
         let game = play_game(config, i, &mut rng);
@@ -426,16 +443,21 @@ fn run_self_play_sequential(config: &SelfPlayConfig) -> Vec<GameRecord> {
                 elapsed,
             );
         }
-        games.push(game);
+        on_game(game);
     }
-    games
 }
 
 /// Parallel self-play: plays games concurrently using rayon.
-fn run_self_play_parallel(config: &SelfPlayConfig) -> Vec<GameRecord> {
+/// Uses a channel to deliver completed games to the callback from worker threads.
+fn run_self_play_parallel<F>(config: &SelfPlayConfig, mut on_game: F)
+where
+    F: FnMut(GameRecord) + Send,
+{
     use rayon::prelude::*;
+    use std::sync::mpsc;
 
     let completed = AtomicUsize::new(0);
+    let (tx, rx) = mpsc::channel::<GameRecord>();
 
     // Build thread pool with configured thread count.
     let pool = rayon::ThreadPoolBuilder::new()
@@ -443,33 +465,42 @@ fn run_self_play_parallel(config: &SelfPlayConfig) -> Vec<GameRecord> {
         .build()
         .expect("failed to build rayon thread pool");
 
-    pool.install(|| {
-        (0..config.num_games)
-            .into_par_iter()
-            .map(|i| {
-                let mut rng = if config.seed != 0 {
-                    SmallRng::seed_from_u64(config.seed.wrapping_add(i as u64))
-                } else {
-                    SmallRng::from_entropy()
-                };
-                let game_start = Instant::now();
-                let game = play_game(config, i, &mut rng);
-                if !config.quiet {
-                    let n = completed.fetch_add(1, Ordering::Relaxed) + 1;
-                    let elapsed = game_start.elapsed().as_secs_f64();
-                    let outcome = match game.winner {
-                        Some(w) => format!("{} wins", power_name(w)),
-                        None => "draw".to_string(),
+    let config_clone = config.clone();
+    let handle = std::thread::spawn(move || {
+        pool.install(|| {
+            (0..config_clone.num_games)
+                .into_par_iter()
+                .for_each_with(tx, |tx, i| {
+                    let mut rng = if config_clone.seed != 0 {
+                        SmallRng::seed_from_u64(config_clone.seed.wrapping_add(i as u64))
+                    } else {
+                        SmallRng::from_entropy()
                     };
-                    eprintln!(
-                        "Game {}/{}: {} in {} ({:.1}s)",
-                        n, config.num_games, outcome, game.final_year, elapsed,
-                    );
-                }
-                game
-            })
-            .collect()
-    })
+                    let game_start = Instant::now();
+                    let game = play_game(&config_clone, i, &mut rng);
+                    if !config_clone.quiet {
+                        let n = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                        let elapsed = game_start.elapsed().as_secs_f64();
+                        let outcome = match game.winner {
+                            Some(w) => format!("{} wins", power_name(w)),
+                            None => "draw".to_string(),
+                        };
+                        eprintln!(
+                            "Game {}/{}: {} in {} ({:.1}s)",
+                            n, config_clone.num_games, outcome, game.final_year, elapsed,
+                        );
+                    }
+                    let _ = tx.send(game);
+                });
+        });
+    });
+
+    // Receive completed games on the main thread and pass to callback.
+    for game in rx {
+        on_game(game);
+    }
+
+    handle.join().expect("selfplay worker thread panicked");
 }
 
 /// Writes game records as JSONL (one JSON object per game, one per line).
@@ -482,7 +513,7 @@ pub fn write_jsonl<W: Write>(games: &[GameRecord], out: &mut W) -> std::io::Resu
 }
 
 /// Writes a single game record as a JSON object.
-fn write_game_json<W: Write>(game: &GameRecord, out: &mut W) -> std::io::Result<()> {
+pub fn write_game_json<W: Write>(game: &GameRecord, out: &mut W) -> std::io::Result<()> {
     write!(out, "{{")?;
     write!(out, "\"game_id\":{}", game.game_id)?;
     write!(out, ",\"winner\":")?;

@@ -18,10 +18,11 @@
 
 use std::env;
 use std::fs::File;
-use std::io::{self, BufWriter};
+use std::io::{self, BufWriter, Write};
+use std::sync::Mutex;
 use std::time::Instant;
 
-use realpolitik::selfplay::{self, SelfPlayConfig};
+use realpolitik::selfplay::{self, GameRecord, SelfPlayConfig};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -94,53 +95,55 @@ fn main() {
         );
     }
 
-    let start = Instant::now();
-    let games = selfplay::run_self_play(&config);
-    let elapsed = start.elapsed();
+    // Open output file (or stdout) before starting selfplay so games are written incrementally.
+    // We flush after every game, so BufWriter is only needed to batch the small writes
+    // within a single game's JSON serialization.
+    let writer: Mutex<Box<dyn Write + Send>> = match &output_path {
+        Some(path) => {
+            let file = File::create(path).expect("failed to create output file");
+            Mutex::new(Box::new(BufWriter::new(file)))
+        }
+        None => Mutex::new(Box::new(io::stdout())),
+    };
 
-    // Filter out early stalemate games.
-    let valid_games: Vec<_> = games
-        .iter()
-        .filter(|g| !g.quality.early_stalemate)
-        .collect();
+    let start = Instant::now();
+    let mut all_games: Vec<GameRecord> = Vec::with_capacity(config.num_games);
+    let all_games_mu = Mutex::new(&mut all_games);
+    let written = Mutex::new(0usize);
+    let discarded = Mutex::new(0usize);
+
+    selfplay::run_self_play_with_callback(&config, |game| {
+        if game.quality.early_stalemate {
+            *discarded.lock().unwrap() += 1;
+        } else {
+            // Write game to output immediately and flush so the follow-mode importer sees it.
+            let mut w = writer.lock().unwrap();
+            selfplay::write_game_json(&game, &mut *w).expect("failed to write game");
+            writeln!(&mut *w).expect("failed to write newline");
+            w.flush().expect("failed to flush output");
+            *written.lock().unwrap() += 1;
+        }
+        all_games_mu.lock().unwrap().push(game);
+    });
+
+    let elapsed = start.elapsed();
+    let written_count = *written.lock().unwrap();
+    let discarded_count = *discarded.lock().unwrap();
 
     if !quiet {
         eprintln!(
             "Completed {} games in {:.1}s ({:.1} games/hour)",
-            games.len(),
+            all_games.len(),
             elapsed.as_secs_f64(),
-            games.len() as f64 / elapsed.as_secs_f64() * 3600.0
+            all_games.len() as f64 / elapsed.as_secs_f64() * 3600.0
         );
         eprintln!(
-            "Valid games after filtering: {} (discarded {} early stalemates)",
-            valid_games.len(),
-            games.len() - valid_games.len()
+            "Valid games written: {} (discarded {} early stalemates)",
+            written_count, discarded_count
         );
-        selfplay::print_summary(&games);
-    }
-
-    // Write output.
-    match output_path {
-        Some(path) => {
-            let file = File::create(&path).expect("failed to create output file");
-            let mut writer = BufWriter::new(file);
-            selfplay::write_jsonl(
-                &valid_games.iter().map(|g| (*g).clone()).collect::<Vec<_>>(),
-                &mut writer,
-            )
-            .expect("failed to write output");
-            if !quiet {
-                eprintln!("Wrote {} games to {}", valid_games.len(), path);
-            }
-        }
-        None => {
-            let stdout = io::stdout();
-            let mut writer = BufWriter::new(stdout.lock());
-            selfplay::write_jsonl(
-                &valid_games.iter().map(|g| (*g).clone()).collect::<Vec<_>>(),
-                &mut writer,
-            )
-            .expect("failed to write output");
+        selfplay::print_summary(&all_games);
+        if let Some(path) = &output_path {
+            eprintln!("Wrote {} games to {}", written_count, path);
         }
     }
 }
