@@ -27,6 +27,7 @@ class SupplyCenterTable extends StatelessWidget {
     'easy': 'E',
     'medium': 'M',
     'hard': 'H',
+    'rust': 'Rs',
   };
 
   @override

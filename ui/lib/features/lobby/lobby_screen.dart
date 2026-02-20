@@ -90,7 +90,7 @@ class LobbyScreen extends ConsumerWidget {
                           ? DropdownButton<String>(
                               value: p.botDifficulty,
                               underline: const SizedBox.shrink(),
-                              items: ['random', 'easy', 'medium', 'hard']
+                              items: ['random', 'easy', 'medium', 'hard', 'rust']
                                   .map((d) => DropdownMenuItem(
                                         value: d,
                                         child: Text(d[0].toUpperCase() + d.substring(1)),

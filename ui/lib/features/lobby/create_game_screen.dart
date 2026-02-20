@@ -9,7 +9,7 @@ import '../../core/models/game.dart';
 import '../home/game_list_notifier.dart';
 
 const _durations = ['1m', '5m', '10m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '24h'];
-const _difficulties = ['random', 'easy', 'medium', 'hard'];
+const _difficulties = ['random', 'easy', 'medium', 'hard', 'rust'];
 
 class CreateGameScreen extends ConsumerStatefulWidget {
   const CreateGameScreen({super.key});

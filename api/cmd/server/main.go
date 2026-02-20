@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/freeeve/polite-betrayal/api/internal/auth"
+	"github.com/freeeve/polite-betrayal/api/internal/bot"
 	"github.com/freeeve/polite-betrayal/api/internal/config"
 	"github.com/freeeve/polite-betrayal/api/internal/handler"
 	"github.com/freeeve/polite-betrayal/api/internal/logger"
@@ -23,6 +24,7 @@ import (
 func main() {
 	logger.Init()
 	cfg := config.Load()
+	bot.ExternalEnginePath = os.Getenv("REALPOLITIK_PATH")
 	log.Info().Str("databaseURL", cfg.DatabaseURL).Msg("Config loaded")
 
 	// Database

@@ -45,7 +45,7 @@ func StrategyForDifficulty(difficulty string) Strategy {
 		return &HardStrategy{}
 	case "random":
 		return &RandomStrategy{}
-	case "impossible", "external":
+	case "rust", "impossible", "external":
 		return newExternalOrFallback(difficulty)
 	default:
 		return &HeuristicStrategy{}
