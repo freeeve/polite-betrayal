@@ -6,7 +6,7 @@
 //! counterfactual regret updates to converge toward an equilibrium.
 //! The engine's power then plays a best response against that equilibrium.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::time::{Duration, Instant};
@@ -315,6 +315,61 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
 ///    candidate list.
 /// 2. The unit's best non-support order from its candidate list.
 ///
+/// Builds a greedy order set from per-unit scored candidates, avoiding same-power
+/// collisions where two units target the same destination province.
+///
+/// For each unit (in order), picks the highest-scored move whose destination
+/// hasn't already been claimed by an earlier unit. Falls back to hold if all
+/// move destinations are taken.
+fn dedup_greedy_orders(per_unit: &[Vec<ScoredOrder>], power: Power) -> Vec<(Order, Power)> {
+    let mut claimed: HashSet<Province> = HashSet::new();
+    let mut orders: Vec<(Order, Power)> = Vec::with_capacity(per_unit.len());
+
+    for cands in per_unit {
+        let mut picked = cands[0].order;
+        // If the top pick is a move that collides, find the next non-colliding option.
+        if let Order::Move { dest, .. } = picked {
+            if claimed.contains(&dest.province) {
+                picked = pick_non_colliding(cands, &claimed);
+            }
+        }
+        if let Order::Move { dest, .. } = picked {
+            claimed.insert(dest.province);
+        }
+        orders.push((picked, power));
+    }
+    orders
+}
+
+/// Picks the first non-colliding order from a unit's scored candidates.
+///
+/// Skips move orders whose destination is already claimed. Returns the unit's
+/// hold order as a last resort.
+fn pick_non_colliding(cands: &[ScoredOrder], claimed: &HashSet<Province>) -> Order {
+    let hold = match cands[0].order {
+        Order::Hold { unit }
+        | Order::Move { unit, .. }
+        | Order::SupportHold { unit, .. }
+        | Order::SupportMove { unit, .. }
+        | Order::Convoy { unit, .. } => Order::Hold { unit },
+        other => other,
+    };
+
+    for so in cands {
+        match so.order {
+            Order::Move { dest, .. } => {
+                if !claimed.contains(&dest.province) {
+                    return so.order;
+                }
+            }
+            Order::Hold { .. } => return so.order,
+            // Skip supports — they'll be fixed by coordinate_candidate_supports.
+            _ => continue,
+        }
+    }
+    hold
+}
+
 /// This prevents wasting orders on phantom supports within a single power's
 /// order set, and also replaces support-moves for foreign units (whose actual
 /// orders are unknown) with support-holds or better alternatives.
@@ -707,11 +762,8 @@ fn generate_candidates(
     let mut candidates: Vec<Vec<(Order, Power)>> = Vec::with_capacity(count);
     let mut seen_orders: Vec<Vec<Order>> = Vec::new();
 
-    // First candidate: greedy best
-    let mut greedy_orders: Vec<(Order, Power)> = per_unit
-        .iter()
-        .map(|cands| (cands[0].order, power))
-        .collect();
+    // First candidate: greedy best (with same-power collision avoidance).
+    let mut greedy_orders: Vec<(Order, Power)> = dedup_greedy_orders(&per_unit, power);
     coordinate_candidate_supports(&mut greedy_orders, &per_unit, &unit_provinces, power);
     seen_orders.push(greedy_orders.iter().map(|(o, _)| *o).collect());
     candidates.push(greedy_orders);
@@ -839,16 +891,14 @@ fn inject_coordinated_candidates(
             break;
         }
 
-        // Start with greedy orders for all units.
-        let mut coord_orders: Vec<(Order, Power)> = per_unit
-            .iter()
-            .map(|cands| (cands[0].order, power))
-            .collect();
+        // Start with collision-free greedy orders for all units.
+        let mut coord_orders: Vec<(Order, Power)> = dedup_greedy_orders(per_unit, power);
 
         // Set the supporter to play the support order.
         coord_orders[*supporter_ui] = (*support_order, power);
 
         // For support-move, set the supported unit to play the matching move.
+        // Also resolve any collision the move creates with other units.
         if let Order::SupportMove {
             supported, dest, ..
         } = support_order
@@ -859,6 +909,26 @@ fn inject_coordinated_candidates(
                     matches!(so.order, Order::Move { dest: d, .. } if d.province == dest.province)
                 }) {
                     coord_orders[target_ui] = (matching_move.order, power);
+
+                    // If the mover's destination collides with another unit's move,
+                    // redirect the collider to its next-best option.
+                    for ci in 0..coord_orders.len() {
+                        if ci == target_ui || ci == *supporter_ui {
+                            continue;
+                        }
+                        if let Order::Move {
+                            dest: other_dest, ..
+                        } = coord_orders[ci].0
+                        {
+                            if other_dest.province == dest.province {
+                                let alt = pick_non_colliding(
+                                    &per_unit[ci],
+                                    &HashSet::from([dest.province]),
+                                );
+                                coord_orders[ci] = (alt, power);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1035,8 +1105,31 @@ fn generate_candidates_neural(
         })
         .collect();
 
-    // First candidate: greedy best from blended scores.
-    let greedy: Vec<usize> = vec![0; blended_per_unit.len()];
+    // First candidate: greedy best from blended scores (with collision avoidance).
+    let mut greedy: Vec<usize> = Vec::with_capacity(blended_per_unit.len());
+    {
+        let mut claimed: HashSet<Province> = HashSet::new();
+        for unit_cands in &blended_per_unit {
+            let mut picked_idx = 0;
+            if let Order::Move { dest, .. } = unit_cands[0].order {
+                if claimed.contains(&dest.province) {
+                    // Find next non-colliding move or hold.
+                    picked_idx = unit_cands
+                        .iter()
+                        .position(|c| match c.order {
+                            Order::Move { dest: d, .. } => !claimed.contains(&d.province),
+                            Order::Hold { .. } => true,
+                            _ => false,
+                        })
+                        .unwrap_or(0);
+                }
+            }
+            if let Order::Move { dest, .. } = unit_cands[picked_idx].order {
+                claimed.insert(dest.province);
+            }
+            greedy.push(picked_idx);
+        }
+    }
     let mut greedy_orders: Vec<(Order, Power)> = greedy
         .iter()
         .enumerate()
@@ -1412,7 +1505,15 @@ fn score_move_fast(dest: Province, power: Power, state: &BoardState) -> f32 {
 /// directly (no Vec allocation) and picks the best move using the fast scorer.
 /// Support coordination is handled in candidate generation, not in lookahead.
 fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
-    let mut all_orders: Vec<(Order, Power)> = Vec::with_capacity(22);
+    // First pass: collect per-unit scored move alternatives (top-2 + hold fallback).
+    struct UnitEntry {
+        power: Power,
+        unit: OrderUnit,
+        moves: [(Order, f32); 2], // top-2 moves by score
+        move_count: usize,
+    }
+
+    let mut entries: Vec<UnitEntry> = Vec::with_capacity(22);
 
     for i in 0..PROVINCE_COUNT {
         let (power, unit_type) = match state.units[i] {
@@ -1427,11 +1528,10 @@ fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
             location: Location::with_coast(prov, coast),
         };
 
-        // Start with Hold as default (score -1 to prefer moves to SCs).
-        let mut best_order = Order::Hold { unit };
-        let mut best_score: f32 = -1.0;
+        let hold_order = Order::Hold { unit };
+        let mut best: (Order, f32) = (hold_order, f32::NEG_INFINITY);
+        let mut second: (Order, f32) = (hold_order, f32::NEG_INFINITY);
 
-        // Iterate adjacency entries directly -- no intermediate Vec.
         for adj in adj_from(prov) {
             if is_fleet && !adj.fleet_ok {
                 continue;
@@ -1459,18 +1559,123 @@ fn generate_greedy_orders_fast(state: &BoardState) -> Vec<(Order, Power)> {
             };
 
             let score = score_move_fast(dest, power, state);
-            if score > best_score {
-                best_score = score;
-                best_order = Order::Move {
-                    unit,
-                    dest: Location::with_coast(dest, dest_coast),
-                };
+            let move_order = Order::Move {
+                unit,
+                dest: Location::with_coast(dest, dest_coast),
+            };
+
+            if score > best.1 {
+                second = best;
+                best = (move_order, score);
+            } else if score > second.1 {
+                second = (move_order, score);
             }
         }
 
-        all_orders.push((best_order, power));
+        let mut move_count = 0;
+        let mut moves = [(hold_order, f32::NEG_INFINITY); 2];
+        if best.1 > -1.0 {
+            moves[0] = best;
+            move_count = 1;
+            if second.1 > f32::NEG_INFINITY {
+                moves[1] = second;
+                move_count = 2;
+            }
+        }
+
+        entries.push(UnitEntry {
+            power,
+            unit,
+            moves,
+            move_count,
+        });
     }
-    all_orders
+
+    // Second pass: resolve same-power collisions.
+    // Track which destinations are claimed per power: dest -> (entry index, score).
+    let mut claimed: HashMap<(Power, Province), (usize, f32)> = HashMap::new();
+    let mut chosen: Vec<(Order, f32)> = Vec::with_capacity(entries.len());
+
+    for (ei, entry) in entries.iter().enumerate() {
+        // Pick best non-colliding move.
+        let hold = Order::Hold { unit: entry.unit };
+        let mut pick = (hold, -1.0f32);
+
+        if entry.move_count > 0 && pick.1 < entry.moves[0].1 {
+            pick = entry.moves[0];
+        }
+
+        // Check for collision with same-power unit.
+        if let Order::Move { dest, .. } = pick.0 {
+            let key = (entry.power, dest.province);
+            if let Some(&(prev_ei, prev_score)) = claimed.get(&key) {
+                // Collision: demote the weaker unit to its second-best move or hold.
+                if pick.1 > prev_score {
+                    // Current unit wins; demote previous unit.
+                    let prev = &entries[prev_ei];
+                    let prev_hold = Order::Hold { unit: prev.unit };
+                    let mut alt = (prev_hold, -1.0f32);
+                    // Try previous unit's second-best move (if it doesn't also collide).
+                    if prev.move_count > 1 {
+                        let alt_order = prev.moves[1].0;
+                        let alt_score = prev.moves[1].1;
+                        let mut alt_collides = false;
+                        if let Order::Move { dest: alt_dest, .. } = alt_order {
+                            let alt_key = (prev.power, alt_dest.province);
+                            if let Some(&(oi, _)) = claimed.get(&alt_key) {
+                                if oi != prev_ei {
+                                    alt_collides = true;
+                                }
+                            }
+                        }
+                        if !alt_collides {
+                            alt = (alt_order, alt_score);
+                        }
+                    }
+                    // Remove old claim, update previous unit's order.
+                    chosen[prev_ei] = alt;
+                    if let Order::Move { dest: alt_dest, .. } = alt.0 {
+                        claimed.insert((prev.power, alt_dest.province), (prev_ei, alt.1));
+                    }
+                    // Current unit claims the destination.
+                    claimed.insert(key, (ei, pick.1));
+                } else {
+                    // Previous unit wins; demote current unit to second-best or hold.
+                    let alt_hold = (hold, -1.0f32);
+                    let mut alt = alt_hold;
+                    if entry.move_count > 1 {
+                        let alt_order = entry.moves[1].0;
+                        let alt_score = entry.moves[1].1;
+                        let mut alt_collides = false;
+                        if let Order::Move { dest: alt_dest, .. } = alt_order {
+                            let alt_key = (entry.power, alt_dest.province);
+                            if claimed.contains_key(&alt_key) {
+                                alt_collides = true;
+                            }
+                        }
+                        if !alt_collides {
+                            alt = (alt_order, alt_score);
+                        }
+                    }
+                    pick = alt;
+                    if let Order::Move { dest: alt_dest, .. } = pick.0 {
+                        claimed.insert((entry.power, alt_dest.province), (ei, pick.1));
+                    }
+                }
+            } else {
+                claimed.insert(key, (ei, pick.1));
+            }
+        }
+
+        chosen.push(pick);
+    }
+
+    // Build final order list.
+    entries
+        .iter()
+        .zip(chosen.iter())
+        .map(|(entry, (order, _))| (*order, entry.power))
+        .collect()
 }
 
 /// Enhanced position evaluation for RM+ (more features than basic evaluate).
