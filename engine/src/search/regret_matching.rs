@@ -442,8 +442,16 @@ fn coordinate_candidate_supports(
                         &unit_orders,
                         unit_provinces,
                     );
-                    // If no replacement found in candidates, fall back to hold.
-                    let new_order = replacement.unwrap_or(Order::Hold { unit });
+                    // If no replacement found, prefer the best Move from
+                    // this unit's candidates. Only fall back to Hold as last resort.
+                    let new_order = replacement
+                        .or_else(|| {
+                            per_unit[ui]
+                                .iter()
+                                .find(|so| matches!(so.order, Order::Move { .. }))
+                                .map(|so| so.order)
+                        })
+                        .unwrap_or(Order::Hold { unit });
                     candidate[ci] = (new_order, power);
                     changed = true;
                     continue;
@@ -473,8 +481,16 @@ fn coordinate_candidate_supports(
                     unit_provinces,
                 );
 
-                // If no replacement found in candidates, fall back to hold.
-                let new_order = replacement.unwrap_or(Order::Hold { unit });
+                // If no replacement found, prefer the best Move from
+                // this unit's candidates. Only fall back to Hold as last resort.
+                let new_order = replacement
+                    .or_else(|| {
+                        per_unit[ui]
+                            .iter()
+                            .find(|so| matches!(so.order, Order::Move { .. }))
+                            .map(|so| so.order)
+                    })
+                    .unwrap_or(Order::Hold { unit });
                 candidate[ci] = (new_order, power);
                 changed = true;
             }
@@ -517,17 +533,30 @@ fn coordinate_candidate_supports(
         {
             let supported_prov = supported.location.province;
             let supported_is_ours = final_orders.iter().any(|(p, _)| *p == supported_prov);
-            if !supported_is_ours {
-                // Foreign support-move survived all passes -- force hold.
-                candidate[ci] = (Order::Hold { unit }, power);
-                continue;
-            }
-            let is_matching = final_orders.iter().any(|(p, o)| {
-                *p == supported_prov
-                    && matches!(*o, Order::Move { dest: d, .. } if d.province == dest.province)
-            });
-            if !is_matching {
-                candidate[ci] = (Order::Hold { unit }, power);
+            let needs_replacement = if !supported_is_ours {
+                true
+            } else {
+                let is_matching = final_orders.iter().any(|(p, o)| {
+                    *p == supported_prov
+                        && matches!(*o, Order::Move { dest: d, .. } if d.province == dest.province)
+                });
+                !is_matching
+            };
+            if needs_replacement {
+                // Instead of forcing Hold, find the best Move from this unit's
+                // candidate list. Only fall back to Hold as a last resort.
+                let supporter_prov = unit.location.province;
+                let fallback = unit_provinces
+                    .iter()
+                    .position(|&p| p == supporter_prov)
+                    .and_then(|ui| {
+                        per_unit[ui]
+                            .iter()
+                            .find(|so| matches!(so.order, Order::Move { .. }))
+                            .map(|so| so.order)
+                    })
+                    .unwrap_or(Order::Hold { unit });
+                candidate[ci] = (fallback, power);
             }
         }
     }
@@ -824,7 +853,7 @@ fn generate_candidates(
         &unit_provinces,
         &mut candidates,
         &mut seen_orders,
-        4,
+        8,
     );
 
     // Fix any phantom supports in the newly-injected coordinated candidates.
@@ -1217,7 +1246,7 @@ fn generate_candidates_neural(
         &blended_unit_provinces,
         &mut candidates,
         &mut seen_orders,
-        4,
+        8,
     );
 
     // Fix phantom supports in newly-injected coordinated candidates.
