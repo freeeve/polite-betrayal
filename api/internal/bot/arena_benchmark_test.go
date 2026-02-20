@@ -594,6 +594,21 @@ func TestBenchmark_MediumVsEasyAllPowers(t *testing.T) {
 	}
 }
 
+// TestBenchmark_HardVsMediumAllPowers runs all 7 powers as Hard against 6 Medium, 10 games each.
+func TestBenchmark_HardVsMediumAllPowers(t *testing.T) {
+	numGames := benchNumGames(10)
+	maxYear := 1930
+
+	for _, power := range diplomacy.AllPowers() {
+		power := power
+		t.Run(string(power), func(t *testing.T) {
+			r := runTimelineBenchmark(t, power, "hard", "medium", numGames, maxYear)
+			label := fmt.Sprintf("%s (Hard) vs 6 Medium", strings.Title(string(power)))
+			logTimelineResultsLabeled(t, r, label)
+		})
+	}
+}
+
 // TestBenchmark_RustVsEasy runs the Rust RM+ engine as France against 6 easy Go bots.
 func TestBenchmark_RustVsEasy(t *testing.T) {
 	if os.Getenv("REALPOLITIK_PATH") == "" {
@@ -664,6 +679,40 @@ func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 			winRate := float64(r.Wins) / float64(r.NumGames) * 100
 			if winRate < 80 {
 				t.Logf("WARNING: %s win rate %.0f%% below 80%% target vs easy bots", power, winRate)
+			}
+		})
+	}
+}
+
+// TestBenchmark_RustVsMediumAllPowers runs the Rust engine as each of the 7 powers against 6 medium Go bots.
+func TestBenchmark_RustVsMediumAllPowers(t *testing.T) {
+	if os.Getenv("REALPOLITIK_PATH") == "" {
+		t.Skip("REALPOLITIK_PATH not set")
+	}
+
+	bin := enginePath(t)
+	origPath := ExternalEnginePath
+	ExternalEnginePath = bin
+	origOpts := ExternalEngineOptions
+	ExternalEngineOptions = neuralEngineOptions(t)
+	defer func() {
+		ExternalEnginePath = origPath
+		ExternalEngineOptions = origOpts
+	}()
+
+	numGames := benchNumGames(10)
+	maxYear := 1930
+
+	for _, power := range diplomacy.AllPowers() {
+		power := power
+		t.Run(string(power), func(t *testing.T) {
+			r := runTimelineBenchmark(t, power, "external", "medium", numGames, maxYear)
+			label := fmt.Sprintf("%s (Rust) vs 6 Medium", strings.Title(string(power)))
+			logTimelineResultsLabeled(t, r, label)
+
+			winRate := float64(r.Wins) / float64(r.NumGames) * 100
+			if winRate < 30 {
+				t.Logf("WARNING: %s win rate %.0f%% below 30%% target vs medium bots", power, winRate)
 			}
 		})
 	}
