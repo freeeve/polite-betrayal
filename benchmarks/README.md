@@ -107,6 +107,24 @@ Hard bot (1) vs Medium bots (6).
 
 ---
 
+## Gonnx vs Medium
+
+Gonnx (pure Go ONNX runtime) policy network (1) vs Medium bots (6). Raw greedy argmax, no search.
+
+| Run | Date | Games | Overall Win% | Best Power | Notes | Link |
+|-----|------|-------|-------------|------------|-------|------|
+| Baseline | 2026-02-20 | 70 | 0% | England (1.0 avg SCs) | MaxYear 1920; 8 draws (11.4%) | [link](gonnx-vs-medium/2026-02-20-01-baseline.md) |
+
+**Key findings**:
+- 0% win rate across all 7 powers -- raw policy without search cannot beat medium bots
+- Turkey survives longest (avg 2.5 SCs through 1906) but still 0 wins
+- England holds SCs longest due to island isolation (avg 2.5 through 1907)
+- Russia collapses fastest (0 SCs by 1906)
+- ~7x faster per game than hard bot (~47s vs ~360s) but much weaker
+- Establishes lower bound for neural-guided play; search integration needed
+
+---
+
 ## Rust vs Hard
 
 Comparison of Rust engine and Hard bot, both playing against Medium opponents.

@@ -650,6 +650,30 @@ func TestBenchmark_RustVsHard(t *testing.T) {
 	logBenchmarkResults(t, r)
 }
 
+// TestBenchmark_GonnxVsMedium runs each of the 7 powers as hard-gonnx against 6 medium bots.
+func TestBenchmark_GonnxVsMedium(t *testing.T) {
+	modelPath := filepath.Join("..", "..", "..", "engine", "models")
+	if _, err := os.Stat(filepath.Join(modelPath, "policy_v2.onnx")); err != nil {
+		t.Skip("policy_v2.onnx not found, skipping gonnx benchmark")
+	}
+
+	origPath := GonnxModelPath
+	GonnxModelPath = modelPath
+	defer func() { GonnxModelPath = origPath }()
+
+	numGames := benchNumGames(10)
+	maxYear := 1920
+
+	for _, power := range diplomacy.AllPowers() {
+		power := power
+		t.Run(string(power), func(t *testing.T) {
+			r := runTimelineBenchmark(t, power, "hard-gonnx", "medium", numGames, maxYear)
+			label := fmt.Sprintf("%s (Gonnx) vs 6 Medium", strings.Title(string(power)))
+			logTimelineResultsLabeled(t, r, label)
+		})
+	}
+}
+
 // TestBenchmark_RustVsEasyAllPowers runs the Rust engine as each of the 7 powers against 6 easy Go bots.
 func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 	if os.Getenv("REALPOLITIK_PATH") == "" {
