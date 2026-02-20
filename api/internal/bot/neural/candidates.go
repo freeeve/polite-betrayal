@@ -3,6 +3,7 @@ package neural
 import (
 	"math"
 	"math/rand"
+	"slices"
 	"sort"
 
 	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
@@ -374,7 +375,7 @@ func coordinateCandidateSupports(
 	unitProvs []string,
 	power diplomacy.Power,
 ) {
-	for pass := 0; pass < 3; pass++ {
+	for range 3 {
 		changed := false
 
 		uo := make([]unitOrder, len(candidate))
@@ -520,14 +521,7 @@ func findReplacementOrder(
 			continue
 		}
 		sProv := so.order.AuxLoc
-		isFriendly := false
-		for _, p := range unitProvs {
-			if p == sProv {
-				isFriendly = true
-				break
-			}
-		}
-		if !isFriendly {
+		if !slices.Contains(unitProvs, sProv) {
 			continue
 		}
 
@@ -582,14 +576,7 @@ func findForeignSupportReplacement(
 			continue
 		}
 		sProv := so.order.AuxLoc
-		isFriendly := false
-		for _, p := range unitProvs {
-			if p == sProv {
-				isFriendly = true
-				break
-			}
-		}
-		if !isFriendly {
+		if !slices.Contains(unitProvs, sProv) {
 			continue
 		}
 
@@ -639,10 +626,7 @@ func GenerateCandidates(
 
 	provs := getUnitProvinces(perUnit)
 
-	sampledCount := count - 5
-	if sampledCount < 0 {
-		sampledCount = 0
-	}
+	sampledCount := max(0, count-5)
 	candidates := make([][]CandidateOrder, 0, count)
 	var seen [][]CandidateOrder
 
@@ -653,7 +637,7 @@ func GenerateCandidates(
 	candidates = append(candidates, greedy)
 
 	// Sampled candidates: softmax noise for diversity
-	for i := 0; i < sampledCount; i++ {
+	for range sampledCount {
 		orders := make([]CandidateOrder, 0, len(perUnit))
 		for _, unitCands := range perUnit {
 			if len(unitCands) == 1 {
@@ -762,17 +746,9 @@ func injectCoordinatedCandidates(
 				provData := m.Provinces[supportedProv]
 				if provData != nil && provData.IsSupplyCenter &&
 					gs.SupplyCenters[supportedProv] == power &&
-					provinceThreat(supportedProv, power, gs, m) > 0 {
-					isOurs := false
-					for _, p := range unitProvs {
-						if p == supportedProv {
-							isOurs = true
-							break
-						}
-					}
-					if isOurs {
-						opps = append(opps, supportOpp{ui: ui, order: so.order, score: so.score + 2.0})
-					}
+					provinceThreat(supportedProv, power, gs, m) > 0 &&
+					slices.Contains(unitProvs, supportedProv) {
+					opps = append(opps, supportOpp{ui: ui, order: so.order, score: so.score + 2.0})
 				}
 			}
 		}
