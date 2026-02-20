@@ -267,17 +267,28 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
         }
         Order::SupportHold { supported, .. } => {
             let prov = supported.location.province;
-            let mut score: f32 = 1.0;
-            if prov.is_supply_center() && state.sc_owner[prov as usize] == Some(power) {
-                let threat = province_threat(prov, power, state);
-                if threat > 0 {
+            let threat = province_threat(prov, power, state);
+            if threat == 0 {
+                -2.0 // No threat = waste of a move
+            } else {
+                let mut score: f32 = 1.0;
+                if prov.is_supply_center() && state.sc_owner[prov as usize] == Some(power) {
                     score += 4.0 + threat as f32;
                 }
+                score
             }
-            score
         }
         Order::SupportMove { dest, .. } => {
             let dst = dest.province;
+            let has_enemy_unit = matches!(state.units[dst as usize], Some((p, _)) if p != power);
+            let threat = province_threat(dst, power, state);
+
+            // If destination has no enemy unit AND no adjacent enemies that could
+            // contest, this support is pointless.
+            if !has_enemy_unit && threat == 0 {
+                return -1.0;
+            }
+
             let mut score: f32 = 2.0;
             if dst.is_supply_center() {
                 let owner = state.sc_owner[dst as usize];
@@ -287,15 +298,13 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
                     score += 5.0;
                 }
             }
-            if let Some((p, _)) = state.units[dst as usize] {
-                if p != power {
-                    score += 3.0;
-                    // Dislodge-for-capture: supporting a move into an SC occupied by
-                    // an enemy is very high value — the support enables both the
-                    // dislodge and the SC flip.
-                    if dst.is_supply_center() && state.sc_owner[dst as usize] != Some(power) {
-                        score += 6.0;
-                    }
+            if has_enemy_unit {
+                score += 3.0;
+                // Dislodge-for-capture: supporting a move into an SC occupied by
+                // an enemy is very high value — the support enables both the
+                // dislodge and the SC flip.
+                if dst.is_supply_center() && state.sc_owner[dst as usize] != Some(power) {
+                    score += 6.0;
                 }
             }
             score
@@ -854,6 +863,14 @@ fn inject_coordinated_candidates(
                 Order::SupportMove {
                     supported, dest, ..
                 } => {
+                    let dst = dest.province;
+                    let has_enemy_unit =
+                        matches!(state.units[dst as usize], Some((p, _)) if p != power);
+                    let threat = province_threat(dst, power, state);
+                    // Only inject support-move when destination is contested
+                    if !has_enemy_unit && threat == 0 {
+                        continue;
+                    }
                     let supported_prov = supported.location.province;
                     if let Some(target_ui) =
                         unit_provinces.iter().position(|&p| p == supported_prov)
@@ -2440,10 +2457,13 @@ mod tests {
     #[test]
     fn coordinated_candidates_contain_support_orders() {
         // Two adjacent Austrian units: Gal can support Bud->Rum.
+        // Place a Turkish unit on Rum so the support-move is contested.
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
         state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
         state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
         state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.place_unit(Province::Rum, Power::Turkey, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Rum, Some(Power::Turkey));
 
         let mut rng = SmallRng::seed_from_u64(42);
         let cands = generate_candidates(Power::Austria, &state, NUM_CANDIDATES, &mut rng);
@@ -2461,10 +2481,13 @@ mod tests {
     #[test]
     fn coordinated_candidates_pair_support_with_move() {
         // Verify support-move and matching move appear in the same candidate.
+        // Place a Turkish unit on Rum so the support-move is contested.
         let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
         state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
         state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
         state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.place_unit(Province::Rum, Power::Turkey, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Rum, Some(Power::Turkey));
 
         let mut rng = SmallRng::seed_from_u64(42);
         let cands = generate_candidates(Power::Austria, &state, NUM_CANDIDATES, &mut rng);

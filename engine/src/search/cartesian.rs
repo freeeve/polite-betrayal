@@ -179,18 +179,28 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
         }
         Order::SupportHold { supported, .. } => {
             let prov = supported.location.province;
-            let mut score: f32 = 1.0;
-            // Higher value supporting defense of threatened owned SCs
-            if prov.is_supply_center() && state.sc_owner[prov as usize] == Some(power) {
-                let threat = province_threat(prov, power, state);
-                if threat > 0 {
+            let threat = province_threat(prov, power, state);
+            if threat == 0 {
+                -2.0 // No threat = waste of a move
+            } else {
+                let mut score: f32 = 1.0;
+                if prov.is_supply_center() && state.sc_owner[prov as usize] == Some(power) {
                     score += 4.0 + threat as f32;
                 }
+                score
             }
-            score
         }
         Order::SupportMove { dest, .. } => {
             let dst = dest.province;
+            let has_enemy_unit = matches!(state.units[dst as usize], Some((p, _)) if p != power);
+            let threat = province_threat(dst, power, state);
+
+            // If destination has no enemy unit AND no adjacent enemies that could
+            // contest, this support is pointless.
+            if !has_enemy_unit && threat == 0 {
+                return -1.0;
+            }
+
             let mut score: f32 = 2.0;
             // Supporting moves into unowned SCs is valuable
             if dst.is_supply_center() {
@@ -202,15 +212,13 @@ fn score_order(order: &Order, power: Power, state: &BoardState) -> f32 {
                 }
             }
             // Supporting attacks on occupied enemy provinces
-            if let Some((p, _)) = state.units[dst as usize] {
-                if p != power {
-                    score += 3.0;
-                    // Dislodge-for-capture: supporting a move into an SC occupied by
-                    // an enemy is very high value — the support enables both the
-                    // dislodge and the SC flip.
-                    if dst.is_supply_center() && state.sc_owner[dst as usize] != Some(power) {
-                        score += 6.0;
-                    }
+            if has_enemy_unit {
+                score += 3.0;
+                // Dislodge-for-capture: supporting a move into an SC occupied by
+                // an enemy is very high value — the support enables both the
+                // dislodge and the SC flip.
+                if dst.is_supply_center() && state.sc_owner[dst as usize] != Some(power) {
+                    score += 6.0;
                 }
             }
             score
