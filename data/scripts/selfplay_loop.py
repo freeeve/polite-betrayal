@@ -20,6 +20,7 @@ See --help for all options.
 import argparse
 import json
 import logging
+import signal as signal_mod
 import shutil
 import subprocess
 import sys
@@ -70,6 +71,48 @@ def step_completed(marker: Path) -> bool:
     return marker.exists() and marker.stat().st_size > 0
 
 
+def start_follow_importer(args, root: Path, iter_dir: Path, iteration: int) -> subprocess.Popen | None:
+    """Start the JSONL importer in --follow mode as a background process.
+
+    Returns the Popen object so it can be terminated later, or None if DB import is disabled.
+    """
+    if not args.db_url:
+        return None
+
+    games_file = iter_dir / "games.jsonl"
+    cmd = [
+        "go", "run", str(root / "api" / "cmd" / "import_selfplay"),
+        "--input", str(games_file),
+        "--db", args.db_url,
+        "--name-prefix", f"selfplay-iter{iteration:03d}",
+        "--follow",
+    ]
+    cmd_str = " ".join(str(c) for c in cmd)
+    log.info("[iter %d follow-importer] %s", iteration, cmd_str)
+    if args.dry_run:
+        log.info("[iter %d follow-importer] (dry run, skipping)", iteration)
+        return None
+
+    proc = subprocess.Popen(cmd, cwd=str(root))
+    log.info("[iter %d follow-importer] started (pid %d)", iteration, proc.pid)
+    return proc
+
+
+def stop_follow_importer(proc: subprocess.Popen | None, iteration: int):
+    """Send SIGINT to the follow importer and wait for it to exit."""
+    if proc is None:
+        return
+    log.info("[iter %d follow-importer] stopping (pid %d)", iteration, proc.pid)
+    proc.send_signal(signal_mod.SIGINT)
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        log.warning("[iter %d follow-importer] did not exit in time, killing", iteration)
+        proc.kill()
+        proc.wait()
+    log.info("[iter %d follow-importer] stopped", iteration)
+
+
 def generate_selfplay(args, root: Path, iter_dir: Path, iteration: int) -> bool:
     """Step 1: Generate self-play games using the Rust engine."""
     output_file = iter_dir / "games.jsonl"
@@ -98,28 +141,6 @@ def generate_selfplay(args, root: Path, iter_dir: Path, iteration: int) -> bool:
         cmd.extend(["--seed", str(args.seed + iteration)])
 
     rc = run_cmd(cmd, f"iter {iteration} selfplay", dry_run=args.dry_run)
-    return rc == 0
-
-
-def import_to_db(args, root: Path, iter_dir: Path, iteration: int) -> bool:
-    """Step 1b: Import self-play games to database for UI viewing."""
-    if not args.db_url:
-        log.info("Skipping DB import (no --db-url provided)")
-        return True
-
-    games_file = iter_dir / "games.jsonl"
-    if not games_file.exists():
-        log.error("No games.jsonl found at %s", games_file)
-        return False
-
-    cmd = [
-        "go", "run", str(root / "api" / "cmd" / "import_selfplay"),
-        "--input", str(games_file),
-        "--db", args.db_url,
-        "--name-prefix", f"selfplay-iter{iteration:03d}",
-    ]
-
-    rc = run_cmd(cmd, f"iter {iteration} db-import", dry_run=args.dry_run)
     return rc == 0
 
 
@@ -408,17 +429,22 @@ def run_iteration(args, root: Path, iteration: int) -> bool:
     log.info("Starting iteration %d", iteration)
     log.info("=" * 60)
 
+    # Start follow-mode importer before generation so games appear in the UI live.
+    follow_proc = start_follow_importer(args, root, iter_dir, iteration)
+
     # Step 1: Generate self-play games
     t0 = time.time()
-    if not generate_selfplay(args, root, iter_dir, iteration):
-        return False
+    ok = generate_selfplay(args, root, iter_dir, iteration)
     timings["selfplay"] = time.time() - t0
 
-    # Step 1b: Import to DB (optional)
-    t0 = time.time()
-    if not import_to_db(args, root, iter_dir, iteration):
+    # Give the follow importer a moment to finish importing the last game,
+    # then stop it. It will print a summary on exit.
+    if follow_proc is not None:
+        time.sleep(5)
+        stop_follow_importer(follow_proc, iteration)
+
+    if not ok:
         return False
-    timings["db_import"] = time.time() - t0
 
     # Step 2: Convert to NPZ
     t0 = time.time()

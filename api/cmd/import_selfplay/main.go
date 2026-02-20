@@ -4,6 +4,7 @@
 // Usage:
 //
 //	go run ./cmd/import_selfplay/ --input games.jsonl --db postgres://...
+//	go run ./cmd/import_selfplay/ --input games.jsonl --db postgres://... --follow
 package main
 
 import (
@@ -12,9 +13,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -55,6 +59,7 @@ func main() {
 	inputFile := flag.String("input", "", "Path to JSONL file")
 	dbURL := flag.String("db", os.Getenv("DATABASE_URL"), "Postgres connection URL")
 	namePrefix := flag.String("name-prefix", "selfplay", "Game name prefix")
+	follow := flag.Bool("follow", false, "Watch file for new lines (like tail -f)")
 	flag.Parse()
 
 	if *inputFile == "" {
@@ -73,16 +78,30 @@ func main() {
 	gameRepo := postgres.NewGameRepo(db)
 	phaseRepo := postgres.NewPhaseRepo(db)
 	userRepo := postgres.NewUserRepo(db)
+	ctx := context.Background()
 
-	f, err := os.Open(*inputFile)
+	if *follow {
+		runFollow(ctx, *inputFile, *namePrefix, gameRepo, phaseRepo, userRepo)
+	} else {
+		runBatch(ctx, *inputFile, *namePrefix, gameRepo, phaseRepo, userRepo)
+	}
+}
+
+// runBatch imports all lines from the JSONL file and exits.
+func runBatch(
+	ctx context.Context,
+	inputFile, namePrefix string,
+	gameRepo *postgres.GameRepo,
+	phaseRepo *postgres.PhaseRepo,
+	userRepo *postgres.UserRepo,
+) {
+	f, err := os.Open(inputFile)
 	if err != nil {
 		log.Fatalf("open input: %v", err)
 	}
 	defer f.Close()
 
-	ctx := context.Background()
 	scanner := bufio.NewScanner(f)
-	// Allow large lines (self-play games can be large).
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
 	imported := 0
@@ -98,7 +117,7 @@ func main() {
 			continue
 		}
 
-		gameName := fmt.Sprintf("%s-%03d", *namePrefix, rec.GameID)
+		gameName := fmt.Sprintf("%s-%03d", namePrefix, rec.GameID)
 		gameID, err := importGame(ctx, gameRepo, phaseRepo, userRepo, rec, gameName)
 		if err != nil {
 			log.Printf("ERROR: import game %d: %v", rec.GameID, err)
@@ -114,6 +133,116 @@ func main() {
 	}
 
 	log.Printf("done: imported %d games", imported)
+}
+
+// runFollow imports existing lines then watches the file for new lines, polling every 2 seconds.
+// It handles the file not existing yet by waiting for it to be created.
+func runFollow(
+	ctx context.Context,
+	inputFile, namePrefix string,
+	gameRepo *postgres.GameRepo,
+	phaseRepo *postgres.PhaseRepo,
+	userRepo *postgres.UserRepo,
+) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for the file to exist.
+	for {
+		if _, err := os.Stat(inputFile); err == nil {
+			break
+		}
+		log.Printf("waiting for %s to be created...", inputFile)
+		select {
+		case <-sigCh:
+			log.Printf("interrupted before file created, exiting")
+			return
+		case <-time.After(2 * time.Second):
+		}
+	}
+
+	f, err := os.Open(inputFile)
+	if err != nil {
+		log.Fatalf("open input: %v", err)
+	}
+	defer f.Close()
+
+	imported := 0
+	var offset int64
+
+	// Import existing lines.
+	imported, offset = followReadLines(ctx, f, offset, namePrefix, imported, gameRepo, phaseRepo, userRepo)
+	log.Printf("imported %d existing games, watching for new games...", imported)
+
+	// Poll for new lines.
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-sigCh:
+			log.Printf("interrupted: imported %d games total", imported)
+			return
+		case <-ticker.C:
+			imported, offset = followReadLines(ctx, f, offset, namePrefix, imported, gameRepo, phaseRepo, userRepo)
+		}
+	}
+}
+
+// followReadLines seeks to the given offset, reads any complete new lines, imports them,
+// and returns the updated count and offset.
+func followReadLines(
+	ctx context.Context,
+	f *os.File,
+	offset int64,
+	namePrefix string,
+	imported int,
+	gameRepo *postgres.GameRepo,
+	phaseRepo *postgres.PhaseRepo,
+	userRepo *postgres.UserRepo,
+) (int, int64) {
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		log.Printf("WARN: seek failed: %v", err)
+		return imported, offset
+	}
+
+	reader := bufio.NewReader(f)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			// No complete line available yet; do not advance offset past partial data.
+			break
+		}
+
+		offset += int64(len(line))
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var rec jsonGameRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			log.Printf("WARN: skip line (bad JSON): %v", err)
+			continue
+		}
+
+		gameName := fmt.Sprintf("%s-%03d", namePrefix, rec.GameID)
+		winnerStr := "draw"
+		if rec.Winner != nil {
+			winnerStr = fmt.Sprintf("%s wins", *rec.Winner)
+		}
+
+		gameID, err := importGame(ctx, gameRepo, phaseRepo, userRepo, rec, gameName)
+		if err != nil {
+			log.Printf("ERROR: import game %d: %v", rec.GameID, err)
+			continue
+		}
+
+		imported++
+		log.Printf("imported game %d: %s in %d (id=%s)", imported, winnerStr, rec.FinalYear, gameID)
+	}
+
+	return imported, offset
 }
 
 // importGame creates a game, players, and phases in the database.
