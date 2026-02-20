@@ -80,6 +80,8 @@ fn main() {
         i += 1;
     }
 
+    config.quiet = quiet;
+
     if !quiet {
         eprintln!(
             "Self-play: {} games, {}ms/move, strength {}, max year {}, temp {:.2}, {} threads",

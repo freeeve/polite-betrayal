@@ -5,7 +5,8 @@
 //! value estimates, and SC counts per phase for reinforcement learning.
 
 use std::io::Write;
-use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
@@ -57,6 +58,8 @@ pub struct SelfPlayConfig {
     pub threads: usize,
     /// Random seed (0 = use entropy).
     pub seed: u64,
+    /// Suppress per-game progress output.
+    pub quiet: bool,
 }
 
 impl Default for SelfPlayConfig {
@@ -75,6 +78,7 @@ impl Default for SelfPlayConfig {
             early_domination_year: 1905,
             threads: 4,
             seed: 0,
+            quiet: false,
         }
     }
 }
@@ -405,7 +409,23 @@ fn run_self_play_sequential(config: &SelfPlayConfig) -> Vec<GameRecord> {
 
     let mut games: Vec<GameRecord> = Vec::with_capacity(config.num_games);
     for i in 0..config.num_games {
+        let game_start = Instant::now();
         let game = play_game(config, i, &mut rng);
+        if !config.quiet {
+            let elapsed = game_start.elapsed().as_secs_f64();
+            let outcome = match game.winner {
+                Some(w) => format!("{} wins", power_name(w)),
+                None => "draw".to_string(),
+            };
+            eprintln!(
+                "Game {}/{}: {} in {} ({:.1}s)",
+                i + 1,
+                config.num_games,
+                outcome,
+                game.final_year,
+                elapsed,
+            );
+        }
         games.push(game);
     }
     games
@@ -414,6 +434,8 @@ fn run_self_play_sequential(config: &SelfPlayConfig) -> Vec<GameRecord> {
 /// Parallel self-play: plays games concurrently using rayon.
 fn run_self_play_parallel(config: &SelfPlayConfig) -> Vec<GameRecord> {
     use rayon::prelude::*;
+
+    let completed = AtomicUsize::new(0);
 
     // Build thread pool with configured thread count.
     let pool = rayon::ThreadPoolBuilder::new()
@@ -430,7 +452,21 @@ fn run_self_play_parallel(config: &SelfPlayConfig) -> Vec<GameRecord> {
                 } else {
                     SmallRng::from_entropy()
                 };
-                play_game(config, i, &mut rng)
+                let game_start = Instant::now();
+                let game = play_game(config, i, &mut rng);
+                if !config.quiet {
+                    let n = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                    let elapsed = game_start.elapsed().as_secs_f64();
+                    let outcome = match game.winner {
+                        Some(w) => format!("{} wins", power_name(w)),
+                        None => "draw".to_string(),
+                    };
+                    eprintln!(
+                        "Game {}/{}: {} in {} ({:.1}s)",
+                        n, config.num_games, outcome, game.final_year, elapsed,
+                    );
+                }
+                game
             })
             .collect()
     })
