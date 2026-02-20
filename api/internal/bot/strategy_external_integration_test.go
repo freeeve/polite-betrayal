@@ -35,8 +35,8 @@ func TestIntegration_DUIHandshake(t *testing.T) {
 		t.Fatalf("NewExternalStrategy handshake failed: %v", err)
 	}
 
-	if es.Name() != "external" {
-		t.Errorf("Name() = %q, want %q", es.Name(), "external")
+	if es.Name() != "realpolitik" {
+		t.Errorf("Name() = %q, want %q", es.Name(), "realpolitik")
 	}
 
 	if !es.isAlive() {

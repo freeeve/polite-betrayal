@@ -93,7 +93,7 @@ func NewExternalStrategy(enginePath string, power diplomacy.Power, opts ...Exter
 }
 
 // Name returns the strategy name.
-func (e *ExternalStrategy) Name() string { return "external" }
+func (e *ExternalStrategy) Name() string { return "realpolitik" }
 
 // GenerateMovementOrders sends the position to the engine and converts the DSON
 // bestorders response into movement-phase OrderInputs.

@@ -240,8 +240,8 @@ func TestExternalStrategy_Handshake(t *testing.T) {
 	}
 	defer es.Close()
 
-	if es.Name() != "external" {
-		t.Errorf("Name() = %q, want %q", es.Name(), "external")
+	if es.Name() != "realpolitik" {
+		t.Errorf("Name() = %q, want %q", es.Name(), "realpolitik")
 	}
 }
 

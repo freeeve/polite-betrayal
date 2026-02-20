@@ -615,7 +615,7 @@ func TestBenchmark_RustVsEasy(t *testing.T) {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-easy", 10, "france=external,*=easy", 1930)
+	r := runBenchmarkSuite(t, "rust-france-vs-6-easy", 10, "france=realpolitik,*=easy", 1930)
 	logBenchmarkResults(t, r)
 
 	// Acceptance: >80% win rate vs easy
@@ -630,7 +630,7 @@ func TestBenchmark_RustVsMedium(t *testing.T) {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-medium", 10, "france=external,*=medium", 1930)
+	r := runBenchmarkSuite(t, "rust-france-vs-6-medium", 10, "france=realpolitik,*=medium", 1930)
 	logBenchmarkResults(t, r)
 
 	// Acceptance: >40% win rate vs medium
@@ -646,7 +646,7 @@ func TestBenchmark_RustVsHard(t *testing.T) {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 3, "france=external,*=hard", 1905)
+	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 3, "france=realpolitik,*=hard", 1905)
 	logBenchmarkResults(t, r)
 }
 
@@ -696,7 +696,7 @@ func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 	for _, power := range diplomacy.AllPowers() {
 		power := power
 		t.Run(string(power), func(t *testing.T) {
-			r := runTimelineBenchmark(t, power, "external", "easy", numGames, maxYear)
+			r := runTimelineBenchmark(t, power, "realpolitik", "easy", numGames, maxYear)
 			label := fmt.Sprintf("%s (Rust) vs 6 Easy", strings.Title(string(power)))
 			logTimelineResultsLabeled(t, r, label)
 
@@ -730,7 +730,7 @@ func TestBenchmark_RustVsMediumAllPowers(t *testing.T) {
 	for _, power := range diplomacy.AllPowers() {
 		power := power
 		t.Run(string(power), func(t *testing.T) {
-			r := runTimelineBenchmark(t, power, "external", "medium", numGames, maxYear)
+			r := runTimelineBenchmark(t, power, "realpolitik", "medium", numGames, maxYear)
 			label := fmt.Sprintf("%s (Rust) vs 6 Medium", strings.Title(string(power)))
 			logTimelineResultsLabeled(t, r, label)
 
