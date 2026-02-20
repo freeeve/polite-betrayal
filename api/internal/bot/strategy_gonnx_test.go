@@ -83,6 +83,74 @@ func TestGonnxStrategyGeneratesMovementOrders(t *testing.T) {
 	}
 }
 
+func TestGonnxValueModelLoads(t *testing.T) {
+	modelPath := "../../.." + "/engine/models"
+	if _, err := os.Stat(modelPath + "/value_v2.onnx"); err != nil {
+		t.Skip("value_v2.onnx not found, skipping value model load test")
+	}
+	if _, err := os.Stat(modelPath + "/policy_v2.onnx"); err != nil {
+		t.Skip("policy_v2.onnx not found, skipping value model load test")
+	}
+
+	orig := GonnxModelPath
+	defer func() { GonnxModelPath = orig }()
+	GonnxModelPath = modelPath
+
+	gs, err := newGonnxStrategy()
+	if err != nil {
+		t.Fatalf("newGonnxStrategy failed: %v", err)
+	}
+	if gs.value == nil {
+		t.Fatal("expected value model to be loaded")
+	}
+}
+
+func TestGonnxRunValueNetwork(t *testing.T) {
+	modelPath := "../../.." + "/engine/models"
+	if _, err := os.Stat(modelPath + "/value_v2.onnx"); err != nil {
+		t.Skip("value_v2.onnx not found, skipping value inference test")
+	}
+	if _, err := os.Stat(modelPath + "/policy_v2.onnx"); err != nil {
+		t.Skip("policy_v2.onnx not found, skipping value inference test")
+	}
+
+	orig := GonnxModelPath
+	defer func() { GonnxModelPath = orig }()
+	GonnxModelPath = modelPath
+
+	s, err := newGonnxStrategy()
+	if err != nil {
+		t.Fatalf("newGonnxStrategy failed: %v", err)
+	}
+
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+
+	for _, power := range diplomacy.AllPowers() {
+		result, err := s.RunValueNetwork(gs, power, m)
+		if err != nil {
+			t.Fatalf("%s: RunValueNetwork error: %v", power, err)
+		}
+		for i, v := range result {
+			if v < -10 || v > 10 {
+				t.Errorf("%s: value[%d] = %f out of expected range", power, i, v)
+			}
+		}
+		t.Logf("%s: value = %v", power, result)
+	}
+}
+
+func TestGonnxValueNetworkNoModel(t *testing.T) {
+	s := &GonnxStrategy{}
+	gs := diplomacy.NewInitialState()
+	m := diplomacy.StandardMap()
+
+	_, err := s.RunValueNetwork(gs, diplomacy.Austria, m)
+	if err == nil {
+		t.Error("expected error when value model is nil")
+	}
+}
+
 func TestGonnxStrategyBuildOrders(t *testing.T) {
 	modelPath := "../../.." + "/engine/models"
 	if _, err := os.Stat(modelPath + "/policy_v2.onnx"); err != nil {

@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"log"
 	"sync"
 
@@ -181,6 +182,78 @@ func (s *GonnxStrategy) runPolicy(gs *diplomacy.GameState, power diplomacy.Power
 		log.Printf("bot/gonnx: unexpected output type %T", data)
 		return nil
 	}
+}
+
+// RunValueNetwork encodes state and runs the value model, returning
+// [sc_share, win_prob, draw_prob, survival_prob].
+func (s *GonnxStrategy) RunValueNetwork(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) ([4]float32, error) {
+	if s.value == nil {
+		return [4]float32{}, fmt.Errorf("value model not loaded")
+	}
+
+	boardData := neural.EncodeBoard(gs, m, nil)
+	powerIdx := []int64{int64(neural.PowerIndex(power))}
+
+	boardTensor := tensor.New(
+		tensor.WithShape(1, neural.NumAreas, neural.NumFeatures),
+		tensor.Of(tensor.Float32),
+		tensor.WithBacking(boardData),
+	)
+	adjTensor := tensor.New(
+		tensor.WithShape(neural.NumAreas, neural.NumAreas),
+		tensor.Of(tensor.Float32),
+		tensor.WithBacking(s.adj),
+	)
+	powerTensor := tensor.New(
+		tensor.WithShape(1),
+		tensor.Of(tensor.Int64),
+		tensor.WithBacking(powerIdx),
+	)
+
+	inputs := gonnx.Tensors{
+		"board":         boardTensor,
+		"adj":           adjTensor,
+		"power_indices": powerTensor,
+	}
+
+	s.mu.Lock()
+	outputs, err := s.value.Run(inputs)
+	s.mu.Unlock()
+	if err != nil {
+		return [4]float32{}, fmt.Errorf("value run error: %w", err)
+	}
+
+	out, ok := outputs["value_preds"]
+	if !ok {
+		// Try first output key if name doesn't match.
+		for _, v := range outputs {
+			out = v
+			break
+		}
+	}
+	if out == nil {
+		return [4]float32{}, fmt.Errorf("no output tensor from value model")
+	}
+
+	var result [4]float32
+	switch d := out.Data().(type) {
+	case []float32:
+		if len(d) < 4 {
+			return [4]float32{}, fmt.Errorf("value output too short: %d", len(d))
+		}
+		copy(result[:], d[:4])
+	case []float64:
+		if len(d) < 4 {
+			return [4]float32{}, fmt.Errorf("value output too short: %d", len(d))
+		}
+		for i := 0; i < 4; i++ {
+			result[i] = float32(d[i])
+		}
+	default:
+		return [4]float32{}, fmt.Errorf("unexpected value output type %T", out.Data())
+	}
+
+	return result, nil
 }
 
 // scoredOrderToInput converts a neural.ScoredOrder to an OrderInput.
