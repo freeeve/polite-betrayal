@@ -395,13 +395,7 @@ func coordinateCandidateSupports(
 			supportedProv := order.AuxLoc
 			supporterProv := order.Location
 
-			ui := -1
-			for j, p := range unitProvs {
-				if p == supporterProv {
-					ui = j
-					break
-				}
-			}
+			ui := slices.Index(unitProvs, supporterProv)
 			if ui < 0 || ui >= len(perUnit) {
 				continue
 			}
@@ -721,13 +715,7 @@ func injectCoordinatedCandidates(
 					continue
 				}
 				supportedProv := so.order.AuxLoc
-				targetUI := -1
-				for j, p := range unitProvs {
-					if p == supportedProv {
-						targetUI = j
-						break
-					}
-				}
+				targetUI := slices.Index(unitProvs, supportedProv)
 				if targetUI < 0 {
 					continue
 				}
@@ -865,10 +853,7 @@ func GenerateCandidatesNeural(
 				hMin = c.score
 			}
 		}
-		hRange := hMax - hMin
-		if hRange < 1.0 {
-			hRange = 1.0
-		}
+		hRange := max(hMax-hMin, 1.0)
 
 		nMax := float32(math.Inf(-1))
 		nMin := float32(math.Inf(1))
@@ -880,10 +865,7 @@ func GenerateCandidatesNeural(
 				nMin = c.score
 			}
 		}
-		nRange := nMax - nMin
-		if nRange < 1.0 {
-			nRange = 1.0
-		}
+		nRange := max(nMax-nMin, 1.0)
 
 		var merged []blendedCandidate
 
