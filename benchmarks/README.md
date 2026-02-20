@@ -13,6 +13,7 @@ Arena benchmark results for Polite Betrayal Diplomacy bots. Each matchup pits on
 | Hard vs Medium | 15.7% | 70 | 2026-02-19 | Turkey 40% best power | [link](hard-vs-medium/2026-02-18-baseline-s7.md) |
 | Rust vs Hard | 20% vs 14.3% | 70 each | 2026-02-19 | Rust outperforms Hard vs Medium opponents | [link](rust-vs-hard/2026-02-19-comparison.md) |
 | Gonnx vs Medium | 0% | 70 | 2026-02-20 | Raw policy network, no search; 8 draws | [link](gonnx-vs-medium/2026-02-20-01-baseline.md) |
+| Gonnx RM+ vs Medium | 0% | 70 | 2026-02-20 | RM+ search (5s, strength=80); 7 draws; improved SCs but no wins | [link](gonnx-vs-medium/2026-02-20-02-rm-search.md) |
 
 ---
 
@@ -109,19 +110,20 @@ Hard bot (1) vs Medium bots (6).
 
 ## Gonnx vs Medium
 
-Gonnx (pure Go ONNX runtime) policy network (1) vs Medium bots (6). Raw greedy argmax, no search.
+Gonnx (pure Go ONNX runtime) policy network (1) vs Medium bots (6).
 
 | Run | Date | Games | Overall Win% | Best Power | Notes | Link |
 |-----|------|-------|-------------|------------|-------|------|
-| Baseline | 2026-02-20 | 70 | 0% | England (1.0 avg SCs) | MaxYear 1920; 8 draws (11.4%) | [link](gonnx-vs-medium/2026-02-20-01-baseline.md) |
+| Baseline (greedy) | 2026-02-20 | 70 | 0% | England (1.0 avg SCs) | MaxYear 1920; 8 draws (11.4%) | [link](gonnx-vs-medium/2026-02-20-01-baseline.md) |
+| RM+ search (5s) | 2026-02-20 | 70 | 0% | Turkey (2.3 avg SCs) | RM+ search, strength=80; 7 draws (10%) | [link](gonnx-vs-medium/2026-02-20-02-rm-search.md) |
 
 **Key findings**:
-- 0% win rate across all 7 powers -- raw policy without search cannot beat medium bots
-- Turkey survives longest (avg 2.5 SCs through 1906) but still 0 wins
-- England holds SCs longest due to island isolation (avg 2.5 through 1907)
-- Russia collapses fastest (0 SCs by 1906)
-- ~7x faster per game than hard bot (~47s vs ~360s) but much weaker
-- Establishes lower bound for neural-guided play; search integration needed
+- 0% win rate across all 7 powers in both greedy and RM+ search configurations
+- RM+ search significantly improves mid-game SC counts (France P95 reaches 13-15 SCs) but cannot convert to wins
+- Turkey and France are best powers with RM+ search (2.3, 2.2 avg final SCs)
+- Russia collapses fastest in both configs
+- RM+ search is ~2.8x slower per game (~130s vs ~47s) with no win rate improvement
+- Bottleneck may be policy network quality rather than search depth
 
 ---
 
