@@ -44,9 +44,13 @@
 ### Testing & Benchmarking
 - Include descriptive names in test runs (e.g., "bench-easy-england-vs-random") so games are identifiable in the UI
 - For DB benchmarks, use `DryRun: false` so games are reviewable in the UI
-- Store benchmark results in `benchmarks/` (not `tasks/`). Use descriptive filenames like `easy-vs-random-2026-02-17.md`
 - Include SC timeline stats (avg/min/p25/p50/p75/p95/max per year) when running arena benchmarks
 - Never use BENCH_VERBOSE=1 when running arena benchmarks in agents — it wastes context tokens. Default quiet mode only prints summaries.
+- Benchmark results go in `benchmarks/` organized by matchup subfolder:
+  - `easy-vs-random/`, `medium-vs-easy/`, `rust-vs-easy/`, `rust-vs-medium/`, `rust-vs-hard/`, `hard-vs-medium/`
+  - `experiments/` for tuning experiments, `analysis/` for non-benchmark docs
+- Filename format: `YYYY-MM-DD-NN-description.md` where NN is a two-digit sequence number (use when multiple files share a date; omit if only one file on that date)
+- Update `benchmarks/README.md` summary table when adding new results
 
 ### Communication
 - Report concise status updates to the user — completed tasks, active agents, blockers
