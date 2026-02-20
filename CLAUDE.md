@@ -41,6 +41,16 @@
 - Always create task files in `tasks/` alongside the team task list
 - Document results (benchmarks, test runs) in markdown as work progresses
 
+### Models Repository
+- Neural network models stored in separate repo: `../polite-betrayal-models/` (github.com/freeeve/polite-betrayal-models)
+- Content-addressable structure: `models/<sha256[:8]>/` with `policy_v2.onnx`, `value_v2.onnx`, `metadata.json`
+- `current` symlink points to active model; `registry.json` indexes all versions
+- Hash = first 8 chars of SHA256 of `policy_v2.onnx`
+- Rust engine loads models from `engine/models/` — copy or symlink from models repo
+- Go (gonnx) benchmarks also reference `engine/models/`
+- When adding a new model: compute hash, create directory, add metadata.json, update registry.json, update `current` symlink
+- Rust engine benchmark game names: use "bench-realpolitik" prefix
+
 ### Testing & Benchmarking
 - Include descriptive names in test runs (e.g., "bench-easy-england-vs-random") so games are identifiable in the UI
 - For DB benchmarks, use `DryRun: false` so games are reviewable in the UI
