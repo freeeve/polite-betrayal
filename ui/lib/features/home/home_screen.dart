@@ -251,6 +251,14 @@ class _PastGamesTabState extends ConsumerState<_PastGamesTab> {
     _debounce = Timer(const Duration(milliseconds: 300), () {
       ref.read(finishedGamesProvider.notifier).search(value);
     });
+    setState(() {});
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _debounce?.cancel();
+    ref.read(finishedGamesProvider.notifier).search('');
+    setState(() {});
   }
 
   @override
@@ -270,10 +278,7 @@ class _PastGamesTabState extends ConsumerState<_PastGamesTab> {
               suffixIcon: query.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        ref.read(finishedGamesProvider.notifier).search('');
-                      },
+                      onPressed: _clearSearch,
                     )
                   : null,
               border: const OutlineInputBorder(),
