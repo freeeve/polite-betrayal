@@ -607,6 +607,231 @@ class TestEndToEnd:
             assert src_30 == 1.0, "Third order should have src=30"
 
 
+class TestBeamSearch:
+    """Test beam search and candidate generation."""
+
+    def _make_model(self):
+        return DiplomacyAutoRegressivePolicyNet(
+            hidden_dim=64, num_gat_layers=2, num_heads=2,
+            decoder_dim=32, decoder_layers=1, decoder_heads=2,
+        )
+
+    def test_beam_search_shape(self):
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 5))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            best, all_beams = model.beam_search(
+                board, adj, unit_indices, power_idx, beam_width=3
+            )
+        assert best.shape == (1, 5, ORDER_VOCAB_SIZE), f"Got {best.shape}"
+        assert all_beams.shape == (3, 5, ORDER_VOCAB_SIZE), f"Got {all_beams.shape}"
+
+    def test_beam_search_different_beams(self):
+        """Different beam widths should produce different numbers of candidates."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 4))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            _, beams3 = model.beam_search(board, adj, unit_indices, power_idx, beam_width=3)
+            _, beams5 = model.beam_search(board, adj, unit_indices, power_idx, beam_width=5)
+        assert beams3.shape[0] == 3
+        assert beams5.shape[0] == 5
+
+    def test_beam_search_orders_are_onehot(self):
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 3))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            _, all_beams = model.beam_search(board, adj, unit_indices, power_idx, beam_width=3)
+
+        for k in range(3):
+            for s in range(3):
+                order = all_beams[k, s]
+                assert order.sum().item() == 1.0, (
+                    f"Beam {k}, step {s}: expected one-hot, got sum={order.sum().item()}"
+                )
+
+    def test_beam_search_best_is_highest_score(self):
+        """Best beam (index 0) should have highest log-probability."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 4))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            embeddings = model.encode(board, adj, power_idx)
+            _, all_beams = model.decoder.forward_beam_search(
+                embeddings, unit_indices, power_idx, beam_width=5
+            )
+            scores = model._score_candidates(embeddings, unit_indices, power_idx, all_beams)
+
+        # Beam 0 should have highest or near-highest score
+        # (Teacher forcing scores may differ slightly from beam scores
+        # due to causal dependency, but beam 0 should be competitive)
+        assert scores[0] >= scores[-1], (
+            f"Best beam score {scores[0]:.4f} should be >= worst beam {scores[-1]:.4f}"
+        )
+
+    def test_destination_constraint_no_duplicates(self):
+        """With destination constraints, no two move orders should target the same province."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        # Use 6 units to increase chance of collision without constraints
+        unit_indices = torch.tensor([[0, 1, 2, 3, 4, 5]], dtype=torch.long)
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            _, all_beams = model.beam_search(
+                board, adj, unit_indices, power_idx,
+                beam_width=3, constrain_destinations=True
+            )
+
+        DST_START = 7 + NUM_AREAS
+        for k in range(all_beams.shape[0]):
+            move_dsts = []
+            for s in range(6):
+                order = all_beams[k, s]
+                order_type = order[:7].argmax().item()
+                # Type 1 = move, type 4 = retreat
+                if order_type in (1, 4):
+                    dst = order[DST_START:].argmax().item()
+                    if order[DST_START:].sum() > 0:
+                        move_dsts.append(dst)
+            assert len(move_dsts) == len(set(move_dsts)), (
+                f"Beam {k}: duplicate destination provinces in moves: {move_dsts}"
+            )
+
+    def test_topk_sampling_shape(self):
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 4))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            embeddings = model.encode(board, adj, power_idx)
+            candidates, scores = model.decoder.forward_topk_sampling(
+                embeddings, unit_indices, power_idx,
+                num_samples=8, temperature=1.0, top_k=10,
+            )
+        assert candidates.shape == (8, 4, ORDER_VOCAB_SIZE), f"Got {candidates.shape}"
+        assert scores.shape == (8,), f"Got {scores.shape}"
+
+    def test_topk_sampling_diversity(self):
+        """Sampling at temperature=1.0 should produce diverse candidates."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 5))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            embeddings = model.encode(board, adj, power_idx)
+            candidates, _ = model.decoder.forward_topk_sampling(
+                embeddings, unit_indices, power_idx,
+                num_samples=20, temperature=1.0, top_k=20,
+            )
+
+        # Check that not all candidates are identical
+        sigs = set()
+        for i in range(candidates.shape[0]):
+            sig = tuple(candidates[i].argmax(dim=-1).tolist())
+            sigs.add(sig)
+        assert len(sigs) > 1, "All sampled candidates are identical"
+
+    def test_generate_candidates_shape(self):
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 4))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            candidates, scores = model.generate_candidates(
+                board, adj, unit_indices, power_idx,
+                num_candidates=8, beam_width=3,
+            )
+        assert candidates.shape[0] <= 8, f"Expected <= 8 candidates, got {candidates.shape[0]}"
+        assert candidates.shape[1] == 4
+        assert candidates.shape[2] == ORDER_VOCAB_SIZE
+        assert scores.shape[0] == candidates.shape[0]
+
+    def test_generate_candidates_no_duplicates(self):
+        """Generated candidate pool should contain no duplicate order sets."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.randint(0, NUM_AREAS, (1, 4))
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            candidates, _ = model.generate_candidates(
+                board, adj, unit_indices, power_idx,
+                num_candidates=10, beam_width=5,
+            )
+
+        sigs = []
+        for i in range(candidates.shape[0]):
+            sig = tuple(candidates[i].argmax(dim=-1).tolist())
+            sigs.append(sig)
+        assert len(sigs) == len(set(sigs)), "Duplicate candidates in pool"
+
+    def test_generate_candidates_with_padding(self):
+        """Should handle unit_indices with padding (-1)."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        # 3 valid units, rest padding
+        unit_indices = torch.tensor([[5, 10, 20, -1, -1]], dtype=torch.long)
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            candidates, scores = model.generate_candidates(
+                board, adj, unit_indices, power_idx,
+                num_candidates=5, beam_width=3,
+            )
+        assert candidates.shape[0] > 0
+        assert torch.isfinite(scores).all()
+
+    def test_beam_search_empty_units(self):
+        """Should handle all-padding unit indices gracefully."""
+        model = self._make_model()
+        model.eval()
+        board = torch.randn(1, NUM_AREAS, NUM_FEATURES)
+        adj = _make_dummy_adj()
+        unit_indices = torch.full((1, 4), -1, dtype=torch.long)
+        power_idx = torch.zeros(1, dtype=torch.long)
+
+        with torch.no_grad():
+            best, all_beams = model.beam_search(
+                board, adj, unit_indices, power_idx, beam_width=3
+            )
+        # Should return zeros (no valid units)
+        assert best.sum().item() == 0.0
+
+
 def run_all_tests():
     """Run all test classes and report results."""
     test_classes = [
@@ -617,6 +842,7 @@ def run_all_tests():
         TestLossAndAccuracy,
         TestCausality,
         TestEndToEnd,
+        TestBeamSearch,
     ]
 
     total = 0

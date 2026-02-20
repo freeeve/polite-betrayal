@@ -366,6 +366,250 @@ class AutoregressiveDecoder(nn.Module):
 
         return generated, all_logits
 
+    def _decode_step(
+        self,
+        board_embeddings: torch.Tensor,
+        memory: torch.Tensor,
+        unit_indices: torch.Tensor,
+        generated: torch.Tensor,
+        step: int,
+    ) -> torch.Tensor:
+        """Run a single decoder step and return logits.
+
+        Args:
+            board_embeddings: [B, 81, encoder_dim]
+            memory: [B, 81, decoder_dim] projected board embeddings
+            unit_indices: [B, S] province indices up to current step+1
+            generated: [B, S, 169] generated orders so far
+            step: current step index (0-based)
+
+        Returns:
+            Logits [B, 169] for the current step
+        """
+        decoder_input = self._build_decoder_input(
+            board_embeddings, unit_indices[:, :step + 1],
+            generated[:, :step + 1] if step > 0 else None,
+        )
+        causal_mask = self._build_causal_mask(step + 1, board_embeddings.device)
+        x = decoder_input
+        for layer in self.layers:
+            x = layer(x, memory, causal_mask)
+        return self.output_head(x[:, -1])  # [B, 169]
+
+    def _build_destination_mask(
+        self,
+        generated: torch.Tensor,
+        step: int,
+    ) -> torch.Tensor:
+        """Build a mask of already-claimed destination provinces.
+
+        Returns a [B, 169] bool tensor where True means the order index
+        is forbidden (destination province already used by an earlier move).
+        Only masks destination slots (indices 88..168), not type or source.
+        """
+        B = generated.shape[0]
+        V = self.order_vocab_size
+        mask = torch.zeros(B, V, dtype=torch.bool, device=generated.device)
+
+        if step == 0:
+            return mask
+
+        # Collect destination provinces used by previous move orders
+        # Order vocab: [0:7] types, [7:88] src, [88:169] dst
+        # Type index 1 = move, 4 = retreat (orders that claim a destination)
+        TYPE_MOVE = 1
+        TYPE_RETREAT = 4
+        DST_START = 7 + NUM_AREAS  # 88
+
+        for s in range(step):
+            order = generated[:, s]  # [B, 169]
+            order_type = order[:, :7].argmax(dim=-1)  # [B]
+            is_movement = (order_type == TYPE_MOVE) | (order_type == TYPE_RETREAT)
+            dst_section = order[:, DST_START:]  # [B, 81]
+            has_dst = dst_section.sum(dim=-1) > 0  # [B]
+            claims_dst = is_movement & has_dst  # [B]
+
+            # For each batch element that claims a destination, mask that dst
+            dst_idx = dst_section.argmax(dim=-1)  # [B]
+            for b in range(B):
+                if claims_dst[b]:
+                    mask[b, DST_START + dst_idx[b]] = True
+
+        return mask
+
+    def forward_beam_search(
+        self,
+        board_embeddings: torch.Tensor,
+        unit_indices: torch.Tensor,
+        power_indices: torch.Tensor,
+        beam_width: int = 5,
+        constrain_destinations: bool = True,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Beam search inference over the unit sequence.
+
+        Expands K beams at each step, keeping the top-K candidates by
+        cumulative log-probability. Only batch_size=1 is supported for
+        beam search (typical inference pattern).
+
+        Args:
+            board_embeddings: [1, 81, encoder_dim]
+            unit_indices: [1, S] province indices (-1 for padding)
+            power_indices: [1] power index
+            beam_width: Number of beams to maintain
+            constrain_destinations: If True, mask out destination provinces
+                already claimed by a move in the same beam
+
+        Returns:
+            Tuple of:
+              - best_orders: [1, S, 169] best beam's generated orders
+              - all_candidates: [beam_width, S, 169] all beam candidates
+        """
+        assert board_embeddings.shape[0] == 1, "Beam search requires batch_size=1"
+        S = unit_indices.shape[1]
+        device = board_embeddings.device
+        K = beam_width
+        V = self.order_vocab_size
+
+        # Find number of valid units (non-padding)
+        valid_mask = unit_indices[0] >= 0
+        n_valid = valid_mask.sum().item()
+        if n_valid == 0:
+            empty = torch.zeros(1, S, V, device=device)
+            return empty, empty.expand(K, -1, -1)
+
+        memory = self.memory_proj(board_embeddings)  # [1, 81, decoder_dim]
+
+        # Expand to K beams
+        beam_board = board_embeddings.expand(K, -1, -1)    # [K, 81, encoder_dim]
+        beam_memory = memory.expand(K, -1, -1)             # [K, 81, decoder_dim]
+        beam_units = unit_indices.expand(K, -1)             # [K, S]
+        beam_generated = torch.zeros(K, S, V, device=device)
+        beam_scores = torch.zeros(K, device=device)         # log-probs
+
+        for step in range(n_valid):
+            # Get logits for current step across all beams
+            logits = self._decode_step(
+                beam_board, beam_memory, beam_units, beam_generated, step
+            )  # [K, V]
+            log_probs = F.log_softmax(logits, dim=-1)  # [K, V]
+
+            # Apply destination constraint
+            if constrain_destinations:
+                dst_mask = self._build_destination_mask(beam_generated, step)
+                log_probs = log_probs.masked_fill(dst_mask, float("-inf"))
+
+            if step == 0:
+                # First step: all beams are identical, only expand from beam 0
+                scores = log_probs[0]  # [V]
+                topk_scores, topk_indices = scores.topk(K)
+                beam_scores = topk_scores
+                for k in range(K):
+                    one_hot = F.one_hot(topk_indices[k], V).float()
+                    beam_generated[k, step] = one_hot
+            else:
+                # Expand each beam by top-K tokens
+                # Total candidates: K * V, keep top K
+                expanded = beam_scores.unsqueeze(1) + log_probs  # [K, V]
+                flat = expanded.reshape(-1)  # [K*V]
+                topk_scores, topk_flat = flat.topk(K)
+
+                beam_idx = topk_flat // V  # which beam
+                token_idx = topk_flat % V  # which token
+
+                # Rebuild beams
+                new_generated = beam_generated[beam_idx].clone()
+                for k in range(K):
+                    one_hot = F.one_hot(token_idx[k], V).float()
+                    new_generated[k, step] = one_hot
+
+                beam_generated = new_generated
+                beam_scores = topk_scores
+
+        # Best beam is index 0 (highest score)
+        best = beam_generated[0:1]  # [1, S, V]
+        return best, beam_generated  # [1, S, V], [K, S, V]
+
+    def forward_topk_sampling(
+        self,
+        board_embeddings: torch.Tensor,
+        unit_indices: torch.Tensor,
+        power_indices: torch.Tensor,
+        num_samples: int = 10,
+        temperature: float = 1.0,
+        top_k: int = 20,
+        constrain_destinations: bool = True,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Top-K sampling for diverse candidate generation.
+
+        Generates multiple order sets by sampling from the top-K tokens
+        at each step, with temperature control.
+
+        Args:
+            board_embeddings: [1, 81, encoder_dim]
+            unit_indices: [1, S] province indices (-1 for padding)
+            power_indices: [1] power index
+            num_samples: Number of diverse candidates to generate
+            temperature: Sampling temperature (lower = more greedy)
+            top_k: Number of top tokens to sample from at each step
+            constrain_destinations: Mask already-claimed destination provinces
+
+        Returns:
+            Tuple of:
+              - candidates: [num_samples, S, 169] generated order sets
+              - scores: [num_samples] log-probability of each candidate
+        """
+        assert board_embeddings.shape[0] == 1, "Top-K sampling requires batch_size=1"
+        S = unit_indices.shape[1]
+        device = board_embeddings.device
+        N = num_samples
+        V = self.order_vocab_size
+
+        valid_mask = unit_indices[0] >= 0
+        n_valid = valid_mask.sum().item()
+        if n_valid == 0:
+            empty = torch.zeros(N, S, V, device=device)
+            return empty, torch.zeros(N, device=device)
+
+        memory = self.memory_proj(board_embeddings)
+
+        # Expand for parallel sampling
+        sample_board = board_embeddings.expand(N, -1, -1)
+        sample_memory = memory.expand(N, -1, -1)
+        sample_units = unit_indices.expand(N, -1)
+        sample_generated = torch.zeros(N, S, V, device=device)
+        sample_scores = torch.zeros(N, device=device)
+
+        for step in range(n_valid):
+            logits = self._decode_step(
+                sample_board, sample_memory, sample_units, sample_generated, step
+            )  # [N, V]
+
+            # Apply destination constraint
+            if constrain_destinations:
+                dst_mask = self._build_destination_mask(sample_generated, step)
+                logits = logits.masked_fill(dst_mask, float("-inf"))
+
+            # Temperature scaling
+            scaled = logits / max(temperature, 1e-8)
+
+            # Top-K filtering
+            if top_k > 0 and top_k < V:
+                top_values, _ = scaled.topk(top_k, dim=-1)
+                threshold = top_values[:, -1].unsqueeze(-1)
+                scaled = scaled.masked_fill(scaled < threshold, float("-inf"))
+
+            probs = F.softmax(scaled, dim=-1)
+            sampled_idx = torch.multinomial(probs, 1).squeeze(-1)  # [N]
+
+            log_probs = F.log_softmax(logits, dim=-1)
+            step_log_probs = log_probs.gather(1, sampled_idx.unsqueeze(1)).squeeze(1)
+            sample_scores += step_log_probs
+
+            one_hot = F.one_hot(sampled_idx, V).float()
+            sample_generated[:, step] = one_hot
+
+        return sample_generated, sample_scores
+
     def forward_single_step(
         self,
         memory: torch.Tensor,
@@ -538,6 +782,160 @@ class DiplomacyAutoRegressivePolicyNet(nn.Module):
             )
 
         return logits
+
+    def beam_search(
+        self,
+        board: torch.Tensor,
+        adj: torch.Tensor,
+        unit_indices: torch.Tensor,
+        power_indices: torch.Tensor,
+        beam_width: int = 5,
+        constrain_destinations: bool = True,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Run beam search inference.
+
+        Args:
+            board: [1, 81, 47]
+            adj: [81, 81]
+            unit_indices: [1, max_units]
+            power_indices: [1]
+            beam_width: Number of beams
+            constrain_destinations: Mask duplicate destination provinces
+
+        Returns:
+            Tuple of (best_orders [1, S, 169], all_beams [K, S, 169])
+        """
+        embeddings = self.encode(board, adj, power_indices)
+        return self.decoder.forward_beam_search(
+            embeddings, unit_indices, power_indices,
+            beam_width=beam_width,
+            constrain_destinations=constrain_destinations,
+        )
+
+    def generate_candidates(
+        self,
+        board: torch.Tensor,
+        adj: torch.Tensor,
+        unit_indices: torch.Tensor,
+        power_indices: torch.Tensor,
+        num_candidates: int = 10,
+        beam_width: int = 5,
+        temperature: float = 1.0,
+        top_k: int = 20,
+        constrain_destinations: bool = True,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Generate a diverse pool of candidate order sets.
+
+        Combines beam search (for high-quality candidates) with top-K
+        sampling (for diversity). Beam candidates come first, then
+        sampled candidates fill the remainder. Duplicates are removed.
+
+        Args:
+            board: [1, 81, 47]
+            adj: [81, 81]
+            unit_indices: [1, max_units]
+            power_indices: [1]
+            num_candidates: Total candidates to return
+            beam_width: Beams for beam search
+            temperature: Sampling temperature
+            top_k: Top-K filtering for sampling
+            constrain_destinations: Mask duplicate destination provinces
+
+        Returns:
+            Tuple of:
+              - candidates: [N, S, 169] order sets (N <= num_candidates)
+              - scores: [N] log-probability scores
+        """
+        embeddings = self.encode(board, adj, power_indices)
+        S = unit_indices.shape[1]
+        V = self.decoder.order_vocab_size
+        device = board.device
+
+        # Phase 1: beam search candidates
+        _, beam_candidates = self.decoder.forward_beam_search(
+            embeddings, unit_indices, power_indices,
+            beam_width=min(beam_width, num_candidates),
+            constrain_destinations=constrain_destinations,
+        )
+
+        # Phase 2: sample additional candidates if needed
+        n_remaining = num_candidates - beam_candidates.shape[0]
+        if n_remaining > 0:
+            sampled, sample_scores = self.decoder.forward_topk_sampling(
+                embeddings, unit_indices, power_indices,
+                num_samples=n_remaining * 2,  # oversample to account for dedup
+                temperature=temperature,
+                top_k=top_k,
+                constrain_destinations=constrain_destinations,
+            )
+        else:
+            sampled = torch.zeros(0, S, V, device=device)
+
+        # Combine and deduplicate
+        all_candidates = torch.cat([beam_candidates, sampled], dim=0)
+
+        # Score all candidates by computing their log-probabilities
+        # Use teacher forcing to get logits for each candidate
+        all_scores = self._score_candidates(embeddings, unit_indices, power_indices, all_candidates)
+
+        # Deduplicate by argmax signature
+        seen = set()
+        unique_idx = []
+        for i in range(all_candidates.shape[0]):
+            sig = tuple(all_candidates[i].argmax(dim=-1).tolist())
+            if sig not in seen:
+                seen.add(sig)
+                unique_idx.append(i)
+            if len(unique_idx) >= num_candidates:
+                break
+
+        if not unique_idx:
+            unique_idx = [0]
+
+        idx_tensor = torch.tensor(unique_idx, device=device)
+        return all_candidates[idx_tensor], all_scores[idx_tensor]
+
+    def _score_candidates(
+        self,
+        embeddings: torch.Tensor,
+        unit_indices: torch.Tensor,
+        power_indices: torch.Tensor,
+        candidates: torch.Tensor,
+    ) -> torch.Tensor:
+        """Score candidate order sets using teacher forcing log-probabilities.
+
+        Args:
+            embeddings: [1, 81, hidden_dim] encoded board
+            unit_indices: [1, S] province indices
+            power_indices: [1] power index
+            candidates: [N, S, 169] candidate order sets
+
+        Returns:
+            Scores [N] (sum of log-probs over valid steps)
+        """
+        N, S, V = candidates.shape
+        device = candidates.device
+
+        # Expand encoder outputs for all candidates
+        emb_exp = embeddings.expand(N, -1, -1)
+        units_exp = unit_indices.expand(N, -1)
+        power_exp = power_indices.expand(N)
+
+        # Teacher forcing gives us logits at each position
+        logits = self.decoder.forward_teacher_forcing(
+            emb_exp, units_exp, power_exp, candidates
+        )  # [N, S, V]
+
+        log_probs = F.log_softmax(logits, dim=-1)  # [N, S, V]
+        target_idx = candidates.argmax(dim=-1)  # [N, S]
+
+        # Gather log-prob of the chosen token at each step
+        step_log_probs = log_probs.gather(2, target_idx.unsqueeze(-1)).squeeze(-1)  # [N, S]
+
+        # Mask padding (unit_indices == -1)
+        valid = (units_exp >= 0).float()
+        scores = (step_log_probs * valid).sum(dim=-1)  # [N]
+        return scores
 
     def load_encoder_from_policy(self, policy_net: DiplomacyPolicyNet):
         """Copy encoder weights from a trained independent policy network.
