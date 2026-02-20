@@ -85,10 +85,15 @@ func (c *Client) ReadyPowers(ctx context.Context, gameID string) ([]string, erro
 	return c.rdb.SMembers(ctx, readyKey(gameID)).Result()
 }
 
+// phaseGracePeriod is the extra time after the displayed deadline before
+// phase resolution triggers, giving players a few seconds of leeway.
+const phaseGracePeriod = 5 * time.Second
+
 // SetTimer creates a timer key with a TTL. When the key expires,
 // Redis keyspace notifications trigger phase resolution.
+// The TTL includes a grace period so the key expires slightly after the displayed deadline.
 func (c *Client) SetTimer(ctx context.Context, gameID string, deadline time.Time) error {
-	ttl := time.Until(deadline)
+	ttl := time.Until(deadline) + phaseGracePeriod
 	if ttl <= 0 {
 		ttl = time.Second
 	}

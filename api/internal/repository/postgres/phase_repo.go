@@ -159,7 +159,7 @@ func (r *PhaseRepo) ListExpired(ctx context.Context) ([]model.Phase, error) {
 		`SELECT DISTINCT ON (p.game_id) p.id, p.game_id, p.year, p.season, p.phase_type, p.state_before, p.deadline, p.created_at
 		 FROM phases p
 		 JOIN games g ON g.id = p.game_id
-		 WHERE p.resolved_at IS NULL AND p.deadline < now() AND g.status = 'active'
+		 WHERE p.resolved_at IS NULL AND p.deadline + interval '5 seconds' < now() AND g.status = 'active'
 		 ORDER BY p.game_id, p.created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list expired phases: %w", err)

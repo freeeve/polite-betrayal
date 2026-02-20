@@ -15,6 +15,10 @@ import (
 	"github.com/freeeve/polite-betrayal/api/pkg/diplomacy"
 )
 
+// phaseGracePeriod is the extra time after the displayed deadline before
+// phase resolution is allowed, giving players a few seconds of leeway.
+const phaseGracePeriod = 5 * time.Second
+
 // PhaseService orchestrates phase transitions: resolution, state advancement,
 // and timer management for the async turn system.
 type PhaseService struct {
@@ -443,9 +447,9 @@ func (s *PhaseService) resolvePhaseInternal(ctx context.Context, gameID string, 
 		return fmt.Errorf("get current phase: %w", err)
 	}
 
-	// Guard against resolving a phase whose deadline hasn't passed yet
+	// Guard against resolving a phase whose deadline (plus grace period) hasn't passed yet
 	// (unless triggered by all players being ready).
-	if !early && time.Now().Before(phase.Deadline) {
+	if !early && time.Now().Before(phase.Deadline.Add(phaseGracePeriod)) {
 		log.Debug().Str("gameId", gameID).Time("deadline", phase.Deadline).Msg("Phase deadline not yet reached, skipping")
 		return nil
 	}
