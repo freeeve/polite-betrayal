@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class CountdownTimer extends StatefulWidget {
   final DateTime deadline;
 
-  /// Fires once when remaining time crosses 30 seconds.
+  /// Fires once when remaining time crosses 15 seconds.
   final VoidCallback? onUrgent;
 
   const CountdownTimer({super.key, required this.deadline, this.onUrgent});
@@ -40,7 +40,7 @@ class _CountdownTimerState extends State<CountdownTimer> {
     final remaining = widget.deadline.difference(DateTime.now());
     setState(() => _remaining = remaining.isNegative ? Duration.zero : remaining);
     if (!_firedUrgent
-        && _remaining.inSeconds <= 30
+        && _remaining.inSeconds <= 15
         && _remaining > Duration.zero
         && widget.onUrgent != null) {
       _firedUrgent = true;

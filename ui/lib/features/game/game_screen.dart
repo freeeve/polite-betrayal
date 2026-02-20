@@ -568,7 +568,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                     SnackBar(
                       content: const Text('Time is running out! Submit your orders.'),
                       backgroundColor: Colors.amber.shade700,
-                      duration: const Duration(seconds: 6),
+                      duration: const Duration(seconds: 4),
                       action: SnackBarAction(
                         label: 'Dismiss',
                         textColor: Colors.white,
