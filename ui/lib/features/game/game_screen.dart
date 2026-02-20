@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_notifier.dart';
 import '../../core/map/adjacency_data.dart';
 import '../../core/models/game_state.dart';
+import '../../core/models/order.dart';
 import '../../core/theme/app_theme.dart';
 import 'game_notifier.dart';
 import 'phase_history_notifier.dart';
@@ -20,6 +21,7 @@ import 'order_input/retreat_order_panel.dart';
 import 'widgets/game_map.dart';
 import 'widgets/game_over_dialog.dart';
 import 'widgets/map_painter.dart';
+import 'widgets/order_list_panel.dart';
 import 'widgets/phase_bar.dart';
 import 'widgets/phase_results.dart';
 import 'widgets/phase_history.dart';
@@ -313,6 +315,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     }
   }
 
+  /// Builds the right-side panel with legend, action widgets, and resolved orders.
+  Widget _buildRightPanel({
+    required List<Widget> actionWidgets,
+    required List<Order> sidePanelOrders,
+  }) {
+    if (sidePanelOrders.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _MapLegend(compact: false),
+          const Divider(height: 1),
+          if (actionWidgets.isNotEmpty) ...[
+            ...actionWidgets,
+            const Divider(height: 1),
+          ],
+          Expanded(
+            child: OrderListPanel(orders: sidePanelOrders),
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _MapLegend(compact: false),
+        const Divider(height: 1),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(children: actionWidgets),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(gameProvider(widget.gameId));
@@ -589,23 +626,20 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       left: BorderSide(color: Theme.of(context).dividerColor),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _MapLegend(compact: false),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Column(children: actionWidgets),
-                        ),
-                      ),
-                    ],
+                  child: _buildRightPanel(
+                    actionWidgets: actionWidgets,
+                    sidePanelOrders: isViewingHistory
+                        ? historyState.historicalOrders
+                        : state.resolvedOrders,
                   ),
                 ),
               ),
             ],
           );
         } else {
+          final narrowOrders = isViewingHistory
+              ? historyState.historicalOrders
+              : state.resolvedOrders;
           body = Column(
             children: [
               phaseHeader,
@@ -621,6 +655,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 SupplyCenterTable(gameState: displayState, players: game.players),
               const _MapLegend(compact: true),
               ...actionWidgets,
+              if (narrowOrders.isNotEmpty)
+                SizedBox(
+                  height: 160,
+                  child: OrderListPanel(orders: narrowOrders),
+                ),
             ],
           );
         }
