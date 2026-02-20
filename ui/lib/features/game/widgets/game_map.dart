@@ -90,12 +90,14 @@ class _GameMapState extends State<GameMap> with TickerProviderStateMixin {
   }
 
   /// Computes the movement animation duration based on replay mode and speed.
-  Duration _movementDuration() {
+  /// Retreat phases use a shorter duration since they are simpler.
+  Duration _movementDuration({bool isRetreat = false}) {
     if (widget.replayMode && widget.replaySpeed != null) {
-      final ms = (widget.replaySpeed! * 1000).round();
+      final factor = isRetreat ? 600 : 1000;
+      final ms = (widget.replaySpeed! * factor).round();
       return Duration(milliseconds: ms);
     }
-    return const Duration(seconds: 7);
+    return Duration(seconds: isRetreat ? 4 : 7);
   }
 
   /// Computes the build/disband animation duration based on replay mode and speed.
@@ -131,7 +133,10 @@ class _GameMapState extends State<GameMap> with TickerProviderStateMixin {
       // from history/replay view to live while a phase resolved in the background).
       final stateChanged = widget.previousGameState != oldWidget.previousGameState;
       if (ready && (!wasReady || stateChanged)) {
-        dev.log('starting animation (${widget.resolvedOrders!.length} orders, replay=${widget.replayMode})',
+        final isRetreat = widget.previousGameState!.dislodged.isNotEmpty;
+        _animController.duration = _movementDuration(isRetreat: isRetreat);
+        dev.log('starting ${isRetreat ? "retreat" : "movement"} animation '
+            '(${widget.resolvedOrders!.length} orders, replay=${widget.replayMode})',
             name: 'GameMap');
         _animController.forward(from: 0);
       }

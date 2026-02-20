@@ -437,6 +437,8 @@ class MapPainter extends CustomPainter {
           final t = math.sin(animationProgress! * math.pi) * 0.4;
           center = _bezierPoint(from, ctrl, to, t);
         }
+        // Draw dashed trail behind retreating unit.
+        _drawRetreatTrail(canvas, from, ctrl, to, animationProgress!, color);
       } else if (order != null && order.orderType == 'retreat_disband') {
         center = from;
         final opacity = 1.0 - Curves.easeIn.transform(animationProgress!);
@@ -464,11 +466,14 @@ class MapPainter extends CustomPainter {
         continue;
       }
 
+      // Draw retreating units semi-transparent to distinguish from normal moves.
+      canvas.saveLayer(null, Paint()..color = const Color.fromRGBO(0, 0, 0, 0.55));
       if (unit.type == UnitType.army) {
         _drawArtillery(canvas, center, color);
       } else {
         _drawBattleship(canvas, center, color);
       }
+      canvas.restore();
     }
   }
 
@@ -814,6 +819,39 @@ class MapPainter extends CustomPainter {
     );
   }
 
+  /// Draws a dashed trail behind a retreating unit to visually distinguish
+  /// retreat movements from normal moves. The trail covers the portion of the
+  /// Bezier curve the unit has already traversed.
+  void _drawRetreatTrail(Canvas canvas, Offset from, Offset ctrl, Offset to,
+      double progress, Color powerColor) {
+    final eased = Curves.easeInOut.transform(progress);
+    if (eased < 0.02) return;
+
+    // Build a sub-path from start to the current animated position.
+    final currentPos = _bezierPoint(from, ctrl, to, eased);
+    // Approximate by using the control point scaled to the current progress.
+    final subCtrl = Offset.lerp(from, ctrl, eased)!;
+    final trailPath = Path()
+      ..moveTo(from.dx, from.dy)
+      ..quadraticBezierTo(subCtrl.dx, subCtrl.dy, currentPos.dx, currentPos.dy);
+
+    final paint = Paint()
+      ..color = powerColor.withValues(alpha: 0.45)
+      ..strokeWidth = 3.0
+      ..style = PaintingStyle.stroke;
+
+    const dashLen = 8.0;
+    const gapLen = 6.0;
+    for (final metric in trailPath.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        final dashEnd = math.min(d + dashLen, metric.length);
+        canvas.drawPath(metric.extractPath(d, dashEnd), paint);
+        d += dashLen + gapLen;
+      }
+    }
+  }
+
   void _drawHighlight(Canvas canvas) {
     if (selectedProvince == null) return;
     final prov = provinces[selectedProvince];
@@ -930,7 +968,7 @@ class MapPainter extends CustomPainter {
         if (to == null) continue;
 
         if (order.orderType == 'retreat_move') {
-          _drawArrow(canvas, from, to, Colors.blue.shade600, !succeeded);
+          _drawArrow(canvas, from, to, Colors.blue.shade600, true);
         } else if (order.orderType == 'move' && !succeeded) {
           _drawArrow(canvas, from, to, Colors.pink.shade300, true);
         } else if (order.orderType == 'move' && succeeded) {
