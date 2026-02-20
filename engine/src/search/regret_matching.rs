@@ -1774,6 +1774,54 @@ fn rm_evaluate(power: Power, state: &BoardState) -> f64 {
         cohesion += 0.5 * neighbors.min(3) as f64;
     }
 
+    // Support potential: bonus for multiple units positioned to attack an unowned SC.
+    // Rewards positions where concentrated force can capture supply centers.
+    let mut support_potential = 0.0f64;
+    let mut scored_targets: HashSet<Province> = HashSet::new();
+    for &(prov, ut) in &own_units {
+        let coast = state.fleet_coast[prov as usize].unwrap_or(crate::board::province::Coast::None);
+        for adj in adj_from(prov) {
+            let target = adj.to;
+            if !target.is_supply_center() {
+                continue;
+            }
+            if state.sc_owner[target as usize] == Some(power) {
+                continue;
+            }
+            if scored_targets.contains(&target) {
+                continue;
+            }
+            // Check unit type compatibility for this adjacency.
+            let is_fleet = ut == UnitType::Fleet;
+            if is_fleet && !adj.fleet_ok {
+                continue;
+            }
+            if !is_fleet && !adj.army_ok {
+                continue;
+            }
+            // Count other friendly units that can also reach this target.
+            let supporters = own_units
+                .iter()
+                .filter(|&&(other_prov, other_ut)| {
+                    other_prov != prov && {
+                        let other_coast = state.fleet_coast[other_prov as usize]
+                            .unwrap_or(crate::board::province::Coast::None);
+                        crate::eval::heuristic::unit_can_reach(
+                            other_prov,
+                            other_coast,
+                            other_ut,
+                            target,
+                        )
+                    }
+                })
+                .count();
+            if supporters > 0 {
+                support_potential += 2.0 * supporters.min(2) as f64;
+                scored_targets.insert(target);
+            }
+        }
+    }
+
     // Solo threat penalty for enemies near 18
     let mut solo_penalty = 0.0f64;
     for &p in ALL_POWERS.iter() {
@@ -1790,7 +1838,7 @@ fn rm_evaluate(power: Power, state: &BoardState) -> f64 {
         }
     }
 
-    base + lead_bonus + cohesion - solo_penalty
+    base + lead_bonus + cohesion + support_potential - solo_penalty
 }
 
 /// Converts neural value output [sc_share, win_prob, draw_prob, survival_prob] to a scalar.
