@@ -132,6 +132,12 @@ func RunGame(
 			return nil, fmt.Errorf("resolve %s phase (year %d %s): %w", gs.Phase, gs.Year, gs.Season, err)
 		}
 
+		// After Fall movement/retreat, update SC ownership before saving stateAfter
+		// so the resolved phase reflects the correct final SC distribution.
+		if gs.Season == diplomacy.Fall && (gs.Phase == diplomacy.PhaseMovement || gs.Phase == diplomacy.PhaseRetreat) {
+			diplomacy.UpdateSupplyCenterOwnership(gs)
+		}
+
 		// Save state after and orders
 		stateAfter, err := json.Marshal(gs)
 		if err != nil {
