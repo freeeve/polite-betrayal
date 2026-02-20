@@ -101,6 +101,28 @@ def generate_selfplay(args, root: Path, iter_dir: Path, iteration: int) -> bool:
     return rc == 0
 
 
+def import_to_db(args, root: Path, iter_dir: Path, iteration: int) -> bool:
+    """Step 1b: Import self-play games to database for UI viewing."""
+    if not args.db_url:
+        log.info("Skipping DB import (no --db-url provided)")
+        return True
+
+    games_file = iter_dir / "games.jsonl"
+    if not games_file.exists():
+        log.error("No games.jsonl found at %s", games_file)
+        return False
+
+    cmd = [
+        "go", "run", str(root / "api" / "cmd" / "import_selfplay"),
+        "--input", str(games_file),
+        "--db", args.db_url,
+        "--name-prefix", f"selfplay-iter{iteration:03d}",
+    ]
+
+    rc = run_cmd(cmd, f"iter {iteration} db-import", dry_run=args.dry_run)
+    return rc == 0
+
+
 def convert_data(args, root: Path, iter_dir: Path, iteration: int) -> bool:
     """Step 2: Convert JSONL to NPZ training data."""
     train_file = iter_dir / "train.npz"
@@ -392,6 +414,12 @@ def run_iteration(args, root: Path, iteration: int) -> bool:
         return False
     timings["selfplay"] = time.time() - t0
 
+    # Step 1b: Import to DB (optional)
+    t0 = time.time()
+    if not import_to_db(args, root, iter_dir, iteration):
+        return False
+    timings["db_import"] = time.time() - t0
+
     # Step 2: Convert to NPZ
     t0 = time.time()
     if not convert_data(args, root, iter_dir, iteration):
@@ -489,6 +517,10 @@ def main():
     parser.add_argument("--skip-eval", action="store_true",
                         help="Skip evaluation step for faster iteration")
 
+    # Database
+    parser.add_argument("--db-url", type=str, default="",
+                        help="Postgres connection URL for importing games to DB (skipped if empty)")
+
     # Paths
     parser.add_argument("--output-dir", type=str, default="data/selfplay",
                         help="Base output directory for all iterations")
@@ -536,6 +568,8 @@ def main():
     log.info("  Output:      %s", args.output_dir)
     if args.supervised_data:
         log.info("  Supervised:  %s (mix=%.1f%%)", args.supervised_data, args.supervised_mix * 100)
+    if args.db_url:
+        log.info("  DB import:   enabled")
     if args.dry_run:
         log.info("  DRY RUN MODE")
 
