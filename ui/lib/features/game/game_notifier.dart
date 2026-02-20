@@ -138,6 +138,19 @@ class GameNotifier extends StateNotifier<GameViewState> {
       if (phaseResp.statusCode == 200) {
         phase = Phase.fromJson(jsonDecode(phaseResp.body) as Map<String, dynamic>);
         gs = GameState.fromJson(phase.stateAfter ?? phase.stateBefore);
+      } else if (game.status == 'finished' && state.gameState == null) {
+        // Finished game with no active phase — load last phase's state.
+        final phasesResp = await _api.get('/games/$gameId/phases');
+        if (phasesResp.statusCode == 200) {
+          final phasesList = (jsonDecode(phasesResp.body) as List<dynamic>)
+              .map((e) => Phase.fromJson(e as Map<String, dynamic>))
+              .toList();
+          if (phasesList.isNotEmpty) {
+            final lastPhase = phasesList.last;
+            phase = lastPhase;
+            gs = GameState.fromJson(lastPhase.stateAfter ?? lastPhase.stateBefore);
+          }
+        }
       }
 
       // Detect movement phase transition for animation — works even when
