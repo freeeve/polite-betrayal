@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	gonnx "github.com/advancedclimatesystems/gonnx"
 	"github.com/freeeve/polite-betrayal/api/internal/bot/neural"
@@ -67,8 +68,7 @@ func newGonnxStrategy() (*GonnxStrategy, error) {
 
 func (s *GonnxStrategy) Name() string { return "hard-gonnx" }
 
-// GenerateMovementOrders encodes the board state, runs the policy network,
-// and picks the highest-scoring legal order per unit.
+// GenerateMovementOrders runs RM+ search with neural policy and value guidance.
 func (s *GonnxStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power diplomacy.Power, m *diplomacy.DiplomacyMap) []OrderInput {
 	logits := s.runPolicy(gs, power, m)
 	if logits == nil {
@@ -76,16 +76,29 @@ func (s *GonnxStrategy) GenerateMovementOrders(gs *diplomacy.GameState, power di
 		return TacticalStrategy{}.GenerateMovementOrders(gs, power, m)
 	}
 
-	perUnit := neural.DecodePolicyLogits(logits, gs, power, m, 1)
-	var orders []OrderInput
-	for _, unitOrders := range perUnit {
-		if len(unitOrders) == 0 {
-			continue
+	var valueScores *[4]float32
+	if s.value != nil {
+		vs, err := s.RunValueNetwork(gs, power, m)
+		if err == nil {
+			valueScores = &vs
 		}
-		top := unitOrders[0]
-		orders = append(orders, scoredOrderToInput(top))
 	}
-	return orders
+
+	result := neural.RegretMatchingSearch(power, gs, m, 5*time.Second, logits, valueScores, 80)
+	if len(result.Orders) == 0 {
+		log.Printf("bot/gonnx: RM+ search returned no orders for %s, falling back to policy greedy", power)
+		perUnit := neural.DecodePolicyLogits(logits, gs, power, m, 1)
+		var orders []OrderInput
+		for _, unitOrders := range perUnit {
+			if len(unitOrders) == 0 {
+				continue
+			}
+			orders = append(orders, scoredOrderToInput(unitOrders[0]))
+		}
+		return orders
+	}
+
+	return OrdersToOrderInputs(result.Orders)
 }
 
 // GenerateRetreatOrders uses the policy network for retreat decisions.
