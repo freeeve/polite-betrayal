@@ -562,7 +562,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             : PhaseBar(
                 phase: state.currentPhase,
                 readyCount: state.readyCount,
-                onUrgent: myPower != null ? () {
+                onUrgent: myPower != null && !isViewingHistory && !isReplaying ? () {
                   if (_orderState.ready) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
