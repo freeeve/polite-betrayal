@@ -43,6 +43,8 @@ func StrategyForDifficulty(difficulty string) Strategy {
 		return &TacticalStrategy{}
 	case "hard":
 		return &HardStrategy{}
+	case "hard-gonnx":
+		return newGonnxOrFallback()
 	case "random":
 		return &RandomStrategy{}
 	case "realpolitik", "impossible", "external":

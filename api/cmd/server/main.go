@@ -25,6 +25,7 @@ func main() {
 	logger.Init()
 	cfg := config.Load()
 	bot.ExternalEnginePath = os.Getenv("REALPOLITIK_PATH")
+	bot.GonnxModelPath = os.Getenv("GONNX_MODEL_PATH")
 	log.Info().Str("databaseURL", cfg.DatabaseURL).Msg("Config loaded")
 
 	// Database
