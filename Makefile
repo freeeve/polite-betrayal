@@ -1,4 +1,4 @@
-.PHONY: build run test test-integration lint fmt dev-up dev-down
+.PHONY: build run test test-integration lint fmt dev-up dev-down models
 
 build:
 	cd api && go build -o bin/server ./cmd/server
@@ -24,3 +24,14 @@ dev-up:
 
 dev-down:
 	docker compose down
+
+# Symlink ONNX models from the polite-betrayal-models repo (expected at ../polite-betrayal-models).
+# Requires: git clone git@github.com:<user>/polite-betrayal-models.git ../polite-betrayal-models
+models:
+	@if [ ! -d ../polite-betrayal-models/current ]; then \
+		echo "Error: ../polite-betrayal-models not found. Clone the models repo first."; \
+		exit 1; \
+	fi
+	ln -sfn ../../polite-betrayal-models/current/policy_v2.onnx engine/models/policy_v2.onnx
+	ln -sfn ../../polite-betrayal-models/current/value_v2.onnx engine/models/value_v2.onnx
+	@echo "Models symlinked from ../polite-betrayal-models/current/"
