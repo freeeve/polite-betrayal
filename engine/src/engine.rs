@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::process::Command;
 use std::time::Duration;
 
 use rand::rngs::SmallRng;
@@ -29,6 +30,21 @@ const DEFAULT_MOVETIME_MS: u64 = 5000;
 /// Default path for the opening book JSON file.
 const DEFAULT_BOOK_PATH: &str = "data/processed/opening_book.json";
 
+/// Computes the first 8 hex characters of the SHA256 hash of a file.
+/// Returns None if the file cannot be read or the hash command fails.
+fn compute_file_hash(path: &str) -> Option<String> {
+    let output = Command::new("shasum")
+        .args(["-a", "256", path])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let hash = stdout.split_whitespace().next()?;
+    Some(hash.chars().take(8).collect())
+}
+
 /// Holds the mutable state of the engine between commands.
 pub struct Engine {
     pub position: Option<BoardState>,
@@ -38,6 +54,7 @@ pub struct Engine {
     pub press: PressState,
     book: Option<OpeningBook>,
     book_loaded: bool,
+    model_hash: Option<String>,
     rng: SmallRng,
 }
 
@@ -52,6 +69,7 @@ impl Engine {
             press: PressState::new(),
             book: None,
             book_loaded: false,
+            model_hash: None,
             rng: SmallRng::from_entropy(),
         }
     }
@@ -93,6 +111,7 @@ impl Engine {
     }
 
     /// Lazily initializes the neural evaluator when ModelPath is first set.
+    /// Also computes the SHA256 hash of the policy model for reporting.
     fn ensure_neural(&mut self) {
         if self.neural.is_some() {
             return;
@@ -103,6 +122,7 @@ impl Engine {
         };
         let policy_path = format!("{}/policy_v2.onnx", model_dir);
         let value_path = format!("{}/value_v2.onnx", model_dir);
+        self.model_hash = compute_file_hash(&policy_path);
         self.neural = Some(NeuralEvaluator::new(Some(&policy_path), Some(&value_path)));
     }
 
@@ -203,7 +223,7 @@ impl Engine {
 
     /// Handles the DUI handshake: writes id, options, protocol_version, and duiok.
     pub fn handle_dui<W: Write>(&self, out: &mut W) {
-        writeln!(out, "id name realpolitik").unwrap();
+        writeln!(out, "id name realpolitik {}", env!("GIT_HASH")).unwrap();
         writeln!(out, "id author polite-betrayal").unwrap();
         writeln!(out, "option name Threads type spin default 4 min 1 max 64").unwrap();
         writeln!(
@@ -233,8 +253,11 @@ impl Engine {
         out.flush().unwrap();
     }
 
-    /// Handles the `isready` command.
+    /// Handles the `isready` command. Reports model hash if a model is loaded.
     pub fn handle_isready<W: Write>(&self, out: &mut W) {
+        if let Some(ref hash) = self.model_hash {
+            writeln!(out, "info string model_hash {}", hash).unwrap();
+        }
         writeln!(out, "readyok").unwrap();
         out.flush().unwrap();
     }

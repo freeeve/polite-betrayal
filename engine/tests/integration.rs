@@ -45,7 +45,7 @@ const BUILD_DFEN: &str = "1901fb/Aatri,Aarum,Afgre/Abud,Agre,Arum,Atri,Avie,Eedi
 fn dui_handshake_with_protocol_version() {
     let lines = run_engine(&["dui", "quit"]);
 
-    assert!(lines.iter().any(|l| l == "id name realpolitik"));
+    assert!(lines.iter().any(|l| l.starts_with("id name realpolitik")));
     assert!(lines.iter().any(|l| l == "id author polite-betrayal"));
     assert!(lines.iter().any(|l| l == "protocol_version 1"));
     assert!(lines.iter().any(|l| l == "duiok"));
@@ -103,7 +103,7 @@ fn full_handshake_then_isready() {
     let lines = run_engine(&["dui", "isready", "quit"]);
 
     // Should have handshake lines followed by readyok
-    assert!(lines.iter().any(|l| l == "id name realpolitik"));
+    assert!(lines.iter().any(|l| l.starts_with("id name realpolitik")));
     assert!(lines.iter().any(|l| l == "duiok"));
     assert!(lines.last() == Some(&"readyok".to_string()));
 }
@@ -367,7 +367,7 @@ fn minimal_session_from_spec() {
     ]);
 
     // Verify the full flow produced expected outputs
-    assert!(lines.iter().any(|l| l == "id name realpolitik"));
+    assert!(lines.iter().any(|l| l.starts_with("id name realpolitik")));
     assert!(lines.iter().any(|l| l == "id author polite-betrayal"));
     assert!(lines.iter().any(|l| l == "protocol_version 1"));
     assert!(lines.iter().any(|l| l == "duiok"));
