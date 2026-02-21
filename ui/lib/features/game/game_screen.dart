@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -44,6 +45,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   bool _gameOverShown = false;
   bool _showResults = false;
   bool _autoViewedLastPhase = false;
+  bool _showYourMoveBanner = false;
+  Timer? _bannerTimer;
   Set<String> _newUnitProvinces = {};
   Set<String>? _previousPhaseUnitProvinces;
 
@@ -84,6 +87,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
     _orderNotifier.dispose();
     super.dispose();
   }
@@ -134,6 +138,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         }
 
         _orderNotifier.resetForNewPhase();
+        // Show "Your Move" banner on phase transitions when user has a power.
+        if (myPower != null) {
+          _bannerTimer?.cancel();
+          _showYourMoveBanner = true;
+          _bannerTimer = Timer(const Duration(seconds: 3), () {
+            if (mounted) setState(() => _showYourMoveBanner = false);
+          });
+        }
         // Defer provider modifications to avoid modifying state during build.
         Future(() {
           if (!mounted) return;
@@ -167,6 +179,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   void _onProvinceTap(String provinceId) {
+    if (_showYourMoveBanner) {
+      _bannerTimer?.cancel();
+      setState(() => _showYourMoveBanner = false);
+    }
     _orderNotifier.selectProvince(provinceId);
   }
 
@@ -557,11 +573,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             ),
         ];
 
+        final isResolving = _orderState.ready && !isFinished
+            && !isViewingHistory && state.previousGameState == null;
+
         final phaseHeader = isFinished
             ? _GameOverBanner(winner: game.winner)
             : PhaseBar(
                 phase: state.currentPhase,
                 readyCount: state.readyCount,
+                isResolving: isResolving,
+                isNewPhase: _showYourMoveBanner,
                 onUrgent: myPower != null && !isViewingHistory && !isReplaying ? () {
                   if (_orderState.ready) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -583,6 +604,40 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             ? PhaseResults(
                 orders: state.resolvedOrders,
                 onDismiss: () => setState(() => _showResults = false),
+              )
+            : null;
+
+        final yourMoveBanner = _showYourMoveBanner && state.currentPhase != null
+            ? Positioned(
+                top: 12,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: _showYourMoveBanner ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 400),
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(12),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainer
+                          .withValues(alpha: 0.92),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        child: Text(
+                          '${state.currentPhase!.season[0].toUpperCase()}${state.currentPhase!.season.substring(1)} '
+                          '${state.currentPhase!.year} — Your Move',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               )
             : null;
 
@@ -610,6 +665,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         children: [
                           gameMap,
                           ?phaseResultsOverlay,
+                          ?yourMoveBanner,
                         ],
                       ),
                     ),
@@ -648,6 +704,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   children: [
                     gameMap,
                     ?phaseResultsOverlay,
+                    ?yourMoveBanner,
                   ],
                 ),
               ),
