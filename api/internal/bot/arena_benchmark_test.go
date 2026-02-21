@@ -77,10 +77,11 @@ func logModelChecksums(t *testing.T, dir string) string {
 			continue
 		}
 		f.Close()
-		hexHash := fmt.Sprintf("%.8x", h.Sum(nil))
-		t.Logf("Model %s checksum: %s", name, hexHash)
+		fullHash := fmt.Sprintf("%x", h.Sum(nil))
+		shortHash := fullHash[:8]
+		t.Logf("Model %s checksum: %s", name, shortHash)
 		if name == "policy_v2.onnx" {
-			policyHash = hexHash
+			policyHash = shortHash
 		}
 	}
 	return policyHash
