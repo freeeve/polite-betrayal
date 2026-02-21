@@ -119,6 +119,26 @@ func TestAdjacentArmyMovement(t *testing.T) {
 	}
 }
 
+func TestTuscanyVeniceAdjacency(t *testing.T) {
+	m := StandardMap()
+	// Army can move tus -> ven
+	if !m.Adjacent("tus", NoCoast, "ven", NoCoast, false) {
+		t.Error("army should be able to move tus -> ven")
+	}
+	// Army can move ven -> tus
+	if !m.Adjacent("ven", NoCoast, "tus", NoCoast, false) {
+		t.Error("army should be able to move ven -> tus")
+	}
+	// Fleet can move tus -> ven
+	if !m.Adjacent("tus", NoCoast, "ven", NoCoast, true) {
+		t.Error("fleet should be able to move tus -> ven")
+	}
+	// Fleet can move ven -> tus
+	if !m.Adjacent("ven", NoCoast, "tus", NoCoast, true) {
+		t.Error("fleet should be able to move ven -> tus")
+	}
+}
+
 func TestAdjacentFleetMovement(t *testing.T) {
 	m := StandardMap()
 	// Fleet can move English Channel -> North Sea

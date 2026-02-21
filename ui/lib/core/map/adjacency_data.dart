@@ -207,6 +207,7 @@ const _adjacencies = <Adjacency>[
   Adjacency(from: 'pie', to: 'ven', type: AdjType.both),
   Adjacency(from: 'rom', to: 'tus', type: AdjType.both),
   Adjacency(from: 'rom', to: 'ven', type: AdjType.both),
+  Adjacency(from: 'tus', to: 'ven', type: AdjType.both),
   Adjacency(from: 'rum', to: 'sev', type: AdjType.both),
   Adjacency(from: 'smy', to: 'con', type: AdjType.both),
   Adjacency(from: 'smy', to: 'syr', type: AdjType.both),

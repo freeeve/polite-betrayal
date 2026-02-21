@@ -406,6 +406,7 @@ func buildStandardMap() *DiplomacyMap {
 	addBothAdj("rom", "nap")
 	addBothAdj("rom", "tus")
 	addBothAdj("rom", "ven")
+	addBothAdj("tus", "ven")
 	addBothAdj("sev", "arm")
 	addBothAdj("sev", "rum")
 	addBothAdj("ank", "smy")
