@@ -234,9 +234,8 @@ class _GameMapState extends State<GameMap> with TickerProviderStateMixin {
                     size: Size(constraints.maxWidth, constraints.maxHeight),
                     painter: MapPainter(
                       gameState: widget.gameState,
-                      previousGameState: _animController.isAnimating
-                          ? widget.previousGameState : null,
-                      animationProgress: _animController.isAnimating
+                      previousGameState: widget.previousGameState,
+                      animationProgress: widget.previousGameState != null
                           ? _animController.value : null,
                       selectedProvince: widget.selectedProvince,
                       validTargets: widget.validTargets,
