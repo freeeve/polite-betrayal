@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -60,8 +61,10 @@ func benchRepos(t *testing.T) (repository.GameRepository, repository.PhaseReposi
 }
 
 // logModelChecksums computes and logs SHA256 checksums for model files in dir.
-func logModelChecksums(t *testing.T, dir string) {
+// Returns the first 8 hex chars of the policy_v2.onnx SHA256 hash, or empty string if unavailable.
+func logModelChecksums(t *testing.T, dir string) string {
 	t.Helper()
+	var policyHash string
 	for _, name := range []string{"policy_v2.onnx", "value_v2.onnx", "policy_v1.onnx"} {
 		p := filepath.Join(dir, name)
 		f, err := os.Open(p)
@@ -74,7 +77,39 @@ func logModelChecksums(t *testing.T, dir string) {
 			continue
 		}
 		f.Close()
-		t.Logf("Model %s checksum: %.8x", name, h.Sum(nil))
+		hexHash := fmt.Sprintf("%.8x", h.Sum(nil))
+		t.Logf("Model %s checksum: %s", name, hexHash)
+		if name == "policy_v2.onnx" {
+			policyHash = hexHash
+		}
+	}
+	return policyHash
+}
+
+// engineGitHash returns the short git hash of the current repo HEAD.
+func engineGitHash(t *testing.T) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Logf("WARNING: could not get git hash: %v", err)
+		return "unknown"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// benchGameName builds a game name with model and git hashes for traceability.
+// Format: bench-realpolitik-<modelHash>-<gitHash>-<suffix> or fallbacks if hashes are empty.
+func benchGameName(modelHash, gitHash, suffix string) string {
+	switch {
+	case modelHash != "" && gitHash != "":
+		return fmt.Sprintf("bench-realpolitik-%s-%s-%s", modelHash, gitHash, suffix)
+	case gitHash != "":
+		return fmt.Sprintf("bench-realpolitik-%s-%s", gitHash, suffix)
+	case modelHash != "":
+		return fmt.Sprintf("bench-realpolitik-%s-%s", modelHash, suffix)
+	default:
+		return fmt.Sprintf("bench-realpolitik-%s", suffix)
 	}
 }
 
@@ -637,9 +672,12 @@ func TestBenchmark_RustVsEasy(t *testing.T) {
 	}
 
 	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
-	logModelChecksums(t, modelsDir)
+	modelHash := logModelChecksums(t, modelsDir)
+	gitHash := engineGitHash(t)
+	t.Logf("Engine git hash: %s, Model hash: %s", gitHash, modelHash)
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-easy", 10, "france=realpolitik,*=easy", 1930)
+	matchup := benchGameName(modelHash, gitHash, "france-vs-easy")
+	r := runBenchmarkSuite(t, matchup, 10, "france=realpolitik,*=easy", 1930)
 	logBenchmarkResults(t, r)
 
 	// Acceptance: >80% win rate vs easy
@@ -655,9 +693,12 @@ func TestBenchmark_RustVsMedium(t *testing.T) {
 	}
 
 	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
-	logModelChecksums(t, modelsDir)
+	modelHash := logModelChecksums(t, modelsDir)
+	gitHash := engineGitHash(t)
+	t.Logf("Engine git hash: %s, Model hash: %s", gitHash, modelHash)
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-medium", 10, "france=realpolitik,*=medium", 1930)
+	matchup := benchGameName(modelHash, gitHash, "france-vs-medium")
+	r := runBenchmarkSuite(t, matchup, 10, "france=realpolitik,*=medium", 1930)
 	logBenchmarkResults(t, r)
 
 	// Acceptance: >40% win rate vs medium
@@ -674,9 +715,12 @@ func TestBenchmark_RustVsHard(t *testing.T) {
 	}
 
 	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
-	logModelChecksums(t, modelsDir)
+	modelHash := logModelChecksums(t, modelsDir)
+	gitHash := engineGitHash(t)
+	t.Logf("Engine git hash: %s, Model hash: %s", gitHash, modelHash)
 
-	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 3, "france=realpolitik,*=hard", 1905)
+	matchup := benchGameName(modelHash, gitHash, "france-vs-hard")
+	r := runBenchmarkSuite(t, matchup, 3, "france=realpolitik,*=hard", 1905)
 	logBenchmarkResults(t, r)
 }
 
@@ -691,7 +735,13 @@ func TestBenchmark_GonnxVsMedium(t *testing.T) {
 	GonnxModelPath = modelPath
 	defer func() { GonnxModelPath = origPath }()
 
-	logModelChecksums(t, modelPath)
+	modelHash := logModelChecksums(t, modelPath)
+	t.Logf("Model hash: %s", modelHash)
+
+	testDiff := "hard-gonnx"
+	if modelHash != "" {
+		testDiff = fmt.Sprintf("hard-gonnx-%s", modelHash)
+	}
 
 	numGames := benchNumGames(10)
 	maxYear := 1920
@@ -699,7 +749,7 @@ func TestBenchmark_GonnxVsMedium(t *testing.T) {
 	for _, power := range diplomacy.AllPowers() {
 		power := power
 		t.Run(string(power), func(t *testing.T) {
-			r := runTimelineBenchmark(t, power, "hard-gonnx", "medium", numGames, maxYear)
+			r := runTimelineBenchmark(t, power, testDiff, "medium", numGames, maxYear)
 			label := fmt.Sprintf("%s (Gonnx) vs 6 Medium", strings.Title(string(power)))
 			logTimelineResultsLabeled(t, r, label)
 		})
@@ -723,7 +773,18 @@ func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 	}()
 
 	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(bin))), "models")
-	logModelChecksums(t, modelsDir)
+	modelHash := logModelChecksums(t, modelsDir)
+	gitHash := engineGitHash(t)
+	t.Logf("Engine git hash: %s, Model hash: %s", gitHash, modelHash)
+
+	testDiff := "realpolitik"
+	if modelHash != "" && gitHash != "" {
+		testDiff = fmt.Sprintf("realpolitik-%s-%s", modelHash, gitHash)
+	} else if gitHash != "" {
+		testDiff = fmt.Sprintf("realpolitik-%s", gitHash)
+	} else if modelHash != "" {
+		testDiff = fmt.Sprintf("realpolitik-%s", modelHash)
+	}
 
 	numGames := benchNumGames(100)
 	maxYear := 1930
@@ -731,7 +792,7 @@ func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 	for _, power := range diplomacy.AllPowers() {
 		power := power
 		t.Run(string(power), func(t *testing.T) {
-			r := runTimelineBenchmark(t, power, "realpolitik", "easy", numGames, maxYear)
+			r := runTimelineBenchmark(t, power, testDiff, "easy", numGames, maxYear)
 			label := fmt.Sprintf("%s (Rust) vs 6 Easy", strings.Title(string(power)))
 			logTimelineResultsLabeled(t, r, label)
 
@@ -760,7 +821,18 @@ func TestBenchmark_RustVsMediumAllPowers(t *testing.T) {
 	}()
 
 	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(bin))), "models")
-	logModelChecksums(t, modelsDir)
+	modelHash := logModelChecksums(t, modelsDir)
+	gitHash := engineGitHash(t)
+	t.Logf("Engine git hash: %s, Model hash: %s", gitHash, modelHash)
+
+	testDiff := "realpolitik"
+	if modelHash != "" && gitHash != "" {
+		testDiff = fmt.Sprintf("realpolitik-%s-%s", modelHash, gitHash)
+	} else if gitHash != "" {
+		testDiff = fmt.Sprintf("realpolitik-%s", gitHash)
+	} else if modelHash != "" {
+		testDiff = fmt.Sprintf("realpolitik-%s", modelHash)
+	}
 
 	numGames := benchNumGames(10)
 	maxYear := 1930
@@ -768,7 +840,7 @@ func TestBenchmark_RustVsMediumAllPowers(t *testing.T) {
 	for _, power := range diplomacy.AllPowers() {
 		power := power
 		t.Run(string(power), func(t *testing.T) {
-			r := runTimelineBenchmark(t, power, "realpolitik", "medium", numGames, maxYear)
+			r := runTimelineBenchmark(t, power, testDiff, "medium", numGames, maxYear)
 			label := fmt.Sprintf("%s (Rust) vs 6 Medium", strings.Title(string(power)))
 			logTimelineResultsLabeled(t, r, label)
 

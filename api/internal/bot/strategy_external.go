@@ -65,6 +65,11 @@ type ExternalStrategy struct {
 
 	// lastPressOut holds press_out lines from the last engine query.
 	lastPressOut []string
+
+	// engineVersion is the identity string from the DUI handshake (e.g., "realpolitik abc1234").
+	engineVersion string
+	// modelHash is the 8-char hex model hash reported via "info string model_hash".
+	modelHash string
 }
 
 // NewExternalStrategy spawns the engine process, performs the DUI handshake
@@ -94,6 +99,12 @@ func NewExternalStrategy(enginePath string, power diplomacy.Power, opts ...Exter
 
 // Name returns the strategy name.
 func (e *ExternalStrategy) Name() string { return "realpolitik" }
+
+// EngineVersion returns the engine identity string from the DUI handshake.
+func (e *ExternalStrategy) EngineVersion() string { return e.engineVersion }
+
+// ModelHash returns the model hash reported by the engine during startup.
+func (e *ExternalStrategy) ModelHash() string { return e.modelHash }
 
 // GenerateMovementOrders sends the position to the engine and converts the DSON
 // bestorders response into movement-phase OrderInputs.
@@ -356,7 +367,7 @@ func (e *ExternalStrategy) send(line string) {
 }
 
 // readUntil reads lines from the engine until the expected line is seen.
-// Lines not matching are ignored (id, option, info lines, etc).
+// Lines not matching are parsed for identity and model info, then ignored.
 func (e *ExternalStrategy) readUntil(expected string) error {
 	deadline := time.After(e.timeout)
 	ch := make(chan string, 1)
@@ -368,6 +379,14 @@ func (e *ExternalStrategy) readUntil(expected string) error {
 			if line == expected {
 				ch <- line
 				return
+			}
+			// Parse engine identity from "id name <engine> <git_hash>"
+			if strings.HasPrefix(line, "id name ") {
+				e.engineVersion = strings.TrimPrefix(line, "id name ")
+			}
+			// Parse model hash from "info string model_hash <8char_hex>"
+			if strings.HasPrefix(line, "info string model_hash ") {
+				e.modelHash = strings.TrimPrefix(line, "info string model_hash ")
 			}
 		}
 		if err := e.scanner.Err(); err != nil {
