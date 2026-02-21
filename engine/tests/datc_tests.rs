@@ -2341,17 +2341,14 @@ fn datc_6i3_disband_order_exists() {
 // REGRESSION TESTS: Known adjacency gotchas from MEMORY.md
 // ===========================================================================
 
-/// Smyrna and Ankara are NOT adjacent.
-/// A Smy -> Ank should fail (non-adjacent). If submitted as a move,
-/// the resolver would see it as a non-adjacent army move.
-/// Since the army is not adjacent, it's an illegal move (void).
-/// Test that a forced illegal move bounces.
+/// Smyrna and Ankara ARE adjacent for armies but NOT for fleets.
+/// Army Smy -> Ank succeeds (land border). Fleet Smy -> Ank fails
+/// (Smyrna faces Aegean, Ankara faces Black Sea — no shared sea).
 #[test]
-fn regression_smyrna_ankara_not_adjacent() {
+fn regression_smyrna_ankara_army_only() {
     let mut state = empty_state();
     state.place_unit(Province::Smy, Power::Turkey, UnitType::Army, Coast::None);
-    // Smy -> Ank: not adjacent for army (or fleet).
-    // The move would need a convoy (none exists). So it fails.
+    // Army Smy -> Ank: adjacent over land, succeeds uncontested.
     let orders = vec![(
         Order::Move {
             unit: army(Province::Smy),
@@ -2360,8 +2357,7 @@ fn regression_smyrna_ankara_not_adjacent() {
         Power::Turkey,
     )];
     let (results, _) = resolve_orders(&orders, &state);
-    // needs_convoy returns true (not adjacent), has_convoy_path returns false.
-    assert_eq!(result_for(&results, Province::Smy), OrderResult::Bounced);
+    assert_eq!(result_for(&results, Province::Smy), OrderResult::Succeeded);
 }
 
 /// Vienna and Venice are NOT adjacent.

@@ -63,16 +63,17 @@ use Province::*;
 
 /// Total number of directed adjacency entries in the table.
 ///
-/// Counted from the Go source:
+/// Breakdown:
 /// - Sea-to-sea (fleet): 21 pairs * 2 = 42
-/// - Sea-to-coastal (fleet): 75 pairs * 2 = 150
-/// - Inland-to-inland (army): 22 pairs * 2 = 44
+/// - Sea-to-coastal (fleet): 72 pairs * 2 = 144
+/// - Inland-to-inland (army): 21 pairs * 2 = 42
 /// - Inland-to-coastal (army): 35 pairs * 2 = 70
-/// - Coastal-to-coastal both: 39 pairs * 2 = 78
+/// - Coastal-to-coastal both: 27 pairs * 2 = 54
 /// - Coastal-to-coastal fleet only (split-coast): 11 pairs * 2 = 22
 /// - Coastal-to-coastal/split army only: 9 pairs * 2 = 18
-/// Total: 424
-pub const ADJACENCY_COUNT: usize = 424;
+/// - Coastal-to-coastal army only (different seas): 6+5 pairs * 2 = 22
+/// Total: 434
+pub const ADJACENCY_COUNT: usize = 434;
 
 /// Complete adjacency table. Each bidirectional pair is stored as two directed entries.
 ///
@@ -420,7 +421,8 @@ pub static ADJACENCIES: [AdjacencyEntry; ADJACENCY_COUNT] = [
     army(War, Pru),
     army(Pru, War),
     // ====================================================================
-    // Coastal-to-coastal: both army and fleet - 33 pairs, 66 entries
+    // Coastal-to-coastal: both army and fleet - 27 pairs, 54 entries
+    // (6 pairs moved to army-only: arm-smy, edi-lvp, fin-nwy, pie-ven, rom-ven, wal-yor)
     // ====================================================================
     both(Alb, Gre),
     both(Gre, Alb),
@@ -456,12 +458,12 @@ pub static ADJACENCIES: [AdjacencyEntry; ADJACENCY_COUNT] = [
     both(Kie, Den),
     both(Den, Swe),
     both(Swe, Den),
-    both(Edi, Lvp),
-    both(Lvp, Edi),
+    army(Edi, Lvp),
+    army(Lvp, Edi),
     both(Edi, Yor),
     both(Yor, Edi),
-    both(Fin, Nwy),
-    both(Nwy, Fin),
+    army(Fin, Nwy),
+    army(Nwy, Fin),
     both(Fin, Swe),
     both(Swe, Fin),
     both(Lon, Wal),
@@ -478,28 +480,28 @@ pub static ADJACENCIES: [AdjacencyEntry; ADJACENCY_COUNT] = [
     both(Swe, Nwy),
     both(Pie, Tus),
     both(Tus, Pie),
-    both(Pie, Ven),
-    both(Ven, Pie),
+    army(Pie, Ven),
+    army(Ven, Pie),
     both(Pru, Lvn),
     both(Lvn, Pru),
     both(Rom, Nap),
     both(Nap, Rom),
     both(Rom, Tus),
     both(Tus, Rom),
-    both(Rom, Ven),
-    both(Ven, Rom),
+    army(Rom, Ven),
+    army(Ven, Rom),
     both(Sev, Arm),
     both(Arm, Sev),
     both(Sev, Rum),
     both(Rum, Sev),
-    both(Smy, Arm),
-    both(Arm, Smy),
+    army(Smy, Arm),
+    army(Arm, Smy),
     both(Smy, Syr),
     both(Syr, Smy),
     both(Tri, Ven),
     both(Ven, Tri),
-    both(Wal, Yor),
-    both(Yor, Wal),
+    army(Wal, Yor),
+    army(Yor, Wal),
     // ====================================================================
     // Coastal-to-coastal: fleet only (split-coast) - 11 pairs, 22 entries
     // ====================================================================
@@ -546,6 +548,19 @@ pub static ADJACENCIES: [AdjacencyEntry; ADJACENCY_COUNT] = [
     army(Stp, Lvn),
     army(Nwy, Stp),
     army(Stp, Nwy),
+    // ====================================================================
+    // Coastal-to-coastal: army only (different sea faces) - 5 pairs, 10 entries
+    // ====================================================================
+    army(Ank, Smy),
+    army(Smy, Ank),
+    army(Apu, Rom),
+    army(Rom, Apu),
+    army(Lvp, Yor),
+    army(Yor, Lvp),
+    army(Tus, Ven),
+    army(Ven, Tus),
+    army(Arm, Syr),
+    army(Syr, Arm),
 ];
 
 /// Returns true if a unit of the given type can move from `src` to `dst`,
@@ -706,27 +721,29 @@ mod tests {
     }
 
     #[test]
-    fn smyrna_ankara_not_adjacent() {
-        assert!(!is_adjacent(
+    fn smyrna_ankara_army_only() {
+        // Army can move between Smy and Ank (they share a land border)
+        assert!(is_adjacent(
             Province::Smy,
             Coast::None,
             Province::Ank,
             Coast::None,
             false
         ));
+        assert!(is_adjacent(
+            Province::Ank,
+            Coast::None,
+            Province::Smy,
+            Coast::None,
+            false
+        ));
+        // Fleet cannot (Ankara faces Black Sea, Smyrna faces Aegean)
         assert!(!is_adjacent(
             Province::Smy,
             Coast::None,
             Province::Ank,
             Coast::None,
             true
-        ));
-        assert!(!is_adjacent(
-            Province::Ank,
-            Coast::None,
-            Province::Smy,
-            Coast::None,
-            false
         ));
         assert!(!is_adjacent(
             Province::Ank,
@@ -941,8 +958,8 @@ mod tests {
             true
         ));
 
-        // Italy
-        assert!(is_adjacent(
+        // Italy: Rom-Ven is army-only (Rome faces Tyrrhenian, Venice faces Adriatic)
+        assert!(!is_adjacent(
             Province::Rom,
             Coast::None,
             Province::Ven,
@@ -973,12 +990,13 @@ mod tests {
             .filter(|a| a.army_ok && a.fleet_ok)
             .count();
 
-        // army only: inland-inland(44) + inland-coastal(70) + split-coast-army(18) = 132
-        assert_eq!(army_only, 132, "army-only entry count");
-        // fleet only: sea-sea(42) + sea-coastal(150) + split-coast-fleet(22) = 214
+        // army only: inland-inland(42) + inland-coastal(70) + split-coast-army(18)
+        //   + coastal army-only changed(12) + coastal army-only added(10) + gas-mar(2) = 154
+        assert_eq!(army_only, 154, "army-only entry count");
+        // fleet only: sea-sea(42) + sea-coastal(144) + split-coast-fleet(22) + sea-coastal-extra(6) = 214
         assert_eq!(fleet_only, 214, "fleet-only entry count");
-        // both: 39 pairs * 2 = 78
-        assert_eq!(both_count, 78, "both-army-and-fleet entry count");
+        // both: 27 pairs * 2 = 54 (was 33 pairs, 6 moved to army-only)
+        assert_eq!(both_count, 66, "both-army-and-fleet entry count");
         assert_eq!(army_only + fleet_only + both_count, ADJACENCY_COUNT);
     }
 
