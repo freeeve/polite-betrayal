@@ -129,13 +129,13 @@ func TestTuscanyVeniceAdjacency(t *testing.T) {
 	if !m.Adjacent("ven", NoCoast, "tus", NoCoast, false) {
 		t.Error("army should be able to move ven -> tus")
 	}
-	// Fleet can move tus -> ven
-	if !m.Adjacent("tus", NoCoast, "ven", NoCoast, true) {
-		t.Error("fleet should be able to move tus -> ven")
+	// Fleet cannot move tus -> ven (different seas, no shared coast)
+	if m.Adjacent("tus", NoCoast, "ven", NoCoast, true) {
+		t.Error("fleet should not be able to move tus -> ven")
 	}
-	// Fleet can move ven -> tus
-	if !m.Adjacent("ven", NoCoast, "tus", NoCoast, true) {
-		t.Error("fleet should be able to move ven -> tus")
+	// Fleet cannot move ven -> tus
+	if m.Adjacent("ven", NoCoast, "tus", NoCoast, true) {
+		t.Error("fleet should not be able to move ven -> tus")
 	}
 }
 
