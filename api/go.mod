@@ -13,7 +13,7 @@ require (
 	gorgonia.org/tensor v0.9.24
 )
 
-replace github.com/advancedclimatesystems/gonnx => github.com/freeeve/gonnx v0.0.0-20260220181938-4e645a0212b0
+replace github.com/advancedclimatesystems/gonnx => github.com/freeeve/gonnx v1.2.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
