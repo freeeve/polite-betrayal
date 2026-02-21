@@ -381,12 +381,12 @@ func (e *ExternalStrategy) readUntil(expected string) error {
 				return
 			}
 			// Parse engine identity from "id name <engine> <git_hash>"
-			if strings.HasPrefix(line, "id name ") {
-				e.engineVersion = strings.TrimPrefix(line, "id name ")
+			if v, ok := strings.CutPrefix(line, "id name "); ok {
+				e.engineVersion = v
 			}
 			// Parse model hash from "info string model_hash <8char_hex>"
-			if strings.HasPrefix(line, "info string model_hash ") {
-				e.modelHash = strings.TrimPrefix(line, "info string model_hash ")
+			if v, ok := strings.CutPrefix(line, "info string model_hash "); ok {
+				e.modelHash = v
 			}
 		}
 		if err := e.scanner.Err(); err != nil {
