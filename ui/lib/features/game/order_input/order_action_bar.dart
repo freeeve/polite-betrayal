@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'order_state.dart';
 
 /// Bottom action bar showing order type buttons, prompt, cancel, submit/ready.
-class OrderActionBar extends StatelessWidget {
+class OrderActionBar extends StatefulWidget {
   final OrderInputState state;
   final void Function(String type)? onOrderType;
   final VoidCallback? onCancel;
@@ -22,6 +24,44 @@ class OrderActionBar extends StatelessWidget {
   });
 
   @override
+  State<OrderActionBar> createState() => _OrderActionBarState();
+}
+
+class _OrderActionBarState extends State<OrderActionBar> {
+  bool _showConfirmation = false;
+  Timer? _confirmationTimer;
+
+  @override
+  void didUpdateWidget(covariant OrderActionBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Detect submitted transition: false -> true
+    if (widget.state.submitted && !oldWidget.state.submitted) {
+      setState(() => _showConfirmation = true);
+      _confirmationTimer?.cancel();
+      _confirmationTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          setState(() => _showConfirmation = false);
+        }
+      });
+    }
+  }
+
+  /// Cancel timer and clear confirmation state for phase transitions.
+  void resetForNewPhase() {
+    _confirmationTimer?.cancel();
+    _confirmationTimer = null;
+    if (_showConfirmation) {
+      setState(() => _showConfirmation = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _confirmationTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -34,25 +74,25 @@ class OrderActionBar extends StatelessWidget {
         children: [
           // Prompt text
           Text(
-            state.prompt,
+            widget.state.prompt,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
           ),
           const SizedBox(height: 8),
-          if (state.phase == OrderPhase.unitSelected) _buildOrderTypeButtons(),
-          if (state.phase != OrderPhase.idle && state.phase != OrderPhase.unitSelected)
+          if (widget.state.phase == OrderPhase.unitSelected) _buildOrderTypeButtons(),
+          if (widget.state.phase != OrderPhase.idle && widget.state.phase != OrderPhase.unitSelected)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 TextButton.icon(
-                  onPressed: onCancel,
+                  onPressed: widget.onCancel,
                   icon: const Icon(Icons.close),
                   label: const Text('Cancel'),
                 ),
               ],
             ),
-          if (state.phase == OrderPhase.idle) _buildSubmitRow(context),
+          if (widget.state.phase == OrderPhase.idle) _buildSubmitRow(context),
         ],
       ),
     );
@@ -62,12 +102,12 @@ class OrderActionBar extends StatelessWidget {
     return Wrap(
       spacing: 8,
       children: [
-        _OrderButton(label: 'Hold', icon: Icons.shield, onTap: () => onOrderType?.call('hold')),
-        _OrderButton(label: 'Move', icon: Icons.arrow_forward, onTap: () => onOrderType?.call('move')),
-        _OrderButton(label: 'Support', icon: Icons.support, onTap: () => onOrderType?.call('support')),
-        _OrderButton(label: 'Convoy', icon: Icons.sailing, onTap: () => onOrderType?.call('convoy')),
+        _OrderButton(label: 'Hold', icon: Icons.shield, onTap: () => widget.onOrderType?.call('hold')),
+        _OrderButton(label: 'Move', icon: Icons.arrow_forward, onTap: () => widget.onOrderType?.call('move')),
+        _OrderButton(label: 'Support', icon: Icons.support, onTap: () => widget.onOrderType?.call('support')),
+        _OrderButton(label: 'Convoy', icon: Icons.sailing, onTap: () => widget.onOrderType?.call('convoy')),
         TextButton.icon(
-          onPressed: onCancel,
+          onPressed: widget.onCancel,
           icon: const Icon(Icons.close),
           label: const Text('Cancel'),
         ),
@@ -76,36 +116,56 @@ class OrderActionBar extends StatelessWidget {
   }
 
   Widget _buildSubmitRow(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (state.pendingOrders.isNotEmpty && !state.submitted)
-          FilledButton.icon(
-            onPressed: onSubmit,
-            icon: const Icon(Icons.send),
-            label: Text('Submit (${state.pendingOrders.length})'),
-          ),
-        if (state.ready) ...[
-          FilledButton.icon(
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit),
-            label: const Text('Edit Orders'),
-          ),
-          const SizedBox(width: 12),
-          const Chip(
-            avatar: Icon(Icons.check_circle, color: Colors.green),
-            label: Text('Ready'),
-          ),
-        ],
-        if (state.pendingOrders.isEmpty && !state.submitted) ...[
-          const Text('Select a unit to begin'),
-          const SizedBox(width: 12),
-          FilledButton.tonal(
-            onPressed: onSkip,
-            child: const Text('Skip Turn'),
-          ),
-        ],
-      ],
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      child: _showConfirmation
+          ? Row(
+              key: const ValueKey('confirmation'),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Orders Submitted',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            )
+          : Row(
+              key: const ValueKey('actions'),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.state.pendingOrders.isNotEmpty && !widget.state.submitted)
+                  FilledButton.icon(
+                    onPressed: widget.onSubmit,
+                    icon: const Icon(Icons.send),
+                    label: Text('Submit (${widget.state.pendingOrders.length})'),
+                  ),
+                if (widget.state.ready) ...[
+                  FilledButton.icon(
+                    onPressed: widget.onEdit,
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit Orders'),
+                  ),
+                  const SizedBox(width: 12),
+                  const Chip(
+                    avatar: Icon(Icons.check_circle, color: Colors.green),
+                    label: Text('Ready'),
+                  ),
+                ],
+                if (widget.state.pendingOrders.isEmpty && !widget.state.submitted) ...[
+                  const Text('Select a unit to begin'),
+                  const SizedBox(width: 12),
+                  FilledButton.tonal(
+                    onPressed: widget.onSkip,
+                    child: const Text('Skip Turn'),
+                  ),
+                ],
+              ],
+            ),
     );
   }
 }
