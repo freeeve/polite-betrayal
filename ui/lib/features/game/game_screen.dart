@@ -576,6 +576,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         final isResolving = _orderState.ready && !isFinished
             && !isViewingHistory && state.previousGameState == null;
 
+        final phaseTotalDuration = state.currentPhase
+            ?.deadline.difference(state.currentPhase!.createdAt);
+
         final phaseHeader = isFinished
             ? _GameOverBanner(winner: game.winner)
             : PhaseBar(
@@ -583,6 +586,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 readyCount: state.readyCount,
                 isResolving: isResolving,
                 isNewPhase: _showYourMoveBanner,
+                totalDuration: phaseTotalDuration,
                 onUrgent: myPower != null && !isViewingHistory && !isReplaying ? () {
                   if (_orderState.ready) return;
                   ScaffoldMessenger.of(context).showSnackBar(

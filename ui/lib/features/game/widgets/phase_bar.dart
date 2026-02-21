@@ -12,6 +12,9 @@ class PhaseBar extends StatefulWidget {
   final bool isResolving;
   final bool isNewPhase;
 
+  /// Total phase duration for scaling countdown warning thresholds.
+  final Duration? totalDuration;
+
   const PhaseBar({
     super.key,
     this.phase,
@@ -19,6 +22,7 @@ class PhaseBar extends StatefulWidget {
     this.onUrgent,
     this.isResolving = false,
     this.isNewPhase = false,
+    this.totalDuration,
   });
 
   @override
@@ -155,7 +159,9 @@ class _PhaseBarState extends State<PhaseBar>
                         Text('Ready ${widget.readyCount}/7'),
                         const SizedBox(width: 16),
                         CountdownTimer(
-                            deadline: p.deadline, onUrgent: widget.onUrgent),
+                            deadline: p.deadline,
+                            totalDuration: widget.totalDuration,
+                            onUrgent: widget.onUrgent),
                       ] else
                         const Text('Resolved',
                             style: TextStyle(color: Colors.grey)),
