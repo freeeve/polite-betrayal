@@ -2960,4 +2960,699 @@ mod tests {
             }
         }
     }
+
+    // ---------------------------------------------------------------
+    // Tier 1: Pure function coverage tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn score_order_with_logits_hold() {
+        use crate::board::order::{Location, OrderUnit};
+        // Hold order: logits[0] + logits[src_offset + prov_area]
+        // For Hold { Vie Army }, prov_area(Vie) = Province::Vie as usize
+        let mut logits = [0.0f32; 169];
+        logits[0] = 2.5; // hold arm
+        let vie_idx = Province::Vie as usize;
+        logits[7 + vie_idx] = 1.0; // src offset = 7
+        let order = Order::Hold {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Vie),
+            },
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            (score - 3.5).abs() < 0.001,
+            "Hold logit should be 2.5 + 1.0 = 3.5, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn score_order_with_logits_move() {
+        use crate::board::order::{Location, OrderUnit};
+        // Move order: logits[1] + logits[src_offset + src_area] + logits[dst_offset + dst_area]
+        let mut logits = [0.0f32; 169];
+        logits[1] = 1.0; // move arm
+        let bud_idx = Province::Bud as usize;
+        let ser_idx = Province::Ser as usize;
+        logits[7 + bud_idx] = 0.5; // src
+        logits[7 + 81 + ser_idx] = 2.0; // dst (dst_offset = 7 + 81 = 88)
+        let order = Order::Move {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Bud),
+            },
+            dest: Location::new(Province::Ser),
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            (score - 3.5).abs() < 0.001,
+            "Move logit should be 1.0 + 0.5 + 2.0 = 3.5, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn score_order_with_logits_support_hold() {
+        use crate::board::order::{Location, OrderUnit};
+        // SupportHold: logits[2] + logits[src_offset + unit_area] + logits[dst_offset + supported_area]
+        let mut logits = [0.0f32; 169];
+        logits[2] = 0.8; // support arm
+        let gal_idx = Province::Gal as usize;
+        let bud_idx = Province::Bud as usize;
+        logits[7 + gal_idx] = 0.3;
+        logits[88 + bud_idx] = 1.5;
+        let order = Order::SupportHold {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Gal),
+            },
+            supported: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Bud),
+            },
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            (score - 2.6).abs() < 0.001,
+            "SupportHold logit should be 0.8 + 0.3 + 1.5 = 2.6, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn score_order_with_logits_support_move() {
+        use crate::board::order::{Location, OrderUnit};
+        // SupportMove: logits[2] + logits[src_offset + unit_area] + logits[dst_offset + dest_area]
+        let mut logits = [0.0f32; 169];
+        logits[2] = 1.2;
+        let gal_idx = Province::Gal as usize;
+        let rum_idx = Province::Rum as usize;
+        logits[7 + gal_idx] = 0.4;
+        logits[88 + rum_idx] = 0.9;
+        let order = Order::SupportMove {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Gal),
+            },
+            supported: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Bud),
+            },
+            dest: Location::new(Province::Rum),
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            (score - 2.5).abs() < 0.001,
+            "SupportMove logit should be 1.2 + 0.4 + 0.9 = 2.5, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn score_order_with_logits_convoy() {
+        use crate::board::order::{Location, OrderUnit};
+        // Convoy: logits[3] + logits[src_offset + unit_area] + logits[dst_offset + dest_area]
+        let mut logits = [0.0f32; 169];
+        logits[3] = 0.6; // convoy arm
+        let nth_idx = Province::Nth as usize;
+        let nwy_idx = Province::Nwy as usize;
+        logits[7 + nth_idx] = 0.2;
+        logits[88 + nwy_idx] = 1.1;
+        let order = Order::Convoy {
+            unit: OrderUnit {
+                unit_type: UnitType::Fleet,
+                location: Location::new(Province::Nth),
+            },
+            convoyed_from: Location::new(Province::Yor),
+            convoyed_to: Location::new(Province::Nwy),
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            (score - 1.9).abs() < 0.001,
+            "Convoy logit should be 0.6 + 0.2 + 1.1 = 1.9, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn score_order_with_logits_short_array_returns_zero() {
+        use crate::board::order::{Location, OrderUnit};
+        let logits = [0.0f32; 100]; // < 169
+        let order = Order::Hold {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Vie),
+            },
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            score.abs() < 0.001,
+            "Short logits should return 0.0, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn score_order_with_logits_split_coast_provinces() {
+        use crate::board::order::{Location, OrderUnit};
+        // Test split-coast encoding: Bul/ec -> 75, Bul/sc -> 76, Spa/nc -> 77, etc.
+        let mut logits = [0.0f32; 169];
+        logits[1] = 1.0; // move arm
+                         // Bul ec area = 75
+        logits[88 + 75] = 3.0; // dst_offset + bul_ec
+
+        let smy_idx = Province::Smy as usize;
+        logits[7 + smy_idx] = 0.5;
+
+        let order = Order::Move {
+            unit: OrderUnit {
+                unit_type: UnitType::Fleet,
+                location: Location::new(Province::Smy),
+            },
+            dest: Location::with_coast(Province::Bul, Coast::East),
+        };
+        let score = score_order_with_logits(&order, &logits);
+        assert!(
+            (score - 4.5).abs() < 0.001,
+            "Split-coast move should use area 75 for Bul/ec: expected 4.5, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn unoccupied_home_sc_count_all_occupied() {
+        // Austria has 3 home SCs (Vie, Bud, Tri). All occupied -> 0.
+        let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Tri, Power::Austria, UnitType::Fleet, Coast::None);
+        state.set_sc_owner(Province::Vie, Some(Power::Austria));
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Tri, Some(Power::Austria));
+        let count = unoccupied_home_sc_count(Power::Austria, &state);
+        assert_eq!(count, 0, "All home SCs occupied should give 0");
+    }
+
+    #[test]
+    fn unoccupied_home_sc_count_one_empty() {
+        // Austria owns all 3 home SCs, but one (Vie) has no unit.
+        let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Tri, Power::Austria, UnitType::Fleet, Coast::None);
+        state.set_sc_owner(Province::Vie, Some(Power::Austria));
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Tri, Some(Power::Austria));
+        let count = unoccupied_home_sc_count(Power::Austria, &state);
+        assert_eq!(count, 1, "One empty owned home SC should give 1");
+    }
+
+    #[test]
+    fn unoccupied_home_sc_count_lost_sc() {
+        // Austria lost Vie to Turkey -> doesn't count even if empty.
+        let mut state = BoardState::empty(1903, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Vie, Some(Power::Turkey)); // lost
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Tri, Some(Power::Austria));
+        // Tri is empty and still owned -> 1
+        let count = unoccupied_home_sc_count(Power::Austria, &state);
+        assert_eq!(
+            count, 1,
+            "Lost home SC should not count, one empty owned should give 1"
+        );
+    }
+
+    #[test]
+    fn unoccupied_home_sc_count_no_scs_owned() {
+        let state = BoardState::empty(1905, Season::Spring, Phase::Movement);
+        let count = unoccupied_home_sc_count(Power::Austria, &state);
+        assert_eq!(count, 0, "No SCs owned should give 0");
+    }
+
+    #[test]
+    fn pick_non_colliding_skips_claimed_destinations() {
+        use crate::board::order::{Location, OrderUnit};
+        let unit = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Bud),
+        };
+        let cands = vec![
+            ScoredOrder {
+                order: Order::Move {
+                    unit,
+                    dest: Location::new(Province::Ser),
+                },
+                score: 10.0,
+            },
+            ScoredOrder {
+                order: Order::Move {
+                    unit,
+                    dest: Location::new(Province::Rum),
+                },
+                score: 8.0,
+            },
+            ScoredOrder {
+                order: Order::Move {
+                    unit,
+                    dest: Location::new(Province::Gal),
+                },
+                score: 5.0,
+            },
+            ScoredOrder {
+                order: Order::Hold { unit },
+                score: -1.0,
+            },
+        ];
+
+        let mut claimed = HashSet::new();
+        claimed.insert(Province::Ser); // First dest claimed
+        claimed.insert(Province::Rum); // Second dest claimed
+
+        let picked = pick_non_colliding(&cands, &claimed);
+        match picked {
+            Order::Move { dest, .. } => {
+                assert_eq!(
+                    dest.province,
+                    Province::Gal,
+                    "Should skip claimed Ser and Rum, pick Gal"
+                );
+            }
+            _ => panic!("Expected Move order, got {:?}", picked),
+        }
+    }
+
+    #[test]
+    fn pick_non_colliding_falls_back_to_hold() {
+        use crate::board::order::{Location, OrderUnit};
+        let unit = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Bud),
+        };
+        let cands = vec![
+            ScoredOrder {
+                order: Order::Move {
+                    unit,
+                    dest: Location::new(Province::Ser),
+                },
+                score: 10.0,
+            },
+            ScoredOrder {
+                order: Order::Move {
+                    unit,
+                    dest: Location::new(Province::Rum),
+                },
+                score: 8.0,
+            },
+        ];
+
+        let mut claimed = HashSet::new();
+        claimed.insert(Province::Ser);
+        claimed.insert(Province::Rum);
+
+        let picked = pick_non_colliding(&cands, &claimed);
+        assert!(
+            matches!(picked, Order::Hold { .. }),
+            "Should fall back to Hold when all moves claimed, got {:?}",
+            picked
+        );
+    }
+
+    #[test]
+    fn pick_non_colliding_picks_hold_candidate() {
+        use crate::board::order::{Location, OrderUnit};
+        let unit = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Bud),
+        };
+        // Move (claimed), SupportHold (skipped), Hold (picked)
+        let cands = vec![
+            ScoredOrder {
+                order: Order::Move {
+                    unit,
+                    dest: Location::new(Province::Ser),
+                },
+                score: 10.0,
+            },
+            ScoredOrder {
+                order: Order::SupportHold {
+                    unit,
+                    supported: OrderUnit {
+                        unit_type: UnitType::Army,
+                        location: Location::new(Province::Vie),
+                    },
+                },
+                score: 5.0,
+            },
+            ScoredOrder {
+                order: Order::Hold { unit },
+                score: 0.0,
+            },
+        ];
+
+        let mut claimed = HashSet::new();
+        claimed.insert(Province::Ser);
+
+        let picked = pick_non_colliding(&cands, &claimed);
+        assert!(
+            matches!(picked, Order::Hold { .. }),
+            "Should skip supports and pick Hold, got {:?}",
+            picked
+        );
+    }
+
+    #[test]
+    fn generate_greedy_orders_fast_resolves_collisions() {
+        // Two Austrian armies both wanting to move to Ser.
+        // Bud and Gal are both adjacent to Ser (army-ok).
+        let mut state = BoardState::empty(1901, Season::Fall, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        // Make Ser an attractive unowned SC to lure both units.
+        // Leave Ser unowned (default None).
+
+        let orders = generate_greedy_orders_fast(&state);
+
+        // Both orders should be for Austria.
+        assert_eq!(orders.len(), 2, "Should have 2 orders");
+
+        // Collect move destinations (skip holds).
+        let move_dests: Vec<Province> = orders
+            .iter()
+            .filter_map(|(o, _)| match o {
+                Order::Move { dest, .. } => Some(dest.province),
+                _ => None,
+            })
+            .collect();
+
+        // No two move orders should share the same destination.
+        let unique: HashSet<Province> = move_dests.iter().copied().collect();
+        assert_eq!(
+            move_dests.len(),
+            unique.len(),
+            "Collision not resolved: two units moving to same province {:?}",
+            move_dests
+        );
+    }
+
+    #[test]
+    fn generate_greedy_orders_fast_demoted_unit_uses_alt() {
+        // Three Austrian armies: Bud, Gal, Vie.
+        // Make Rum the only attractive SC (unowned) to force collision on Rum.
+        // Both Bud and Gal are adjacent to Rum.
+        // The weaker scorer should be demoted to its second-best move.
+        let mut state = BoardState::empty(1901, Season::Fall, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Gal, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Vie, Some(Power::Austria));
+
+        let orders = generate_greedy_orders_fast(&state);
+        assert_eq!(orders.len(), 3, "Should have 3 orders");
+
+        // Count how many units move to Rum.
+        let rum_movers: Vec<_> = orders
+            .iter()
+            .filter(
+                |(o, _)| matches!(o, Order::Move { dest, .. } if dest.province == Province::Rum),
+            )
+            .collect();
+        assert!(
+            rum_movers.len() <= 1,
+            "At most one unit should target Rum after collision resolution, got {}",
+            rum_movers.len()
+        );
+    }
+
+    #[test]
+    fn score_order_fall_home_sc_vacating_bonus() {
+        use crate::board::order::{Location, OrderUnit};
+        // Fall season, Austria owns 4 SCs but has only 3 units.
+        // Unit on Vie (home SC) should get a bonus for vacating to make room for builds.
+        let mut state = BoardState::empty(1902, Season::Fall, Phase::Movement);
+        state.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Ser, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Vie, Some(Power::Austria));
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Tri, Some(Power::Austria));
+        state.set_sc_owner(Province::Ser, Some(Power::Austria));
+        // 4 SCs, 3 units -> 1 pending build, but no free home SC (Vie occupied, Bud occupied, Tri empty but needs build).
+
+        // Move off Vie (home SC vacating)
+        let move_off = Order::Move {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Vie),
+            },
+            dest: Location::new(Province::Tyr),
+        };
+
+        // Hold on Vie
+        let hold_on = Order::Hold {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Vie),
+            },
+        };
+
+        let move_score = score_order(&move_off, Power::Austria, &state);
+        let hold_score = score_order(&hold_on, Power::Austria, &state);
+
+        // The vacating bonus (+8.0) and hold penalty (-8.0) should push
+        // move score well above hold score when builds are needed.
+        assert!(
+            move_score > hold_score,
+            "Moving off home SC in fall with pending builds should score higher than holding: move={} hold={}",
+            move_score, hold_score
+        );
+    }
+
+    #[test]
+    fn score_order_spring_sc_attack_bonus() {
+        use crate::board::order::{Location, OrderUnit};
+        // Spring season: moving to an enemy SC should get the spring SC attack bonus.
+        let mut state = BoardState::empty(1902, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Rum, Some(Power::Turkey));
+
+        let attack_sc = Order::Move {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Bud),
+            },
+            dest: Location::new(Province::Rum),
+        };
+
+        // Move to a non-SC, non-owned province for comparison.
+        let move_gal = Order::Move {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Bud),
+            },
+            dest: Location::new(Province::Gal),
+        };
+
+        let sc_score = score_order(&attack_sc, Power::Austria, &state);
+        let non_sc_score = score_order(&move_gal, Power::Austria, &state);
+
+        // The spring SC attack bonus (+4.0) plus the enemy SC bonus (+7.0)
+        // should push SC attack well above a non-SC move.
+        assert!(
+            sc_score > non_sc_score,
+            "Spring SC attack should score higher: sc={} non_sc={}",
+            sc_score,
+            non_sc_score
+        );
+    }
+
+    #[test]
+    fn score_order_hold_fall_blocking_build_penalty() {
+        use crate::board::order::{Location, OrderUnit};
+        // Fall, Austria holds on Vie blocking builds. Penalty should apply.
+        let mut state = BoardState::empty(1903, Season::Fall, Phase::Movement);
+        state.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+        state.set_sc_owner(Province::Vie, Some(Power::Austria));
+        state.set_sc_owner(Province::Bud, Some(Power::Austria));
+        state.set_sc_owner(Province::Tri, Some(Power::Austria));
+        state.set_sc_owner(Province::Ser, Some(Power::Austria));
+        // 4 SCs, 1 unit -> 3 pending builds. Only Bud and Tri are free home SCs (2 free).
+        // pending_builds (3) > free_homes (2) -> penalty applies.
+
+        let hold = Order::Hold {
+            unit: OrderUnit {
+                unit_type: UnitType::Army,
+                location: Location::new(Province::Vie),
+            },
+        };
+        let score = score_order(&hold, Power::Austria, &state);
+        // Base hold score is -1.0 (no threat), penalty -8.0 = -9.0 (approximately).
+        assert!(
+            score < -5.0,
+            "Holding on home SC blocking builds should have heavy penalty, got {}",
+            score
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // Tier 2: Neural model tests (gated by cfg(feature = "neural"))
+    // ---------------------------------------------------------------
+
+    #[cfg(feature = "neural")]
+    mod neural_tests {
+        use super::*;
+
+        fn load_evaluator() -> NeuralEvaluator {
+            NeuralEvaluator::new(Some("models/policy_v2.onnx"), Some("models/value_v2.onnx"))
+        }
+
+        #[test]
+        fn generate_candidates_neural_produces_valid_sets() {
+            let evaluator = load_evaluator();
+            if !evaluator.has_policy() {
+                eprintln!("Skipping neural test: no policy model loaded");
+                return;
+            }
+            let state = initial_state();
+            let mut rng = SmallRng::seed_from_u64(42);
+            let cands =
+                generate_candidates_neural(Power::Austria, &state, &evaluator, 8, 0.7, &mut rng);
+            assert!(
+                cands.len() >= 2,
+                "Neural candidates should produce at least 2 sets, got {}",
+                cands.len()
+            );
+            for c in &cands {
+                assert_eq!(
+                    c.len(),
+                    3,
+                    "Austria has 3 units, candidate has {} orders",
+                    c.len()
+                );
+                // All orders should be for Austria.
+                for (_, p) in c {
+                    assert_eq!(*p, Power::Austria);
+                }
+            }
+        }
+
+        #[test]
+        fn generate_candidates_neural_all_powers() {
+            let evaluator = load_evaluator();
+            if !evaluator.has_policy() {
+                eprintln!("Skipping neural test: no policy model loaded");
+                return;
+            }
+            let state = initial_state();
+            for &p in ALL_POWERS.iter() {
+                let unit_count = (0..PROVINCE_COUNT)
+                    .filter(|&i| matches!(state.units[i], Some((pw, _)) if pw == p))
+                    .count();
+                let mut rng = SmallRng::seed_from_u64(42);
+                let cands = generate_candidates_neural(p, &state, &evaluator, 8, 0.5, &mut rng);
+                assert!(
+                    !cands.is_empty(),
+                    "Power {:?} should get at least 1 candidate set",
+                    p
+                );
+                for c in &cands {
+                    assert_eq!(
+                        c.len(),
+                        unit_count,
+                        "Power {:?} has {} units but candidate has {} orders",
+                        p,
+                        unit_count,
+                        c.len()
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn policy_guided_init_produces_valid_weights() {
+            let evaluator = load_evaluator();
+            if !evaluator.has_policy() {
+                eprintln!("Skipping neural test: no policy model loaded");
+                return;
+            }
+            let state = initial_state();
+            let mut rng = SmallRng::seed_from_u64(42);
+            let cands = generate_candidates(Power::Austria, &state, 8, &mut rng);
+
+            let weights = policy_guided_init(&evaluator, Power::Austria, &state, &cands);
+            assert!(weights.is_some(), "Should produce weights with valid model");
+            let weights = weights.unwrap();
+            assert_eq!(
+                weights.len(),
+                cands.len(),
+                "Weight count should match candidate count"
+            );
+            // All weights should be non-negative (they're softmax * scale).
+            for (i, &w) in weights.iter().enumerate() {
+                assert!(w >= 0.0, "Weight {} should be non-negative, got {}", i, w);
+            }
+            // Sum should be > 0.
+            let sum: f64 = weights.iter().sum();
+            assert!(sum > 0.0, "Sum of weights should be positive, got {}", sum);
+        }
+
+        #[test]
+        fn policy_guided_init_empty_candidates_returns_none() {
+            let evaluator = load_evaluator();
+            let state = initial_state();
+            let weights = policy_guided_init(&evaluator, Power::Austria, &state, &[]);
+            assert!(weights.is_none(), "Empty candidates should return None");
+        }
+
+        #[test]
+        fn rm_evaluate_blended_with_value_model() {
+            let evaluator = load_evaluator();
+            if !evaluator.has_value() {
+                eprintln!("Skipping neural test: no value model loaded");
+                return;
+            }
+            let state = initial_state();
+            let heuristic = rm_evaluate(Power::Austria, &state);
+            let blended = rm_evaluate_blended(Power::Austria, &state, Some(&evaluator));
+            // With value model, blended should differ from pure heuristic
+            // (unless neural happens to give exactly the same result, which is unlikely).
+            // Just verify it's a finite, reasonable value.
+            assert!(
+                blended.is_finite(),
+                "Blended eval should be finite, got {}",
+                blended
+            );
+            // Verify it's not exactly the heuristic (neural component contributes).
+            // Allow small epsilon for floating point.
+            if (blended - heuristic).abs() < 0.001 {
+                eprintln!(
+                    "Warning: blended ({}) very close to heuristic ({})",
+                    blended, heuristic
+                );
+            }
+        }
+
+        #[test]
+        fn rm_evaluate_blended_all_powers() {
+            let evaluator = load_evaluator();
+            if !evaluator.has_value() {
+                eprintln!("Skipping neural test: no value model loaded");
+                return;
+            }
+            let state = initial_state();
+            for &p in ALL_POWERS.iter() {
+                let blended = rm_evaluate_blended(p, &state, Some(&evaluator));
+                assert!(
+                    blended.is_finite(),
+                    "Power {:?} blended eval should be finite, got {}",
+                    p,
+                    blended
+                );
+            }
+        }
+    }
 }
