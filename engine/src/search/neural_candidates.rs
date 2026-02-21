@@ -316,10 +316,161 @@ mod tests {
     }
 
     #[test]
+    fn score_convoy_order() {
+        let unit = OrderUnit {
+            unit_type: UnitType::Fleet,
+            location: Location::new(Province::Mao),
+        };
+        let order = Order::Convoy {
+            unit,
+            convoyed_from: Location::new(Province::Bre),
+            convoyed_to: Location::new(Province::Spa),
+        };
+
+        let mut logits = vec![0.0f32; ORDER_VOCAB_SIZE];
+        logits[ORDER_TYPE_CONVOY] = 7.0;
+        logits[SRC_OFFSET + Province::Mao as usize] = 2.5;
+        logits[DST_OFFSET + Province::Spa as usize] = 4.5;
+
+        let score = score_order_neural(&order, &logits);
+        assert!((score - 14.0).abs() < 0.001, "Expected 14.0, got {}", score);
+    }
+
+    #[test]
+    fn score_support_hold_order() {
+        let unit = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Tyr),
+        };
+        let supported = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Vie),
+        };
+        let order = Order::SupportHold { unit, supported };
+
+        let mut logits = vec![0.0f32; ORDER_VOCAB_SIZE];
+        logits[ORDER_TYPE_SUPPORT] = 2.0;
+        logits[SRC_OFFSET + Province::Tyr as usize] = 1.5;
+        // SupportHold uses supported unit's source as destination.
+        logits[DST_OFFSET + Province::Vie as usize] = 3.5;
+
+        let score = score_order_neural(&order, &logits);
+        assert!((score - 7.0).abs() < 0.001, "Expected 7.0, got {}", score);
+    }
+
+    #[test]
+    fn score_short_logits_returns_zero() {
+        let unit = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Vie),
+        };
+        let order = Order::Hold { unit };
+        // Logits shorter than ORDER_VOCAB_SIZE should return 0.
+        let logits = vec![1.0f32; ORDER_VOCAB_SIZE - 1];
+        assert_eq!(score_order_neural(&order, &logits), 0.0);
+    }
+
+    #[test]
+    fn score_retreat_order_returns_zero() {
+        let unit = OrderUnit {
+            unit_type: UnitType::Army,
+            location: Location::new(Province::Vie),
+        };
+        let order = Order::Retreat {
+            unit,
+            dest: Location::new(Province::Boh),
+        };
+        let logits = vec![5.0f32; ORDER_VOCAB_SIZE];
+        // Retreat falls through to the wildcard arm returning 0.
+        assert_eq!(score_order_neural(&order, &logits), 0.0);
+    }
+
+    #[test]
+    fn softmax_equal_inputs() {
+        let weights = softmax_weights(&[0.0, 0.0, 0.0]);
+        assert_eq!(weights.len(), 3);
+        for w in &weights {
+            assert!((w - 1.0 / 3.0).abs() < 0.001, "Expected ~0.333, got {}", w);
+        }
+    }
+
+    #[test]
     fn neural_top_k_returns_none_without_model() {
         let evaluator = NeuralEvaluator::new(None, None);
         let state = BoardState::empty(1901, Season::Spring, Phase::Movement);
         let result = neural_top_k_per_unit(&evaluator, Power::Austria, &state, 5);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn neural_top_k_empty_units() {
+        // With no units on the board, should return Some(empty vec).
+        // Without neural feature, evaluator.has_policy() is false so returns None.
+        // This test verifies the no-model path.
+        let evaluator = NeuralEvaluator::new(None, None);
+        let state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        let result = neural_top_k_per_unit(&evaluator, Power::Austria, &state, 3);
+        assert!(result.is_none());
+    }
+
+    /// Neural model integration test. Only runs when compiled with `neural` feature
+    /// and ONNX model files are present.
+    #[cfg(feature = "neural")]
+    #[test]
+    fn neural_top_k_with_model() {
+        use crate::board::province::Power;
+        use crate::board::unit::UnitType;
+
+        let policy_path = "models/policy_v2.onnx";
+        let value_path = "models/value_v2.onnx";
+
+        // Skip if model files are not present.
+        if !std::path::Path::new(policy_path).exists() {
+            eprintln!("Skipping neural_top_k_with_model: model files not found");
+            return;
+        }
+
+        let evaluator = NeuralEvaluator::new(Some(policy_path), Some(value_path));
+        assert!(evaluator.has_policy(), "Policy model should be loaded");
+
+        // Set up Austrian starting position: A Vie, A Bud, F Tri.
+        let mut state = BoardState::empty(1901, Season::Spring, Phase::Movement);
+        state.place_unit(Province::Vie, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Bud, Power::Austria, UnitType::Army, Coast::None);
+        state.place_unit(Province::Tri, Power::Austria, UnitType::Fleet, Coast::None);
+        let k = 5;
+
+        let result = neural_top_k_per_unit(&evaluator, Power::Austria, &state, k);
+        assert!(result.is_some(), "Should return Some with loaded model");
+
+        let per_unit = result.unwrap();
+        // Austria starts with 3 units.
+        assert_eq!(per_unit.len(), 3, "Austria has 3 starting units");
+
+        for (i, unit_orders) in per_unit.iter().enumerate() {
+            assert!(
+                !unit_orders.is_empty(),
+                "Unit {} should have at least one candidate",
+                i
+            );
+            assert!(
+                unit_orders.len() <= k,
+                "Unit {} has {} candidates, expected <= {}",
+                i,
+                unit_orders.len(),
+                k
+            );
+
+            // Verify descending sort by neural score.
+            for w in unit_orders.windows(2) {
+                assert!(
+                    w[0].neural_score >= w[1].neural_score,
+                    "Candidates for unit {} not sorted descending: {} < {}",
+                    i,
+                    w[0].neural_score,
+                    w[1].neural_score
+                );
+            }
+        }
     }
 }
