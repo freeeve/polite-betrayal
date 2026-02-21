@@ -73,7 +73,7 @@ use Province::*;
 /// - Coastal-to-coastal/split army only: 9 pairs * 2 = 18
 /// - Coastal-to-coastal army only (different seas): 6+5 pairs * 2 = 22
 /// Total: 434
-pub const ADJACENCY_COUNT: usize = 434;
+pub const ADJACENCY_COUNT: usize = 436;
 
 /// Complete adjacency table. Each bidirectional pair is stored as two directed entries.
 ///
@@ -438,6 +438,8 @@ pub static ADJACENCIES: [AdjacencyEntry; ADJACENCY_COUNT] = [
     both(Ven, Apu),
     both(Bel, Hol),
     both(Hol, Bel),
+    both(Hol, Kie),
+    both(Kie, Hol),
     both(Bel, Pic),
     both(Pic, Bel),
     both(Ber, Kie),
@@ -996,7 +998,7 @@ mod tests {
         // fleet only: sea-sea(42) + sea-coastal(144) + split-coast-fleet(22) + sea-coastal-extra(6) = 214
         assert_eq!(fleet_only, 214, "fleet-only entry count");
         // both: 27 pairs * 2 = 54 (was 33 pairs, 6 moved to army-only)
-        assert_eq!(both_count, 66, "both-army-and-fleet entry count");
+        assert_eq!(both_count, 68, "both-army-and-fleet entry count");
         assert_eq!(army_only + fleet_only + both_count, ADJACENCY_COUNT);
     }
 
