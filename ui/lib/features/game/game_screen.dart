@@ -576,17 +576,24 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         final isResolving = _orderState.ready && !isFinished
             && !isViewingHistory && state.previousGameState == null;
 
+        // Show the historical phase when viewing history/replay so the
+        // PhaseBar displays "Resolved" instead of a live countdown timer.
+        final displayPhase = isViewingHistory
+            && historyState.viewingIndex! < historyState.phases.length
+            ? historyState.phases[historyState.viewingIndex!]
+            : state.currentPhase;
+
         final phaseTotalDuration = state.currentPhase
             ?.deadline.difference(state.currentPhase!.createdAt);
 
         final phaseHeader = isFinished
             ? _GameOverBanner(winner: game.winner)
             : PhaseBar(
-                phase: state.currentPhase,
-                readyCount: state.readyCount,
+                phase: displayPhase,
+                readyCount: isViewingHistory ? 0 : state.readyCount,
                 isResolving: isResolving,
                 isNewPhase: _showYourMoveBanner,
-                totalDuration: phaseTotalDuration,
+                totalDuration: isViewingHistory ? null : phaseTotalDuration,
                 onUrgent: myPower != null && !isViewingHistory && !isReplaying ? () {
                   if (_orderState.ready) return;
                   ScaffoldMessenger.of(context).showSnackBar(
