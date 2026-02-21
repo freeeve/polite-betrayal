@@ -1780,7 +1780,8 @@ fn rm_evaluate(power: Power, state: &BoardState) -> f64 {
     let mut support_potential = 0.0f64;
     let mut scored_targets: HashSet<Province> = HashSet::new();
     for &(prov, ut) in &own_units {
-        let coast = state.fleet_coast[prov as usize].unwrap_or(crate::board::province::Coast::None);
+        let _coast =
+            state.fleet_coast[prov as usize].unwrap_or(crate::board::province::Coast::None);
         for adj in adj_from(prov) {
             let target = adj.to;
             if !target.is_supply_center() {

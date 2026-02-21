@@ -5,7 +5,7 @@
 //! a consistent resolution is found.
 
 use crate::board::adjacency::is_adjacent_fast as is_adjacent;
-use crate::board::order::{Location, Order, OrderUnit};
+use crate::board::order::Order;
 use crate::board::province::{Coast, Power, Province, ProvinceType, PROVINCE_COUNT};
 use crate::board::state::{BoardState, DislodgedUnit as StateDislodgedUnit};
 use crate::board::unit::UnitType;

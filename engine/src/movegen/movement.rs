@@ -201,8 +201,8 @@ fn generate_supports(
 
 /// Generates convoy orders for a fleet in a sea province.
 fn generate_convoys(
-    province: Province,
-    coast: Coast,
+    _province: Province,
+    _coast: Coast,
     unit: OrderUnit,
     state: &BoardState,
     orders: &mut Vec<Order>,
