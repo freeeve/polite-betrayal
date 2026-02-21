@@ -6,6 +6,8 @@ use realpolitik::eval::{evaluate, evaluate_all};
 use realpolitik::movegen::movement::legal_orders;
 use realpolitik::protocol::dfen::parse_dfen;
 use realpolitik::resolve::Resolver;
+use std::sync::atomic::AtomicBool;
+
 use realpolitik::search::cartesian::search;
 use realpolitik::search::regret_matching_search;
 
@@ -264,6 +266,7 @@ fn bench_search_austria_200ms(c: &mut Criterion) {
                 black_box(&state),
                 Duration::from_millis(200),
                 &mut out,
+                &AtomicBool::new(false),
             )
         })
     });
@@ -317,6 +320,8 @@ fn bench_rm_search_austria_500ms(c: &mut Criterion) {
                 &mut out,
                 None,
                 100,
+                None,
+                &AtomicBool::new(false),
             )
         })
     });
@@ -338,6 +343,8 @@ fn bench_rm_search_russia_500ms(c: &mut Criterion) {
                 &mut out,
                 None,
                 100,
+                None,
+                &AtomicBool::new(false),
             )
         })
     });

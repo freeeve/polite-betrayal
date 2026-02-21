@@ -5,6 +5,7 @@
 //! evaluating each to find the best order set.
 
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::board::province::{Power, Province, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT};
@@ -326,6 +327,7 @@ pub fn search<W: Write>(
     state: &BoardState,
     movetime: Duration,
     out: &mut W,
+    stop: &AtomicBool,
 ) -> SearchResult {
     let start = Instant::now();
 
@@ -341,6 +343,9 @@ pub fn search<W: Write>(
 
     // Iterative deepening: K=2, 3, 4, 5
     for k in 2..=5 {
+        if stop.load(Ordering::Relaxed) {
+            break;
+        }
         let elapsed = start.elapsed();
         if elapsed >= movetime {
             break;
@@ -372,6 +377,7 @@ pub fn search<W: Write>(
             &mut resolver,
             remaining,
             start,
+            stop,
         );
 
         total_nodes += nodes;
@@ -413,6 +419,7 @@ fn enumerate_combinations(
     resolver: &mut Resolver,
     time_budget: Duration,
     start: Instant,
+    stop: &AtomicBool,
 ) -> (f32, Vec<Order>, u64) {
     let n_units = candidates.len();
     if n_units == 0 {
@@ -439,8 +446,8 @@ fn enumerate_combinations(
     let deadline = start + time_budget;
 
     loop {
-        // Check time budget periodically (every 64 nodes)
-        if nodes & 63 == 0 && Instant::now() >= deadline {
+        // Check stop flag and time budget periodically (every 64 nodes)
+        if nodes & 63 == 0 && (stop.load(Ordering::Relaxed) || Instant::now() >= deadline) {
             break;
         }
 
@@ -720,6 +727,7 @@ mod tests {
             &state,
             Duration::from_millis(1000),
             &mut out,
+            &AtomicBool::new(false),
         );
         // Austria has 3 units
         assert_eq!(result.orders.len(), 3, "Should have 3 orders for Austria");
@@ -734,7 +742,13 @@ mod tests {
         state.set_sc_owner(Province::Bud, Some(Power::Austria));
 
         let mut out = Vec::new();
-        let result = search(Power::Austria, &state, Duration::from_millis(500), &mut out);
+        let result = search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(500),
+            &mut out,
+            &AtomicBool::new(false),
+        );
 
         assert_eq!(result.orders.len(), 1);
         // Should move to an unowned SC (Ser, Rum, Vie, or Tri), not hold or move to Gal
@@ -755,7 +769,13 @@ mod tests {
         let state = initial_state();
         let mut out = Vec::new();
         let start = Instant::now();
-        let _result = search(Power::Russia, &state, Duration::from_millis(200), &mut out);
+        let _result = search(
+            Power::Russia,
+            &state,
+            Duration::from_millis(200),
+            &mut out,
+            &AtomicBool::new(false),
+        );
         let elapsed = start.elapsed();
         // Should finish within ~10% of movetime (200ms + overhead)
         assert!(
@@ -769,7 +789,13 @@ mod tests {
     fn search_emits_info_lines() {
         let state = initial_state();
         let mut out = Vec::new();
-        let _result = search(Power::Austria, &state, Duration::from_millis(500), &mut out);
+        let _result = search(
+            Power::Austria,
+            &state,
+            Duration::from_millis(500),
+            &mut out,
+            &AtomicBool::new(false),
+        );
         let output = String::from_utf8(out).unwrap();
         assert!(
             output.contains("info depth"),
@@ -871,6 +897,7 @@ mod tests {
             &state,
             Duration::from_millis(1000),
             &mut out,
+            &AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         let combos_per_sec = result.nodes as f64 / elapsed.as_secs_f64();

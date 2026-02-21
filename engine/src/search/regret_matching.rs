@@ -9,6 +9,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use rand::rngs::SmallRng;
@@ -1912,6 +1913,7 @@ pub fn regret_matching_search<W: Write>(
     neural: Option<&NeuralEvaluator>,
     strength: u64,
     trust_scores: Option<&[f64; 7]>,
+    stop: &AtomicBool,
 ) -> SearchResult {
     let start = Instant::now();
     let mut rng = SmallRng::from_entropy();
@@ -2084,6 +2086,10 @@ pub fn regret_matching_search<W: Write>(
         MIN_RM_ITERATIONS
     };
     loop {
+        // Stop flag overrides minimum iteration guarantee
+        if stop.load(Ordering::Relaxed) {
+            break;
+        }
         // After minimum iterations, check time budget
         if iteration_count >= min_iters as u64 && Instant::now() >= rm_deadline {
             break;
@@ -2255,6 +2261,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         assert_eq!(result.orders.len(), 3, "Austria has 3 units");
         assert!(result.nodes > 0, "Should search at least 1 node");
@@ -2272,6 +2279,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         assert_eq!(result.orders.len(), 4, "Russia has 4 units");
     }
@@ -2289,6 +2297,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         assert!(
@@ -2310,6 +2319,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         let output = String::from_utf8(out).unwrap();
         assert!(
@@ -2334,6 +2344,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
 
         assert_eq!(result.orders.len(), 1);
@@ -2463,6 +2474,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         assert!(
@@ -2488,6 +2500,7 @@ mod tests {
                 None,
                 strength,
                 None,
+                &AtomicBool::new(false),
             );
             assert_eq!(
                 result.orders.len(),
@@ -2518,6 +2531,7 @@ mod tests {
             Some(&evaluator),
             100,
             None,
+            &AtomicBool::new(false),
         );
         assert_eq!(result.orders.len(), 3, "Should fallback to heuristic");
     }
@@ -2701,6 +2715,7 @@ mod tests {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         let output = String::from_utf8(out).unwrap();
         assert!(

@@ -7,6 +7,9 @@
 use std::collections::HashMap;
 use std::io::Write;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use rand::rngs::SmallRng;
@@ -45,17 +48,25 @@ fn compute_file_hash(path: &str) -> Option<String> {
     Some(hash.chars().take(8).collect())
 }
 
+/// Output from a completed search thread.
+pub struct SearchOutput {
+    pub info_buf: Vec<u8>,
+    pub orders: Vec<crate::board::Order>,
+}
+
 /// Holds the mutable state of the engine between commands.
 pub struct Engine {
     pub position: Option<BoardState>,
     pub active_power: Option<Power>,
     pub options: HashMap<String, String>,
-    pub neural: Option<NeuralEvaluator>,
+    pub neural: Option<Arc<NeuralEvaluator>>,
     pub press: PressState,
     book: Option<OpeningBook>,
     book_loaded: bool,
     model_hash: Option<String>,
     rng: SmallRng,
+    stop_flag: Arc<AtomicBool>,
+    search_handle: Option<JoinHandle<SearchOutput>>,
 }
 
 impl Engine {
@@ -71,6 +82,8 @@ impl Engine {
             book_loaded: false,
             model_hash: None,
             rng: SmallRng::from_entropy(),
+            stop_flag: Arc::new(AtomicBool::new(false)),
+            search_handle: None,
         }
     }
 
@@ -123,7 +136,10 @@ impl Engine {
         let policy_path = format!("{}/policy_v2.onnx", model_dir);
         let value_path = format!("{}/value_v2.onnx", model_dir);
         self.model_hash = compute_file_hash(&policy_path);
-        self.neural = Some(NeuralEvaluator::new(Some(&policy_path), Some(&value_path)));
+        self.neural = Some(Arc::new(NeuralEvaluator::new(
+            Some(&policy_path),
+            Some(&value_path),
+        )));
     }
 
     /// Sets the current board position from a DFEN string.
@@ -166,37 +182,6 @@ impl Engine {
             self.book = None;
             self.book_loaded = false;
             self.ensure_book();
-        }
-    }
-
-    /// Runs the movement phase search (RM+ or Cartesian based on strength).
-    fn run_movement_search<W: Write>(
-        &mut self,
-        power: Power,
-        out: &mut W,
-    ) -> Vec<crate::board::Order> {
-        let movetime = self.movetime();
-        let strength = self.strength();
-        let state = self.position.as_ref().unwrap();
-        let trust = self.press.trust.scores;
-        let result = if strength >= 80 {
-            regret_matching_search(
-                power,
-                state,
-                movetime,
-                out,
-                self.neural.as_ref(),
-                strength,
-                Some(&trust),
-            )
-        } else {
-            search(power, state, movetime, out)
-        };
-        if result.orders.is_empty() {
-            let state = self.position.as_ref().unwrap();
-            random_orders(power, state, &mut self.rng)
-        } else {
-            result.orders
         }
     }
 
@@ -286,12 +271,53 @@ impl Engine {
         &self.press.trust.scores
     }
 
-    /// Handles the `go` command. Uses RM+ search at high strength (>= 80)
-    /// and Cartesian search otherwise. Retreat/build phases use heuristics.
-    pub fn handle_go<W: Write>(&mut self, out: &mut W) {
+    /// Writes search output (info lines + press + bestorders) to the given writer.
+    fn write_search_output<W: Write>(
+        &mut self,
+        out: &mut W,
+        info_buf: &[u8],
+        orders: &[crate::board::Order],
+    ) {
+        // Flush buffered info lines from the search thread.
+        out.write_all(info_buf).unwrap();
+
+        let power = self.active_power.unwrap();
+        let dson = format_orders(orders);
+
+        // Generate and emit outbound press before bestorders so the Go reader
+        // can collect press_out lines while scanning for bestorders without blocking.
+        if let Some(state) = self.position.as_ref() {
+            let press_out = generate_outbound_press(power, orders, state, &self.press.trust);
+            for p in &press_out {
+                writeln!(out, "{}", format_press_out(p)).unwrap();
+            }
+            self.press.outbound = press_out;
+        }
+
+        writeln!(out, "bestorders {}", dson).unwrap();
+        out.flush().unwrap();
+    }
+
+    /// Handles the `go` command asynchronously. Spawns a search thread for
+    /// movement phases; retreat/build/book-hit phases run synchronously.
+    ///
+    /// `go_params` provides optional movetime/infinite overrides from the
+    /// protocol. After this returns, either the result is already written
+    /// (synchronous path) or `is_searching()` returns true and the caller
+    /// must poll/stop later.
+    pub fn handle_go<W: Write>(
+        &mut self,
+        out: &mut W,
+        go_params: Option<&crate::protocol::parser::GoParams>,
+    ) {
         if self.position.is_none() {
             eprintln!("go: no position set");
             return;
+        }
+
+        // Flush any in-flight search results before starting a new one.
+        if self.search_handle.is_some() {
+            self.handle_stop(out);
         }
 
         let power = match self.active_power {
@@ -304,6 +330,19 @@ impl Engine {
 
         self.ensure_neural();
         self.ensure_book();
+
+        // Apply movetime override from GoParams.
+        if let Some(params) = go_params {
+            if let Some(mt) = params.movetime {
+                self.options
+                    .insert("SearchTime".to_string(), mt.to_string());
+            }
+            if params.infinite {
+                // Infinite mode: search for 1 hour (effectively forever until stop).
+                self.options
+                    .insert("SearchTime".to_string(), "3600000".to_string());
+            }
+        }
 
         // Try opening book lookup first (before borrowing self mutably for search).
         let book_hit = {
@@ -320,48 +359,136 @@ impl Engine {
             }
         };
 
-        let orders = if let Some(book_orders) = book_hit {
-            let _ = writeln!(out, "info string opening book hit for {:?}", power);
-            book_orders
-        } else {
-            let phase = self.position.as_ref().unwrap().phase;
-            match phase {
-                Phase::Movement => self.run_movement_search(power, out),
-                Phase::Retreat => {
-                    let state = self.position.as_ref().unwrap();
-                    let orders = heuristic_retreat_orders(power, state);
-                    if orders.is_empty() {
-                        random_orders(power, state, &mut self.rng)
-                    } else {
-                        orders
+        // Synchronous paths: book hits, retreat, build.
+        let phase = self.position.as_ref().unwrap().phase;
+        if book_hit.is_some() || phase != Phase::Movement {
+            let orders = if let Some(book_orders) = book_hit {
+                let _ = writeln!(out, "info string opening book hit for {:?}", power);
+                book_orders
+            } else {
+                match phase {
+                    Phase::Retreat => {
+                        let state = self.position.as_ref().unwrap();
+                        let orders = heuristic_retreat_orders(power, state);
+                        if orders.is_empty() {
+                            random_orders(power, state, &mut self.rng)
+                        } else {
+                            orders
+                        }
                     }
-                }
-                Phase::Build => {
-                    let state = self.position.as_ref().unwrap();
-                    let orders = heuristic_build_orders(power, state);
-                    if orders.is_empty() {
-                        random_orders(power, state, &mut self.rng)
-                    } else {
-                        orders
+                    Phase::Build => {
+                        let state = self.position.as_ref().unwrap();
+                        let orders = heuristic_build_orders(power, state);
+                        if orders.is_empty() {
+                            random_orders(power, state, &mut self.rng)
+                        } else {
+                            orders
+                        }
                     }
+                    _ => unreachable!(),
                 }
-            }
-        };
-
-        let dson = format_orders(&orders);
-
-        // Generate and emit outbound press before bestorders so the Go reader
-        // can collect press_out lines while scanning for bestorders without blocking.
-        if let Some(state) = self.position.as_ref() {
-            let press_out = generate_outbound_press(power, &orders, state, &self.press.trust);
-            for p in &press_out {
-                writeln!(out, "{}", format_press_out(p)).unwrap();
-            }
-            self.press.outbound = press_out;
+            };
+            self.write_search_output(out, &[], &orders);
+            return;
         }
 
-        writeln!(out, "bestorders {}", dson).unwrap();
-        out.flush().unwrap();
+        // Async path: spawn search thread for movement phase.
+        let state = self.position.as_ref().unwrap().clone();
+        let neural = self.neural.clone();
+        let movetime = self.movetime();
+        let strength = self.strength();
+        let trust = self.press.trust.scores;
+        let stop = Arc::clone(&self.stop_flag);
+        stop.store(false, Ordering::Relaxed);
+
+        let handle = std::thread::spawn(move || {
+            let mut info_buf = Vec::new();
+            let mut rng = SmallRng::from_entropy();
+            let result = if strength >= 80 {
+                regret_matching_search(
+                    power,
+                    &state,
+                    movetime,
+                    &mut info_buf,
+                    neural.as_deref(),
+                    strength,
+                    Some(&trust),
+                    &stop,
+                )
+            } else {
+                search(power, &state, movetime, &mut info_buf, &stop)
+            };
+
+            let orders = if result.orders.is_empty() {
+                random_orders(power, &state, &mut rng)
+            } else {
+                result.orders
+            };
+
+            SearchOutput { info_buf, orders }
+        });
+
+        self.search_handle = Some(handle);
+    }
+
+    /// Synchronous `go` for tests: spawns the search and immediately joins.
+    #[cfg(test)]
+    pub fn handle_go_sync<W: Write>(&mut self, out: &mut W) {
+        self.handle_go(out, None);
+        if self.search_handle.is_some() {
+            let result = self.search_handle.take().unwrap().join().unwrap();
+            self.write_search_output(out, &result.info_buf, &result.orders);
+        }
+    }
+
+    /// Returns true if an async search is in flight.
+    pub fn is_searching(&self) -> bool {
+        self.search_handle.is_some()
+    }
+
+    /// Checks if the search thread has finished without blocking.
+    /// If finished, writes output and returns true.
+    pub fn poll_search_done<W: Write>(&mut self, out: &mut W) -> bool {
+        let finished = match &self.search_handle {
+            Some(h) => h.is_finished(),
+            None => return false,
+        };
+        if finished {
+            self.collect_search_result(out);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Joins the search thread and writes buffered output + bestorders.
+    pub fn collect_search_result<W: Write>(&mut self, out: &mut W) {
+        if let Some(handle) = self.search_handle.take() {
+            match handle.join() {
+                Ok(result) => {
+                    self.write_search_output(out, &result.info_buf, &result.orders);
+                }
+                Err(_) => {
+                    eprintln!("search thread panicked");
+                }
+            }
+        }
+    }
+
+    /// Sets the stop flag, joins the search thread, and writes output.
+    pub fn handle_stop<W: Write>(&mut self, out: &mut W) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+        self.collect_search_result(out);
+    }
+
+    /// Sets the stop flag, joins the search thread, and discards output.
+    pub fn abort_search(&mut self) {
+        if self.search_handle.is_some() {
+            self.stop_flag.store(true, Ordering::Relaxed);
+            if let Some(handle) = self.search_handle.take() {
+                let _ = handle.join();
+            }
+        }
     }
 }
 
@@ -423,7 +550,7 @@ mod tests {
         engine.set_power(Power::Austria);
 
         let mut output = Vec::new();
-        engine.handle_go(&mut output);
+        engine.handle_go_sync(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
         // Output may contain info lines before bestorders
@@ -448,7 +575,7 @@ mod tests {
         engine.set_power(Power::Russia);
 
         let mut output = Vec::new();
-        engine.handle_go(&mut output);
+        engine.handle_go_sync(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
         let bestorders_line = output_str
@@ -531,7 +658,7 @@ mod tests {
         engine.set_power(Power::Austria);
 
         let mut output = Vec::new();
-        engine.handle_go(&mut output);
+        engine.handle_go_sync(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
         assert!(
@@ -583,7 +710,7 @@ mod tests {
         engine.set_power(Power::Austria);
 
         let mut output = Vec::new();
-        engine.handle_go(&mut output);
+        engine.handle_go_sync(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
         assert!(
@@ -606,7 +733,7 @@ mod tests {
         engine.set_power(Power::Austria);
 
         let mut output = Vec::new();
-        engine.handle_go(&mut output);
+        engine.handle_go_sync(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
         assert!(
@@ -647,7 +774,7 @@ mod tests {
         engine.set_power(Power::Austria);
 
         let mut output = Vec::new();
-        engine.handle_go(&mut output);
+        engine.handle_go_sync(&mut output);
 
         let output_str = String::from_utf8(output).unwrap();
         assert!(
@@ -683,7 +810,7 @@ mod tests {
         ] {
             engine.set_power(p);
             let mut output = Vec::new();
-            engine.handle_go(&mut output);
+            engine.handle_go_sync(&mut output);
 
             let output_str = String::from_utf8(output).unwrap();
             assert!(

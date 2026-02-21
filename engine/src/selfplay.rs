@@ -5,7 +5,7 @@
 //! value estimates, and SC counts per phase for reinforcement learning.
 
 use std::io::Write;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use rand::rngs::SmallRng;
@@ -270,9 +270,16 @@ pub fn play_game(config: &SelfPlayConfig, game_id: usize, rng: &mut SmallRng) ->
                             None,
                             config.strength,
                             None,
+                            &AtomicBool::new(false),
                         )
                     } else {
-                        search(power, &state, movetime, &mut null_out)
+                        search(
+                            power,
+                            &state,
+                            movetime,
+                            &mut null_out,
+                            &AtomicBool::new(false),
+                        )
                     };
 
                     let orders = if result.orders.is_empty() {

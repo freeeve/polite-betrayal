@@ -2,6 +2,7 @@
 //!
 //! Run with: cargo test --release profile_rm_search -- --nocapture --ignored
 
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use realpolitik::board::province::{Power, ALL_POWERS, ALL_PROVINCES, PROVINCE_COUNT};
@@ -288,6 +289,7 @@ fn profile_rm_search() {
                 None,
                 100,
                 None,
+                &AtomicBool::new(false),
             );
             let elapsed = start.elapsed();
             let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
@@ -312,6 +314,7 @@ fn profile_rm_search() {
             &state,
             Duration::from_millis(200),
             &mut out,
+            &AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
@@ -337,6 +340,7 @@ fn profile_rm_search() {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         let total_us = elapsed.as_micros() as f64;

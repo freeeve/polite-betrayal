@@ -5,6 +5,7 @@
 //!
 //! Run with: cargo test --release profile_post_opt -- --nocapture --ignored
 
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use realpolitik::board::province::Power;
@@ -45,6 +46,7 @@ fn profile_post_opt() {
                 None,
                 100,
                 None,
+                &AtomicBool::new(false),
             );
             let elapsed = start.elapsed();
             let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
@@ -298,6 +300,7 @@ fn profile_post_opt() {
                     None,
                     100,
                     None,
+                    &AtomicBool::new(false),
                 );
                 let elapsed = start.elapsed();
                 let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
@@ -341,6 +344,7 @@ fn profile_post_opt() {
             None,
             100,
             None,
+            &AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         let nodes_per_sec = result.nodes as f64 / elapsed.as_secs_f64();
