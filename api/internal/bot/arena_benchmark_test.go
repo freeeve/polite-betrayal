@@ -4,7 +4,9 @@ package bot
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -55,6 +57,25 @@ func benchRepos(t *testing.T) (repository.GameRepository, repository.PhaseReposi
 	}
 	t.Cleanup(func() { db.Close() })
 	return postgres.NewGameRepo(db), postgres.NewPhaseRepo(db), postgres.NewUserRepo(db)
+}
+
+// logModelChecksums computes and logs SHA256 checksums for model files in dir.
+func logModelChecksums(t *testing.T, dir string) {
+	t.Helper()
+	for _, name := range []string{"policy_v2.onnx", "value_v2.onnx", "policy_v1.onnx"} {
+		p := filepath.Join(dir, name)
+		f, err := os.Open(p)
+		if err != nil {
+			continue
+		}
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			f.Close()
+			continue
+		}
+		f.Close()
+		t.Logf("Model %s checksum: %.8x", name, h.Sum(nil))
+	}
 }
 
 // BenchmarkResult holds aggregate metrics from a series of arena games.
@@ -615,6 +636,9 @@ func TestBenchmark_RustVsEasy(t *testing.T) {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
 
+	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
+	logModelChecksums(t, modelsDir)
+
 	r := runBenchmarkSuite(t, "rust-france-vs-6-easy", 10, "france=realpolitik,*=easy", 1930)
 	logBenchmarkResults(t, r)
 
@@ -629,6 +653,9 @@ func TestBenchmark_RustVsMedium(t *testing.T) {
 	if os.Getenv("REALPOLITIK_PATH") == "" {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
+
+	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
+	logModelChecksums(t, modelsDir)
 
 	r := runBenchmarkSuite(t, "rust-france-vs-6-medium", 10, "france=realpolitik,*=medium", 1930)
 	logBenchmarkResults(t, r)
@@ -646,6 +673,9 @@ func TestBenchmark_RustVsHard(t *testing.T) {
 		t.Skip("REALPOLITIK_PATH not set")
 	}
 
+	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(enginePath(t)))), "models")
+	logModelChecksums(t, modelsDir)
+
 	r := runBenchmarkSuite(t, "rust-france-vs-6-hard", 3, "france=realpolitik,*=hard", 1905)
 	logBenchmarkResults(t, r)
 }
@@ -660,6 +690,8 @@ func TestBenchmark_GonnxVsMedium(t *testing.T) {
 	origPath := GonnxModelPath
 	GonnxModelPath = modelPath
 	defer func() { GonnxModelPath = origPath }()
+
+	logModelChecksums(t, modelPath)
 
 	numGames := benchNumGames(10)
 	maxYear := 1920
@@ -689,6 +721,9 @@ func TestBenchmark_RustVsEasyAllPowers(t *testing.T) {
 		ExternalEnginePath = origPath
 		ExternalEngineOptions = origOpts
 	}()
+
+	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(bin))), "models")
+	logModelChecksums(t, modelsDir)
 
 	numGames := benchNumGames(100)
 	maxYear := 1930
@@ -723,6 +758,9 @@ func TestBenchmark_RustVsMediumAllPowers(t *testing.T) {
 		ExternalEnginePath = origPath
 		ExternalEngineOptions = origOpts
 	}()
+
+	modelsDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(bin))), "models")
+	logModelChecksums(t, modelsDir)
 
 	numGames := benchNumGames(10)
 	maxYear := 1930
